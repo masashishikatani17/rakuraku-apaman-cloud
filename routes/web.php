@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\BusinessOwnerController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -14,5 +15,14 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/', function () {
-    return view('welcome');
+    return redirect()->route('business-owners.index');
 });
+
+Route::get('/business-owners', [BusinessOwnerController::class, 'index'])
+    ->name('business-owners.index');
+
+Route::get('/business-owners/create', [BusinessOwnerController::class, 'create'])
+    ->name('business-owners.create');
+
+Route::post('/business-owners', [BusinessOwnerController::class, 'store'])
+    ->name('business-owners.store');
