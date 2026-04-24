@@ -12,6 +12,7 @@ class BusinessOwnerController extends Controller
     public function index(): View
     {
         $businessOwners = BusinessOwner::query()
+            ->withCount('books')
             ->orderBy('id')
             ->get();
 

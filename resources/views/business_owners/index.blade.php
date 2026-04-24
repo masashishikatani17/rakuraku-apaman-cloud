@@ -31,7 +31,9 @@
                     <th>種別</th>
                     <th>電話番号</th>
                     <th>メールアドレス</th>
+                    <th>帳簿数</th>
                     <th>状態</th>
+                    <th>操作</th>
                 </tr>
             </thead>
             <tbody>
@@ -43,11 +45,28 @@
                         <td>{{ $businessOwner->owner_type === 'corporate' ? '法人' : '個人' }}</td>
                         <td>{{ $businessOwner->phone ?: '—' }}</td>
                         <td>{{ $businessOwner->email ?: '—' }}</td>
+                        <td>{{ $businessOwner->books_count }} 件</td>
                         <td>{{ $businessOwner->is_active ? '有効' : '停止' }}</td>
+                        <td>
+                            <div class="actions">
+                                <a
+                                    href="{{ route('books.index', ['business_owner_id' => $businessOwner->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    帳簿一覧
+                                </a>
+                                <a
+                                    href="{{ route('books.create', ['business_owner_id' => $businessOwner->id]) }}"
+                                    class="button"
+                                >
+                                    帳簿登録
+                                </a>
+                            </div>
+                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7">まだ事業主が登録されていません。「事業主を新規登録」から最初の1件を作成してください。</td>
+                        <td colspan="9">まだ事業主が登録されていません。「事業主を新規登録」から最初の1件を作成してください。</td>
                     </tr>
                 @endforelse
             </tbody>
