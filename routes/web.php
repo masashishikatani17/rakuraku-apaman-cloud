@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccountTitleController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\BusinessOwnerController;
+use App\Http\Controllers\JournalDescriptionController;
 use App\Http\Controllers\SubAccountTitleController;
 use Illuminate\Support\Facades\Route;
 
@@ -45,3 +46,12 @@ Route::get('/sub-account-titles/create', [SubAccountTitleController::class, 'cre
 
 Route::post('/sub-account-titles', [SubAccountTitleController::class, 'store'])
     ->name('sub-account-titles.store');
+
+Route::get('/journal-descriptions', [JournalDescriptionController::class, 'index'])
+    ->name('journal-descriptions.index');
+
+Route::get('/journal-descriptions/create', [JournalDescriptionController::class, 'create'])
+    ->name('journal-descriptions.create');
+
+Route::post('/journal-descriptions', [JournalDescriptionController::class, 'store'])
+    ->name('journal-descriptions.store');

@@ -47,4 +47,9 @@ class Book extends Model
     {
         return $this->hasMany(AccountTitle::class);
     }
+
+    public function journalDescriptions(): HasMany
+    {
+        return $this->hasMany(JournalDescription::class);
+    }
 }
