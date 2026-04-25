@@ -52,4 +52,9 @@ class Book extends Model
     {
         return $this->hasMany(JournalDescription::class);
     }
+
+    public function departments(): HasMany
+    {
+        return $this->hasMany(Department::class);
+    }
 }

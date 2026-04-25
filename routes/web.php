@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccountTitleController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\BusinessOwnerController;
+use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\JournalDescriptionController;
 use App\Http\Controllers\SubAccountTitleController;
 use Illuminate\Support\Facades\Route;
@@ -55,3 +56,12 @@ Route::get('/journal-descriptions/create', [JournalDescriptionController::class,
 
 Route::post('/journal-descriptions', [JournalDescriptionController::class, 'store'])
     ->name('journal-descriptions.store');
+
+Route::get('/departments', [DepartmentController::class, 'index'])
+    ->name('departments.index');
+
+Route::get('/departments/create', [DepartmentController::class, 'create'])
+    ->name('departments.create');
+
+Route::post('/departments', [DepartmentController::class, 'store'])
+    ->name('departments.store');

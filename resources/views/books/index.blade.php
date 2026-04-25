@@ -66,6 +66,7 @@
                     <th>決算月</th>
                     <th>勘定科目数</th>
                     <th>摘要数</th>
+                    <th>部門数</th>
                     <th>使用中</th>
                     <th>操作</th>
                 </tr>
@@ -94,6 +95,7 @@
                         <td>{{ $book->setting?->closing_month ? $book->setting->closing_month . '月' : '—' }}</td>
                         <td>{{ $book->account_titles_count }} 件</td>
                         <td>{{ $book->journal_descriptions_count }} 件</td>
+                        <td>{{ $book->departments_count }} 件</td>
                         <td>{{ $book->is_active ? '有効' : '停止' }}</td>
                         <td>
                             <div class="actions">
@@ -121,12 +123,24 @@
                                 >
                                     摘要登録
                                 </a>
+                                <a
+                                    href="{{ route('departments.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    部門一覧
+                                </a>
+                                <a
+                                    href="{{ route('departments.create', ['book_id' => $book->id]) }}"
+                                    class="button"
+                                >
+                                    部門登録
+                                </a>
                             </div>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="11">まだ帳簿が登録されていません。「帳簿を新規登録」から最初の1件を作成してください。</td>
+                        <td colspan="12">まだ帳簿が登録されていません。「帳簿を新規登録」から最初の1件を作成してください。</td>
                     </tr>
                 @endforelse
             </tbody>
