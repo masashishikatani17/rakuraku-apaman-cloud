@@ -26,6 +26,7 @@ class AccountTitleController extends Controller
 
         $accountTitlesQuery = AccountTitle::query()
             ->with(['book.businessOwner'])
+            ->withCount('subAccountTitles')
             ->orderBy('book_id')
             ->orderBy('sort_order')
             ->orderBy('account_code');

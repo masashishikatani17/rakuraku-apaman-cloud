@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccountTitleController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\BusinessOwnerController;
+use App\Http\Controllers\SubAccountTitleController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -35,3 +36,12 @@ Route::get('/account-titles/create', [AccountTitleController::class, 'create'])
 
 Route::post('/account-titles', [AccountTitleController::class, 'store'])
     ->name('account-titles.store');
+
+Route::get('/sub-account-titles', [SubAccountTitleController::class, 'index'])
+    ->name('sub-account-titles.index');
+
+Route::get('/sub-account-titles/create', [SubAccountTitleController::class, 'create'])
+    ->name('sub-account-titles.create');
+
+Route::post('/sub-account-titles', [SubAccountTitleController::class, 'store'])
+    ->name('sub-account-titles.store');

@@ -21,7 +21,7 @@
     <div class="page-header">
         <div>
             <h2 class="page-title">勘定科目一覧</h2>
-            <p class="page-description">Access の T_勘定科目 に相当する最初の一覧画面です。</p>
+            <p class="page-description">勘定科目マスタを一覧表示します。</p>
         </div>
         <div class="actions">
             <a
@@ -80,8 +80,10 @@
                     <th>区分</th>
                     <th>通常残高</th>
                     <th>補助科目</th>
+                    <th>補助科目数</th>
                     <th>並び順</th>
                     <th>状態</th>
+                    <th>操作</th>
                 </tr>
             </thead>
             <tbody>
@@ -95,12 +97,33 @@
                         <td>{{ $categoryLabels[$accountTitle->category] ?? $accountTitle->category }}</td>
                         <td>{{ $normalBalanceLabels[$accountTitle->normal_balance] ?? $accountTitle->normal_balance }}</td>
                         <td>{{ $accountTitle->allows_sub_account ? '使用する' : '使用しない' }}</td>
+                        <td>{{ $accountTitle->sub_account_titles_count }} 件</td>
                         <td>{{ $accountTitle->sort_order }}</td>
                         <td>{{ $accountTitle->is_active ? '有効' : '停止' }}</td>
+                        <td>
+                            @if ($accountTitle->allows_sub_account)
+                                <div class="actions">
+                                    <a
+                                        href="{{ route('sub-account-titles.index', ['book_id' => $accountTitle->book_id, 'account_title_id' => $accountTitle->id]) }}"
+                                        class="button button-secondary"
+                                    >
+                                        補助科目一覧
+                                    </a>
+                                    <a
+                                        href="{{ route('sub-account-titles.create', ['book_id' => $accountTitle->book_id, 'account_title_id' => $accountTitle->id]) }}"
+                                        class="button"
+                                    >
+                                        補助科目登録
+                                    </a>
+                                </div>
+                            @else
+                                <span class="muted">補助科目未使用</span>
+                            @endif
+                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10">まだ勘定科目が登録されていません。「勘定科目を新規登録」から最初の1件を作成してください。</td>
+                        <td colspan="12">まだ勘定科目が登録されていません。「勘定科目を新規登録」から最初の1件を作成してください。</td>
                     </tr>
                 @endforelse
             </tbody>
