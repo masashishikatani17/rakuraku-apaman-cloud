@@ -1,19 +1,9 @@
 <?php
 
+use App\Http\Controllers\AccountTitleController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\BusinessOwnerController;
 use Illuminate\Support\Facades\Route;
-
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "web" middleware group. Make something great!
-|
-*/
 
 Route::get('/', function () {
     return redirect()->route('business-owners.index');
@@ -36,3 +26,12 @@ Route::get('/books/create', [BookController::class, 'create'])
 
 Route::post('/books', [BookController::class, 'store'])
     ->name('books.store');
+
+Route::get('/account-titles', [AccountTitleController::class, 'index'])
+    ->name('account-titles.index');
+
+Route::get('/account-titles/create', [AccountTitleController::class, 'create'])
+    ->name('account-titles.create');
+
+Route::post('/account-titles', [AccountTitleController::class, 'store'])
+    ->name('account-titles.store');

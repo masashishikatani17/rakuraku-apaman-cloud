@@ -25,6 +25,7 @@ class BookController extends Controller
 
         $booksQuery = Book::query()
             ->with(['businessOwner', 'setting'])
+            ->withCount('accountTitles')
             ->orderBy('business_owner_id')
             ->orderByDesc('period_start_date')
             ->orderBy('id');

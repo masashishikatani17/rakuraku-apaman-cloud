@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -40,5 +41,10 @@ class Book extends Model
     public function setting(): HasOne
     {
         return $this->hasOne(BookSetting::class);
+    }
+
+    public function accountTitles(): HasMany
+    {
+        return $this->hasMany(AccountTitle::class);
     }
 }
