@@ -149,6 +149,12 @@
                                 >
                                     仕訳登録
                                 </a>
+                                <a
+                                    href="{{ route('trial-balances.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    残高試算表
+                                </a>
                             </div>
                         </td>
                     </tr>

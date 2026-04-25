@@ -7,6 +7,7 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\JournalDescriptionController;
 use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\SubAccountTitleController;
+use App\Http\Controllers\TrialBalanceController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -84,3 +85,6 @@ Route::put('/journal-entries/{journalEntry}', [JournalEntryController::class, 'u
 
 Route::delete('/journal-entries/{journalEntry}', [JournalEntryController::class, 'destroy'])
     ->name('journal-entries.destroy');
+
+Route::get('/trial-balances', [TrialBalanceController::class, 'index'])
+    ->name('trial-balances.index');
