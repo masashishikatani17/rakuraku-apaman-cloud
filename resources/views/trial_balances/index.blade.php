@@ -24,6 +24,14 @@
             <p class="page-description">登録済の仕訳を勘定科目ごとに集計する初版です。</p>
         </div>
         <div class="actions">
+            @if ($selectedBookId)
+                <a
+                    href="{{ route('general-ledgers.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
+                >
+                    総勘定元帳へ
+                </a>
+            @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
     </div>
@@ -156,6 +164,7 @@
                     <th>貸方合計</th>
                     <th>期末残高</th>
                     <th>状態</th>
+                    <th>元帳</th>
                 </tr>
             </thead>
             <tbody>
@@ -174,10 +183,18 @@
                             @endif
                         </td>
                         <td>{{ $row->is_active ? '有効' : '停止' }}</td>
+                        <td>
+                            <a
+                                href="{{ route('general-ledgers.index', ['book_id' => $selectedBookId, 'account_title_id' => $row->account_title_id, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                                class="button button-secondary"
+                            >
+                                元帳
+                            </a>
+                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8">表示できる勘定科目がありません。勘定科目と仕訳を登録してから再度確認してください。</td>
+                        <td colspan="9">表示できる勘定科目がありません。勘定科目と仕訳を登録してから再度確認してください。</td>
                     </tr>
                 @endforelse
             </tbody>

@@ -4,6 +4,7 @@ use App\Http\Controllers\AccountTitleController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\BusinessOwnerController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\JournalDescriptionController;
 use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\SubAccountTitleController;
@@ -88,3 +89,6 @@ Route::delete('/journal-entries/{journalEntry}', [JournalEntryController::class,
 
 Route::get('/trial-balances', [TrialBalanceController::class, 'index'])
     ->name('trial-balances.index');
+
+Route::get('/general-ledgers', [GeneralLedgerController::class, 'index'])
+    ->name('general-ledgers.index');

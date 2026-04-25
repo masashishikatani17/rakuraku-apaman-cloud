@@ -155,6 +155,12 @@
                                 >
                                     残高試算表
                                 </a>
+                                <a
+                                    href="{{ route('general-ledgers.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    総勘定元帳
+                                </a>
                             </div>
                         </td>
                     </tr>
