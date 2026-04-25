@@ -57,4 +57,9 @@ class Book extends Model
     {
         return $this->hasMany(Department::class);
     }
+
+    public function journalEntries(): HasMany
+    {
+        return $this->hasMany(JournalEntry::class);
+    }
 }

@@ -5,6 +5,7 @@ use App\Http\Controllers\BookController;
 use App\Http\Controllers\BusinessOwnerController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\JournalDescriptionController;
+use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\SubAccountTitleController;
 use Illuminate\Support\Facades\Route;
 
@@ -65,3 +66,21 @@ Route::get('/departments/create', [DepartmentController::class, 'create'])
 
 Route::post('/departments', [DepartmentController::class, 'store'])
     ->name('departments.store');
+
+Route::get('/journal-entries', [JournalEntryController::class, 'index'])
+    ->name('journal-entries.index');
+
+Route::get('/journal-entries/create', [JournalEntryController::class, 'create'])
+    ->name('journal-entries.create');
+
+Route::post('/journal-entries', [JournalEntryController::class, 'store'])
+    ->name('journal-entries.store');
+
+Route::get('/journal-entries/{journalEntry}/edit', [JournalEntryController::class, 'edit'])
+    ->name('journal-entries.edit');
+
+Route::put('/journal-entries/{journalEntry}', [JournalEntryController::class, 'update'])
+    ->name('journal-entries.update');
+
+Route::delete('/journal-entries/{journalEntry}', [JournalEntryController::class, 'destroy'])
+    ->name('journal-entries.destroy');
