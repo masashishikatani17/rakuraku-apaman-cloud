@@ -1,6 +1,3 @@
---- a/app/Http/Controllers/CashBankLedgerController.php
- b/app/Http/Controllers/CashBankLedgerController.php
-@@
 <?php
 
 namespace App\Http\Controllers;
