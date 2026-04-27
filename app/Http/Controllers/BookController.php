@@ -29,6 +29,8 @@ class BookController extends Controller
                 'propertyOwners',
                 'propertyCategories',
                 'properties',
+                'contractTenants',
+                'rentalContracts',
                 'accountTitles',
                 'journalDescriptions',
                 'departments',

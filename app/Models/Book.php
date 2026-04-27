@@ -58,6 +58,16 @@ class Book extends Model
         return $this->hasMany(Property::class);
     }
 
+    public function contractTenants(): HasMany
+    {
+        return $this->hasMany(ContractTenant::class);
+    }
+
+    public function rentalContracts(): HasMany
+    {
+        return $this->hasMany(RentalContract::class);
+    }
+
     public function accountTitles(): HasMany
     {
         return $this->hasMany(AccountTitle::class);

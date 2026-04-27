@@ -85,4 +85,9 @@ class Property extends Model
     {
         return $this->hasMany(PropertyUnit::class);
     }
+
+    public function rentalContracts(): HasMany
+    {
+        return $this->hasMany(RentalContract::class);
+    }
 }

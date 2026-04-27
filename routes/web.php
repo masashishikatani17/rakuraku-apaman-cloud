@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccountTitleController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\BusinessOwnerController;
+use App\Http\Controllers\ContractTenantController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\JournalDescriptionController;
@@ -108,6 +109,24 @@ Route::put('/property-units/{propertyUnit}', [PropertyUnitController::class, 'up
 
 Route::delete('/property-units/{propertyUnit}', [PropertyUnitController::class, 'destroy'])
     ->name('property-units.destroy');
+
+Route::get('/contract-tenants', [ContractTenantController::class, 'index'])
+    ->name('contract-tenants.index');
+
+Route::get('/contract-tenants/create', [ContractTenantController::class, 'create'])
+    ->name('contract-tenants.create');
+
+Route::post('/contract-tenants', [ContractTenantController::class, 'store'])
+    ->name('contract-tenants.store');
+
+Route::get('/contract-tenants/{contractTenant}/edit', [ContractTenantController::class, 'edit'])
+    ->name('contract-tenants.edit');
+
+Route::put('/contract-tenants/{contractTenant}', [ContractTenantController::class, 'update'])
+    ->name('contract-tenants.update');
+
+Route::delete('/contract-tenants/{contractTenant}', [ContractTenantController::class, 'destroy'])
+    ->name('contract-tenants.destroy');
 
 Route::get('/account-titles', [AccountTitleController::class, 'index'])
     ->name('account-titles.index');
