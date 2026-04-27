@@ -25,6 +25,12 @@
         </div>
     @endif
 
+    @if (session('error'))
+        <div class="alert alert-error">
+            {{ session('error') }}
+        </div>
+    @endif
+
     <div class="card" style="margin-bottom: 16px;">
         <form method="GET" action="{{ route('properties.index') }}">
             <div class="form-grid">
@@ -68,6 +74,7 @@
                     <th>築年月日</th>
                     <th>建物構造 / 階数</th>
                     <th>駐車合計</th>
+                    <th>部屋・区画数</th>
                     <th>状態</th>
                     <th>操作</th>
                 </tr>
@@ -116,9 +123,22 @@
                             @endif
                         </td>
                         <td>{{ $property->parking_total ?? 0 }}</td>
+                        <td>{{ $property->units_count }} 件</td>
                         <td>{{ $property->is_active ? '有効' : '停止' }}</td>
                         <td>
                             <div class="actions">
+                                <a
+                                    href="{{ route('property-units.index', ['book_id' => $property->book_id, 'property_id' => $property->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    部屋・区画一覧
+                                </a>
+                                <a
+                                    href="{{ route('property-units.create', ['book_id' => $property->book_id, 'property_id' => $property->id]) }}"
+                                    class="button"
+                                >
+                                    部屋・区画登録
+                                </a>
                                 <a
                                     href="{{ route('properties.edit', $property) }}"
                                     class="button button-secondary"
@@ -147,7 +167,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="13">まだ物件が登録されていません。「物件を新規登録」から最初の1件を作成してください。</td>
+                        <td colspan="14">まだ物件が登録されていません。「物件を新規登録」から最初の1件を作成してください。</td>
                     </tr>
                 @endforelse
             </tbody>

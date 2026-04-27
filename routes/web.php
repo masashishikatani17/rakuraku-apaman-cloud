@@ -10,6 +10,7 @@ use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\PropertyCategoryController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\PropertyOwnerController;
+use App\Http\Controllers\PropertyUnitController;
 use App\Http\Controllers\SubAccountTitleController;
 use App\Http\Controllers\TrialBalanceController;
 use Illuminate\Support\Facades\Route;
@@ -89,6 +90,24 @@ Route::put('/properties/{property}', [PropertyController::class, 'update'])
 
 Route::delete('/properties/{property}', [PropertyController::class, 'destroy'])
     ->name('properties.destroy');
+
+Route::get('/property-units', [PropertyUnitController::class, 'index'])
+    ->name('property-units.index');
+
+Route::get('/property-units/create', [PropertyUnitController::class, 'create'])
+    ->name('property-units.create');
+
+Route::post('/property-units', [PropertyUnitController::class, 'store'])
+    ->name('property-units.store');
+
+Route::get('/property-units/{propertyUnit}/edit', [PropertyUnitController::class, 'edit'])
+    ->name('property-units.edit');
+
+Route::put('/property-units/{propertyUnit}', [PropertyUnitController::class, 'update'])
+    ->name('property-units.update');
+
+Route::delete('/property-units/{propertyUnit}', [PropertyUnitController::class, 'destroy'])
+    ->name('property-units.destroy');
 
 Route::get('/account-titles', [AccountTitleController::class, 'index'])
     ->name('account-titles.index');

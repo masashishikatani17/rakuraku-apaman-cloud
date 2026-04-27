@@ -28,6 +28,7 @@ class PropertyController extends Controller
                 'primaryOwner',
                 'representativeOwner',
             ])
+            ->withCount('units')
             ->orderBy('book_id')
             ->orderBy('sort_order')
             ->orderBy('property_code')
@@ -69,14 +70,12 @@ class PropertyController extends Controller
         if ($selectedBookId !== null) {
             $propertyCategories = PropertyCategory::query()
                 ->where('book_id', $selectedBookId)
-                ->where('is_active', true)
                 ->orderBy('sort_order')
                 ->orderBy('category_code')
                 ->get();
 
             $propertyOwners = PropertyOwner::query()
                 ->where('book_id', $selectedBookId)
-                ->where('is_active', true)
                 ->orderBy('sort_order')
                 ->orderBy('owner_code')
                 ->get();
@@ -105,8 +104,8 @@ class PropertyController extends Controller
         $validated['sort_order'] = $validated['sort_order'] ?? 0;
         $validated['parking_total'] = $validated['parking_total']
             ?? (($validated['parking_monthly_indoor'] ?? 0)
-                 ($validated['parking_monthly_outdoor'] ?? 0)
-                 ($validated['parking_hourly'] ?? 0));
+                + ($validated['parking_monthly_outdoor'] ?? 0)
+                + ($validated['parking_hourly'] ?? 0));
 
         Property::create($validated);
 
@@ -166,6 +165,12 @@ class PropertyController extends Controller
     {
         $bookId = (int) $property->book_id;
 
+        if ($property->units()->exists()) {
+            return redirect()
+                ->route('properties.index', ['book_id' => $bookId])
+                ->with('error', 'この物件には部屋・区画が登録されているため削除できません。');
+        }
+
         $property->delete();
 
         return redirect()
@@ -191,9 +196,7 @@ class PropertyController extends Controller
                 'required',
                 'integer',
                 Rule::exists('property_categories', 'id')->where(
-                    fn ($query) => $query
-                        ->where('book_id', $bookId)
-                        ->where('is_active', true)
+                    fn ($query) => $query->where('book_id', $bookId)
                 ),
             ],
             'property_code' => ['required', 'string', 'max:20', $uniquePropertyCodeRule],
@@ -208,18 +211,14 @@ class PropertyController extends Controller
                 'required',
                 'integer',
                 Rule::exists('property_owners', 'id')->where(
-                    fn ($query) => $query
-                        ->where('book_id', $bookId)
-                        ->where('is_active', true)
+                    fn ($query) => $query->where('book_id', $bookId)
                 ),
             ],
             'representative_owner_id' => [
                 'nullable',
                 'integer',
                 Rule::exists('property_owners', 'id')->where(
-                    fn ($query) => $query
-                        ->where('book_id', $bookId)
-                        ->where('is_active', true)
+                    fn ($query) => $query->where('book_id', $bookId)
                 ),
             ],
             'right_form' => ['nullable', 'string', 'max:50'],
