@@ -17,6 +17,7 @@ class PaymentReceipt extends Model
         'contract_tenant_id',
         'payment_item_id',
         'payment_account_id',
+        'journal_entry_id',
         'received_on',
         'amount',
         'payer_name',
@@ -31,6 +32,7 @@ class PaymentReceipt extends Model
         'contract_tenant_id' => 'integer',
         'payment_item_id' => 'integer',
         'payment_account_id' => 'integer',
+        'journal_entry_id' => 'integer',
         'received_on' => 'date',
         'amount' => 'decimal:2',
     ];
@@ -63,5 +65,10 @@ class PaymentReceipt extends Model
     public function paymentAccount(): BelongsTo
     {
         return $this->belongsTo(PaymentAccount::class);
+    }
+
+    public function journalEntry(): BelongsTo
+    {
+        return $this->belongsTo(JournalEntry::class);
     }
 }

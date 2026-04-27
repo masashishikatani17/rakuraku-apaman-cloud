@@ -12,6 +12,7 @@ use App\Http\Controllers\PaymentAccountController;
 use App\Http\Controllers\PaymentItemController;
 use App\Http\Controllers\PaymentReceiptController;
 use App\Http\Controllers\PaymentScheduleController;
+use App\Http\Controllers\RentalPaymentJournalController;
 use App\Http\Controllers\PropertyCategoryController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\PropertyOwnerController;
@@ -203,6 +204,12 @@ Route::put('/payment-receipts/{paymentReceipt}', [PaymentReceiptController::clas
 
 Route::delete('/payment-receipts/{paymentReceipt}', [PaymentReceiptController::class, 'destroy'])
     ->name('payment-receipts.destroy');
+
+Route::get('/rental-payment-journals', [RentalPaymentJournalController::class, 'index'])
+    ->name('rental-payment-journals.index');
+
+Route::post('/rental-payment-journals/{paymentReceipt}', [RentalPaymentJournalController::class, 'store'])
+    ->name('rental-payment-journals.store');
 
 Route::get('/account-titles', [AccountTitleController::class, 'index'])
     ->name('account-titles.index');

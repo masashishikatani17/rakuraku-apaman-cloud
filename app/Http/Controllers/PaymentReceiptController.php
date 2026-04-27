@@ -135,6 +135,12 @@ class PaymentReceiptController extends Controller
         $bookId = (int) $paymentReceipt->book_id;
         $oldScheduleId = (int) $paymentReceipt->payment_schedule_id;
 
+        if ($paymentReceipt->journal_entry_id !== null) {
+            return redirect()
+                ->route('payment-receipts.index', ['book_id' => $bookId])
+                ->with('error', 'この入金は仕訳作成済みのため修正できません。先に仕訳の取消処理が必要です。');
+        }
+
         $validated = $this->validatePayload($request, $bookId);
 
         DB::transaction(function () use ($paymentReceipt, $validated, $bookId, $oldScheduleId): void {
@@ -169,6 +175,12 @@ class PaymentReceiptController extends Controller
     {
         $bookId = (int) $paymentReceipt->book_id;
         $scheduleId = (int) $paymentReceipt->payment_schedule_id;
+
+        if ($paymentReceipt->journal_entry_id !== null) {
+            return redirect()
+                ->route('payment-receipts.index', ['book_id' => $bookId])
+                ->with('error', 'この入金は仕訳作成済みのため削除できません。先に仕訳の取消処理が必要です。');
+        }
 
         DB::transaction(function () use ($paymentReceipt, $scheduleId): void {
             $paymentReceipt->delete();

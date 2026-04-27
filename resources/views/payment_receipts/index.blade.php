@@ -17,12 +17,22 @@
         </div>
         <div class="actions">
             <a href="{{ $selectedBookId ? route('payment-receipts.create', ['book_id' => $selectedBookId]) : route('payment-receipts.create') }}" class="button">入金を新規登録</a>
+            <a
+                href="{{ $selectedBookId ? route('rental-payment-journals.index', ['book_id' => $selectedBookId]) : route('rental-payment-journals.index') }}"
+                class="button button-secondary"
+            >
+                賃貸仕訳処理へ
+            </a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
     </div>
 
     @if (session('status'))
         <div class="alert alert-success">{{ session('status') }}</div>
+    @endif
+
+    @if (session('error'))
+        <div class="alert alert-error">{{ session('error') }}</div>
     @endif
 
     <div class="card" style="margin-bottom: 16px;">

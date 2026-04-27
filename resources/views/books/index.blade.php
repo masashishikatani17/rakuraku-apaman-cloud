@@ -216,6 +216,12 @@
                                     入金登録
                                 </a>
                                 <a
+                                    href="{{ route('rental-payment-journals.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    賃貸仕訳処理
+                                </a>
+                                <a
                                     href="{{ route('account-titles.index', ['book_id' => $book->id]) }}"
                                     class="button button-secondary"
                                 >
