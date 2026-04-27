@@ -211,6 +211,9 @@ Route::get('/rental-payment-journals', [RentalPaymentJournalController::class, '
 Route::post('/rental-payment-journals/{paymentReceipt}', [RentalPaymentJournalController::class, 'store'])
     ->name('rental-payment-journals.store');
 
+Route::delete('/rental-payment-journals/{paymentReceipt}', [RentalPaymentJournalController::class, 'destroy'])
+    ->name('rental-payment-journals.destroy');
+
 Route::get('/account-titles', [AccountTitleController::class, 'index'])
     ->name('account-titles.index');
 

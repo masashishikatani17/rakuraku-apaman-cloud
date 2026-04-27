@@ -1,6 +1,3 @@
---- a/app/Http/Controllers/RentalPaymentJournalController.php
- b/app/Http/Controllers/RentalPaymentJournalController.php
-@@
 <?php
 
 namespace App\Http\Controllers;
@@ -83,7 +80,7 @@ class RentalPaymentJournalController extends Controller
         if ($paymentReceipt->journal_entry_id !== null) {
             return redirect()
                 ->route('rental-payment-journals.index', ['book_id' => $bookId])
-                ->with('error', 'この入金はすでに仕訳作成済みです。');
+                ->with('error', 'この入金はすでに仕訳作成済みです。再作成する場合は、先に仕訳取消を行ってください。');
         }
 
         $paymentAccount = $paymentReceipt->paymentAccount
@@ -141,6 +138,49 @@ class RentalPaymentJournalController extends Controller
         return redirect()
             ->route('rental-payment-journals.index', ['book_id' => $bookId])
             ->with('status', '賃貸入金仕訳を作成しました。');
+    }
+
+    public function destroy(PaymentReceipt $paymentReceipt): RedirectResponse
+    {
+        $paymentReceipt->load(['journalEntry']);
+
+        $bookId = (int) $paymentReceipt->book_id;
+
+        if ($paymentReceipt->journal_entry_id === null) {
+            return redirect()
+                ->route('rental-payment-journals.index', ['book_id' => $bookId])
+                ->with('error', 'この入金には取消対象の仕訳がありません。');
+        }
+
+        $journalEntry = $paymentReceipt->journalEntry;
+
+        if ($journalEntry === null) {
+            $paymentReceipt->update([
+                'journal_entry_id' => null,
+            ]);
+
+            return redirect()
+                ->route('rental-payment-journals.index', ['book_id' => $bookId])
+                ->with('status', '仕訳が見つからなかったため、入金側の仕訳紐づけだけ解除しました。');
+        }
+
+        if ($journalEntry->entry_type !== 'rental_payment') {
+            return redirect()
+                ->route('rental-payment-journals.index', ['book_id' => $bookId])
+                ->with('error', 'この仕訳は賃貸入金から作成された仕訳ではないため、この画面からは取消できません。');
+        }
+
+        DB::transaction(function () use ($paymentReceipt, $journalEntry): void {
+            $paymentReceipt->update([
+                'journal_entry_id' => null,
+            ]);
+
+            $journalEntry->delete();
+        });
+
+        return redirect()
+            ->route('rental-payment-journals.index', ['book_id' => $bookId])
+            ->with('status', '賃貸入金仕訳を取り消しました。必要に応じて入金を修正し、再度仕訳作成してください。');
     }
 
     private function validateJournalMapping(

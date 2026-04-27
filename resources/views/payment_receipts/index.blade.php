@@ -100,14 +100,24 @@
                         <td>{{ $paymentReceipt->payer_name ?: '—' }}</td>
                         <td>{{ $statusLabels[$paymentReceipt->status] ?? $paymentReceipt->status }}</td>
                         <td>
-                            <div class="actions">
-                                <a href="{{ route('payment-receipts.edit', $paymentReceipt) }}" class="button button-secondary">修正</a>
-                                <form method="POST" action="{{ route('payment-receipts.destroy', $paymentReceipt) }}" onsubmit="return confirm('この入金を削除しますか？');" style="display:inline-block; margin:0;">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="button" style="background:#dc2626;">削除</button>
-                                </form>
-                            </div>
+                            @if ($paymentReceipt->journal_entry_id)
+                                <div class="muted">仕訳作成済</div>
+                                <a
+                                    href="{{ route('rental-payment-journals.index', ['book_id' => $paymentReceipt->book_id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    賃貸仕訳処理へ
+                                </a>
+                            @else
+                                <div class="actions">
+                                    <a href="{{ route('payment-receipts.edit', $paymentReceipt) }}" class="button button-secondary">修正</a>
+                                    <form method="POST" action="{{ route('payment-receipts.destroy', $paymentReceipt) }}" onsubmit="return confirm('この入金を削除しますか？');" style="display:inline-block; margin:0;">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="button" style="background:#dc2626;">削除</button>
+                                    </form>
+                                </div>
+                            @endif
                         </td>
                     </tr>
                 @empty
