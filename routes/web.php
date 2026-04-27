@@ -7,6 +7,7 @@ use App\Http\Controllers\ContractTenantController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\JournalDescriptionController;
+use App\Http\Controllers\JournalDiaryController;
 use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\MonthlyPaymentScheduleController;
 use App\Http\Controllers\PaymentAccountController;
@@ -277,6 +278,9 @@ Route::put('/journal-entries/{journalEntry}', [JournalEntryController::class, 'u
 
 Route::delete('/journal-entries/{journalEntry}', [JournalEntryController::class, 'destroy'])
     ->name('journal-entries.destroy');
+
+Route::get('/journal-diaries', [JournalDiaryController::class, 'index'])
+    ->name('journal-diaries.index');
 
 Route::get('/trial-balances', [TrialBalanceController::class, 'index'])
     ->name('trial-balances.index');

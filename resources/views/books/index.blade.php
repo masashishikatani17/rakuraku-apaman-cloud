@@ -270,6 +270,12 @@
                                     仕訳一覧
                                 </a>
                                 <a
+                                    href="{{ route('journal-diaries.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    仕訳日記帳
+                                </a>
+                                <a
                                     href="{{ route('journal-entries.create', ['book_id' => $book->id]) }}"
                                     class="button"
                                 >
