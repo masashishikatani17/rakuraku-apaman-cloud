@@ -8,6 +8,16 @@
             'confirmed' => '確定',
             'cancelled' => '取消',
         ];
+
+        $eligibleCount = $paymentReceipts->filter(function ($paymentReceipt) {
+            $paymentAccount = $paymentReceipt->paymentAccount ?? $paymentReceipt->paymentSchedule?->paymentAccount;
+            $paymentItem = $paymentReceipt->paymentItem;
+
+            return $paymentReceipt->status === 'confirmed'
+                && $paymentReceipt->journal_entry_id === null
+                && $paymentAccount?->accountTitle !== null
+                && $paymentItem?->accountTitle !== null;
+        })->count();
     @endphp
 
     <div class="page-header">
@@ -28,7 +38,7 @@
 
     <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
         初版では、確定済の入金1件につき、借方1行・貸方1行の仕訳を作成します。
-        仕訳作成後に入金を修正したい場合は、この画面で「仕訳取消」を行ってから入金を修正し、再度「仕訳作成」してください。
+        今回から、選択中の帳簿について未作成の賃貸仕訳を一括作成できます。
     </div>
 
     @if (session('status'))
@@ -67,6 +77,47 @@
                 <a href="{{ route('rental-payment-journals.index') }}" class="button button-secondary">条件をクリア</a>
             </div>
         </form>
+    </div>
+
+    <div class="card" style="margin-bottom: 16px;">
+        <div class="form-grid">
+            <div class="field">
+                <label>表示中の対象入金件数</label>
+                <div>{{ $paymentReceipts->count() }} 件</div>
+            </div>
+
+            <div class="field">
+                <label>一括作成できる件数</label>
+                <div style="{{ $eligibleCount > 0 ? 'color: #166534;' : '' }}">
+                    {{ $eligibleCount }} 件
+                </div>
+            </div>
+        </div>
+
+        <div class="actions" style="margin-top: 16px;">
+            @if ($selectedBookId)
+                <form
+                    method="POST"
+                    action="{{ route('rental-payment-journals.bulk-store') }}"
+                    onsubmit="return confirm('選択中の帳簿について、未作成の賃貸入金仕訳を一括作成しますか？');"
+                    style="display: inline-block; margin: 0;"
+                >
+                    @csrf
+                    <input type="hidden" name="book_id" value="{{ $selectedBookId }}">
+                    <button
+                        type="submit"
+                        class="button"
+                        {{ $eligibleCount === 0 ? 'disabled' : '' }}
+                    >
+                        未作成仕訳を一括作成
+                    </button>
+                </form>
+            @else
+                <div class="muted">
+                    一括作成を行う場合は、まず帳簿で絞り込んでください。
+                </div>
+            @endif
+        </div>
     </div>
 
     <div class="card">
