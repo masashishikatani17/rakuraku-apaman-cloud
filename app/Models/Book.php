@@ -43,8 +43,68 @@ class Book extends Model
         return $this->hasOne(BookSetting::class);
     }
 
+    public function propertyOwners(): HasMany
+    {
+        return $this->hasMany(PropertyOwner::class);
+    }
+
+    public function propertyCategories(): HasMany
+    {
+        return $this->hasMany(PropertyCategory::class);
+    }
+
+    public function properties(): HasMany
+    {
+        return $this->hasMany(Property::class);
+    }
+
+    public function contractTenants(): HasMany
+    {
+        return $this->hasMany(ContractTenant::class);
+    }
+
+    public function rentalContracts(): HasMany
+    {
+        return $this->hasMany(RentalContract::class);
+    }
+
+    public function paymentItems(): HasMany
+    {
+        return $this->hasMany(PaymentItem::class);
+    }
+
+    public function paymentAccounts(): HasMany
+    {
+        return $this->hasMany(PaymentAccount::class);
+    }
+
+    public function paymentSchedules(): HasMany
+    {
+        return $this->hasMany(PaymentSchedule::class);
+    }
+
+    public function paymentReceipts(): HasMany
+    {
+        return $this->hasMany(PaymentReceipt::class);
+    }
+
     public function accountTitles(): HasMany
     {
         return $this->hasMany(AccountTitle::class);
+    }
+
+    public function journalDescriptions(): HasMany
+    {
+        return $this->hasMany(JournalDescription::class);
+    }
+
+    public function departments(): HasMany
+    {
+        return $this->hasMany(Department::class);
+    }
+
+    public function journalEntries(): HasMany
+    {
+        return $this->hasMany(JournalEntry::class);
     }
 }

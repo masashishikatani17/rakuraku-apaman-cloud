@@ -1,0 +1,138 @@
+@extends('layouts.app')
+
+@section('title', '入金項目一覧')
+
+@section('content')
+    @php
+        $itemTypeLabels = [
+            'rent' => '家賃',
+            'common_service' => '共益費',
+            'parking' => '駐車料',
+            'deposit' => '敷金',
+            'key_money' => '礼金',
+            'other' => 'その他',
+        ];
+    @endphp
+
+    <div class="page-header">
+        <div>
+            <h2 class="page-title">入金項目一覧</h2>
+            <p class="page-description">Access の MT_入金項目 に対応する最初の一覧画面です。</p>
+        </div>
+        <div class="actions">
+            <a
+                href="{{ $selectedBookId ? route('payment-items.create', ['book_id' => $selectedBookId]) : route('payment-items.create') }}"
+                class="button"
+            >
+                入金項目を新規登録
+            </a>
+            <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
+        </div>
+    </div>
+
+    @if (session('status'))
+        <div class="alert alert-success">
+            {{ session('status') }}
+        </div>
+    @endif
+
+    <div class="card" style="margin-bottom: 16px;">
+        <form method="GET" action="{{ route('payment-items.index') }}">
+            <div class="form-grid">
+                <div class="field">
+                    <label for="book_id">帳簿で絞り込み</label>
+                    <select id="book_id" name="book_id">
+                        <option value="">すべて表示</option>
+                        @foreach ($books as $book)
+                            <option
+                                value="{{ $book->id }}"
+                                {{ (string) $selectedBookId === (string) $book->id ? 'selected' : '' }}
+                            >
+                                {{ ($book->businessOwner?->name ?? '事業主未設定') . ' / ' . $book->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+
+            <div class="actions" style="margin-top: 16px;">
+                <button type="submit" class="button">絞り込む</button>
+                <a href="{{ route('payment-items.index') }}" class="button button-secondary">条件をクリア</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="card">
+        <p class="muted">登録件数: {{ $paymentItems->count() }} 件</p>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>事業主 / 帳簿</th>
+                    <th>入金項目CODE</th>
+                    <th>入金項目名</th>
+                    <th>種別</th>
+                    <th>標準金額</th>
+                    <th>会計科目</th>
+                    <th>補助科目</th>
+                    <th>月次</th>
+                    <th>状態</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse ($paymentItems as $paymentItem)
+                    <tr>
+                        <td>{{ $paymentItem->id }}</td>
+                        <td>
+                            {{ $paymentItem->book?->businessOwner?->name ?? '—' }}
+                            /
+                            {{ $paymentItem->book?->name ?? '—' }}
+                        </td>
+                        <td>{{ $paymentItem->item_code }}</td>
+                        <td>{{ $paymentItem->name }}</td>
+                        <td>{{ $itemTypeLabels[$paymentItem->item_type] ?? $paymentItem->item_type }}</td>
+                        <td>{{ number_format((float) $paymentItem->default_amount, 2) }}</td>
+                        <td>
+                            @if ($paymentItem->accountTitle)
+                                {{ $paymentItem->accountTitle->account_code }} / {{ $paymentItem->accountTitle->name }}
+                            @else
+                                —
+                            @endif
+                        </td>
+                        <td>
+                            @if ($paymentItem->subAccountTitle)
+                                {{ $paymentItem->subAccountTitle->sub_account_code }} / {{ $paymentItem->subAccountTitle->name }}
+                            @else
+                                —
+                            @endif
+                        </td>
+                        <td>{{ $paymentItem->is_monthly ? '対象' : '対象外' }}</td>
+                        <td>{{ $paymentItem->is_active ? '有効' : '停止' }}</td>
+                        <td>
+                            <div class="actions">
+                                <a href="{{ route('payment-items.edit', $paymentItem) }}" class="button button-secondary">修正</a>
+
+                                <form
+                                    method="POST"
+                                    action="{{ route('payment-items.destroy', $paymentItem) }}"
+                                    onsubmit="return confirm('この入金項目を削除しますか？');"
+                                    style="display: inline-block; margin: 0;"
+                                >
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="button" style="background: #dc2626;">削除</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="11">まだ入金項目が登録されていません。「入金項目を新規登録」から最初の1件を作成してください。</td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+@endsection

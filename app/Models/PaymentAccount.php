@@ -5,9 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class AccountTitle extends Model
+class PaymentAccount extends Model
 {
     use HasFactory;
 
@@ -15,9 +14,13 @@ class AccountTitle extends Model
         'book_id',
         'account_code',
         'name',
-        'category',
-        'normal_balance',
-        'allows_sub_account',
+        'bank_name',
+        'branch_name',
+        'account_type',
+        'account_number',
+        'account_holder',
+        'account_title_id',
+        'sub_account_title_id',
         'is_active',
         'sort_order',
         'note',
@@ -25,7 +28,8 @@ class AccountTitle extends Model
 
     protected $casts = [
         'book_id' => 'integer',
-        'allows_sub_account' => 'boolean',
+        'account_title_id' => 'integer',
+        'sub_account_title_id' => 'integer',
         'is_active' => 'boolean',
         'sort_order' => 'integer',
     ];
@@ -35,8 +39,13 @@ class AccountTitle extends Model
         return $this->belongsTo(Book::class);
     }
 
-    public function subAccountTitles(): HasMany
+    public function accountTitle(): BelongsTo
     {
-        return $this->hasMany(SubAccountTitle::class);
+        return $this->belongsTo(AccountTitle::class);
+    }
+
+    public function subAccountTitle(): BelongsTo
+    {
+        return $this->belongsTo(SubAccountTitle::class);
     }
 }

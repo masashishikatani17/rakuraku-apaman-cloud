@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AccountTitle;
 use App\Models\Book;
+use App\Models\Department;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
-class AccountTitleController extends Controller
+class DepartmentController extends Controller
 {
     public function index(Request $request): View
     {
@@ -24,22 +24,22 @@ class AccountTitleController extends Controller
             ->orderBy('name')
             ->get();
 
-        $accountTitlesQuery = AccountTitle::query()
+        $departmentsQuery = Department::query()
             ->with(['book.businessOwner'])
-            ->withCount('subAccountTitles')
             ->orderBy('book_id')
             ->orderBy('sort_order')
-            ->orderBy('account_code');
+            ->orderBy('department_code')
+            ->orderBy('id');
 
         if ($selectedBookId !== null) {
-            $accountTitlesQuery->where('book_id', $selectedBookId);
+            $departmentsQuery->where('book_id', $selectedBookId);
         }
 
-        $accountTitles = $accountTitlesQuery->get();
+        $departments = $departmentsQuery->get();
 
-        return view('account_titles.index', [
+        return view('departments.index', [
             'books' => $books,
-            'accountTitles' => $accountTitles,
+            'departments' => $departments,
             'selectedBookId' => $selectedBookId,
         ]);
     }
@@ -57,7 +57,7 @@ class AccountTitleController extends Controller
             ? (int) $request->input('book_id')
             : null;
 
-        return view('account_titles.create', [
+        return view('departments.create', [
             'books' => $books,
             'selectedBookId' => $selectedBookId,
         ]);
@@ -67,31 +67,27 @@ class AccountTitleController extends Controller
     {
         $validated = $request->validate([
             'book_id' => ['required', 'integer', 'exists:books,id'],
-            'account_code' => [
+            'department_code' => [
                 'required',
                 'string',
                 'max:20',
-                Rule::unique('account_titles', 'account_code')->where(
+                Rule::unique('departments', 'department_code')->where(
                     fn ($query) => $query->where('book_id', $request->input('book_id'))
                 ),
             ],
             'name' => ['required', 'string', 'max:120'],
-            'category' => ['required', 'in:asset,liability,equity,revenue,expense'],
-            'normal_balance' => ['required', 'in:debit,credit'],
-            'allows_sub_account' => ['required', 'boolean'],
             'is_active' => ['required', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:999999'],
             'note' => ['nullable', 'string'],
         ]);
 
-        $validated['allows_sub_account'] = $request->boolean('allows_sub_account');
         $validated['is_active'] = $request->boolean('is_active');
         $validated['sort_order'] = $validated['sort_order'] ?? 0;
 
-        AccountTitle::create($validated);
+        Department::create($validated);
 
         return redirect()
-            ->route('account-titles.index', ['book_id' => $validated['book_id']])
-            ->with('status', '勘定科目を登録しました。');
+            ->route('departments.index', ['book_id' => $validated['book_id']])
+            ->with('status', '部門を登録しました。');
     }
 }
