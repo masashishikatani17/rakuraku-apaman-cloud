@@ -7,6 +7,7 @@ use App\Http\Controllers\CashBankLedgerController;
 use App\Http\Controllers\ContractTenantController;
 use App\Http\Controllers\ContractTenantAnnualIncomeReportController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\ExpenseLedgerController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\JournalDescriptionController;
 use App\Http\Controllers\JournalDiaryController;
@@ -299,6 +300,9 @@ Route::get('/cash-ledgers', [CashBankLedgerController::class, 'cashIndex'])
 
 Route::get('/bank-ledgers', [CashBankLedgerController::class, 'bankIndex'])
     ->name('bank-ledgers.index');
+
+Route::get('/expense-ledgers', [ExpenseLedgerController::class, 'index'])
+    ->name('expense-ledgers.index');
 
 Route::get('/reports/property-payments', [PropertyPaymentReportController::class, 'index'])
     ->name('reports.property-payments.index');
