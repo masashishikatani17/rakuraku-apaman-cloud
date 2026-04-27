@@ -7,6 +7,7 @@ use App\Http\Controllers\CashBankLedgerController;
 use App\Http\Controllers\ContractTenantController;
 use App\Http\Controllers\ContractTenantAnnualIncomeReportController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\DepartmentTrialBalanceController;
 use App\Http\Controllers\ExpenseLedgerController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\JournalDescriptionController;
@@ -27,6 +28,8 @@ use App\Http\Controllers\PropertyLedgerReportController;
 use App\Http\Controllers\PropertyOwnerController;
 use App\Http\Controllers\PropertyUnitController;
 use App\Http\Controllers\SubAccountTitleController;
+use App\Http\Controllers\SubAccountReportController;
+use App\Http\Controllers\SubAccountLedgerController;
 use App\Http\Controllers\TrialBalanceController;
 use Illuminate\Support\Facades\Route;
 
@@ -303,6 +306,15 @@ Route::get('/bank-ledgers', [CashBankLedgerController::class, 'bankIndex'])
 
 Route::get('/expense-ledgers', [ExpenseLedgerController::class, 'index'])
     ->name('expense-ledgers.index');
+ 
+Route::get('/department-trial-balances', [DepartmentTrialBalanceController::class, 'index'])
+    ->name('department-trial-balances.index');
+
+Route::get('/reports/sub-accounts', [SubAccountReportController::class, 'index'])
+    ->name('reports.sub-accounts.index');
+
+Route::get('/sub-account-ledgers', [SubAccountLedgerController::class, 'index'])
+    ->name('sub-account-ledgers.index');
 
 Route::get('/reports/property-payments', [PropertyPaymentReportController::class, 'index'])
     ->name('reports.property-payments.index');

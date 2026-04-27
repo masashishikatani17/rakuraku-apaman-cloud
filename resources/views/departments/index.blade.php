@@ -15,6 +15,12 @@
             >
                 部門を新規登録
             </a>
+            <a
+                href="{{ $selectedBookId ? route('department-trial-balances.index', ['book_id' => $selectedBookId]) : route('department-trial-balances.index') }}"
+                class="button button-secondary"
+            >
+                部門別試算表
+            </a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
     </div>

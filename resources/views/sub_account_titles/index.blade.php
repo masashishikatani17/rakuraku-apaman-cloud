@@ -16,6 +16,18 @@
                 補助科目を新規登録
             </a>
             <a
+                href="{{ $selectedBookId ? route('reports.sub-accounts.index', ['book_id' => $selectedBookId]) : route('reports.sub-accounts.index') }}"
+                class="button button-secondary"
+            >
+                補助科目一覧表
+            </a>
+            <a
+                href="{{ $selectedBookId ? route('sub-account-ledgers.index', ['book_id' => $selectedBookId]) : route('sub-account-ledgers.index') }}"
+                class="button button-secondary"
+            >
+                補助科目別元帳
+            </a>
+            <a
                 href="{{ $selectedBookId ? route('account-titles.index', ['book_id' => $selectedBookId]) : route('account-titles.index') }}"
                 class="button button-secondary"
             >
