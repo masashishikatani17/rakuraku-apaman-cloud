@@ -204,6 +204,12 @@
                                     入金予定登録
                                 </a>
                                 <a
+                                    href="{{ route('monthly-payment-schedules.create', ['book_id' => $book->id]) }}"
+                                    class="button"
+                                >
+                                    月次入金予定生成
+                                </a>
+                                <a
                                     href="{{ route('payment-receipts.index', ['book_id' => $book->id]) }}"
                                     class="button button-secondary"
                                 >

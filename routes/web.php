@@ -8,6 +8,7 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\JournalDescriptionController;
 use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\MonthlyPaymentScheduleController;
 use App\Http\Controllers\PaymentAccountController;
 use App\Http\Controllers\PaymentItemController;
 use App\Http\Controllers\PaymentReceiptController;
@@ -168,6 +169,12 @@ Route::put('/payment-accounts/{paymentAccount}', [PaymentAccountController::clas
 
 Route::delete('/payment-accounts/{paymentAccount}', [PaymentAccountController::class, 'destroy'])
     ->name('payment-accounts.destroy');
+
+Route::get('/monthly-payment-schedules/create', [MonthlyPaymentScheduleController::class, 'create'])
+    ->name('monthly-payment-schedules.create');
+
+Route::post('/monthly-payment-schedules', [MonthlyPaymentScheduleController::class, 'store'])
+    ->name('monthly-payment-schedules.store');
 
 Route::get('/payment-schedules', [PaymentScheduleController::class, 'index'])
     ->name('payment-schedules.index');
