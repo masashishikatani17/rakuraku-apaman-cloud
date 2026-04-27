@@ -8,6 +8,8 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\JournalDescriptionController;
 use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\PaymentAccountController;
+use App\Http\Controllers\PaymentItemController;
 use App\Http\Controllers\PropertyCategoryController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\PropertyOwnerController;
@@ -128,6 +130,41 @@ Route::put('/contract-tenants/{contractTenant}', [ContractTenantController::clas
 Route::delete('/contract-tenants/{contractTenant}', [ContractTenantController::class, 'destroy'])
     ->name('contract-tenants.destroy');
 
+Route::get('/payment-items', [PaymentItemController::class, 'index'])
+    ->name('payment-items.index');
+
+Route::get('/payment-items/create', [PaymentItemController::class, 'create'])
+    ->name('payment-items.create');
+
+Route::post('/payment-items', [PaymentItemController::class, 'store'])
+    ->name('payment-items.store');
+
+Route::get('/payment-items/{paymentItem}/edit', [PaymentItemController::class, 'edit'])
+    ->name('payment-items.edit');
+
+Route::put('/payment-items/{paymentItem}', [PaymentItemController::class, 'update'])
+    ->name('payment-items.update');
+
+Route::delete('/payment-items/{paymentItem}', [PaymentItemController::class, 'destroy'])
+    ->name('payment-items.destroy');
+
+Route::get('/payment-accounts', [PaymentAccountController::class, 'index'])
+    ->name('payment-accounts.index');
+
+Route::get('/payment-accounts/create', [PaymentAccountController::class, 'create'])
+    ->name('payment-accounts.create');
+
+Route::post('/payment-accounts', [PaymentAccountController::class, 'store'])
+    ->name('payment-accounts.store');
+
+Route::get('/payment-accounts/{paymentAccount}/edit', [PaymentAccountController::class, 'edit'])
+    ->name('payment-accounts.edit');
+
+Route::put('/payment-accounts/{paymentAccount}', [PaymentAccountController::class, 'update'])
+    ->name('payment-accounts.update');
+
+Route::delete('/payment-accounts/{paymentAccount}', [PaymentAccountController::class, 'destroy'])
+    ->name('payment-accounts.destroy');
 Route::get('/account-titles', [AccountTitleController::class, 'index'])
     ->name('account-titles.index');
 

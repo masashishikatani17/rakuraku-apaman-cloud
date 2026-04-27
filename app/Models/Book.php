@@ -68,6 +68,16 @@ class Book extends Model
         return $this->hasMany(RentalContract::class);
     }
 
+    public function paymentItems(): HasMany
+    {
+        return $this->hasMany(PaymentItem::class);
+    }
+
+    public function paymentAccounts(): HasMany
+    {
+        return $this->hasMany(PaymentAccount::class);
+    }
+
     public function accountTitles(): HasMany
     {
         return $this->hasMany(AccountTitle::class);

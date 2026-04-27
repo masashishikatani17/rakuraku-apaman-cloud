@@ -69,6 +69,8 @@
                     <th>物件数</th>
                     <th>契約者数</th>
                     <th>契約数</th>
+                    <th>入金項目数</th>
+                    <th>入金口座数</th>
                     <th>勘定科目数</th>
                     <th>摘要数</th>
                     <th>部門数</th>
@@ -160,6 +162,30 @@
                                     契約者登録
                                 </a>
                                 <a
+                                    href="{{ route('payment-items.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    入金項目一覧
+                                </a>
+                                <a
+                                    href="{{ route('payment-items.create', ['book_id' => $book->id]) }}"
+                                    class="button"
+                                >
+                                    入金項目登録
+                                </a>
+                                <a
+                                    href="{{ route('payment-accounts.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    入金口座一覧
+                                </a>
+                                <a
+                                    href="{{ route('payment-accounts.create', ['book_id' => $book->id]) }}"
+                                    class="button"
+                                >
+                                    入金口座登録
+                                </a>
+                                <a
                                     href="{{ route('account-titles.index', ['book_id' => $book->id]) }}"
                                     class="button button-secondary"
                                 >
@@ -224,7 +250,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="18">まだ帳簿が登録されていません。「帳簿を新規登録」から最初の1件を作成してください。</td>
+                        <td colspan="20">まだ帳簿が登録されていません。「帳簿を新規登録」から最初の1件を作成してください。</td>
                     </tr>
                 @endforelse
             </tbody>
