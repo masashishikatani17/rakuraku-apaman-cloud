@@ -1,6 +1,3 @@
---- /dev/null
- b/resources/views/reports/property_annual_incomes/index.blade.php
-@@
 @extends('layouts.app')
 
 @section('title', '物件別年間収入台帳')
