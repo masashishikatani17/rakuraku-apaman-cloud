@@ -1,6 +1,3 @@
---- a/app/Http/Controllers/MonthlyPaymentScheduleController.php
- b/app/Http/Controllers/MonthlyPaymentScheduleController.php
-@@
 <?php
 
 namespace App\Http\Controllers;

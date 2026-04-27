@@ -216,6 +216,12 @@
                                     入金一覧
                                 </a>
                                 <a
+                                    href="{{ route('reports.property-payments.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    物件別入金一覧表
+                                </a>
+                                <a
                                     href="{{ route('payment-receipts.create', ['book_id' => $book->id]) }}"
                                     class="button"
                                 >

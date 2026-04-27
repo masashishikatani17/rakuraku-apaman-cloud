@@ -1,6 +1,3 @@
---- a/app/Http/Controllers/RentalPaymentJournalController.php
- b/app/Http/Controllers/RentalPaymentJournalController.php
-@@
 <?php
 
 namespace App\Http\Controllers;

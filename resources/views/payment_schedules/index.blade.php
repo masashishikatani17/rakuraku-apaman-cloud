@@ -25,6 +25,12 @@
             >
                 月次入金予定生成
             </a>
+            <a
+                href="{{ $selectedBookId ? route('reports.property-payments.index', ['book_id' => $selectedBookId]) : route('reports.property-payments.index') }}"
+                class="button button-secondary"
+            >
+                物件別入金一覧表
+            </a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
     </div>
