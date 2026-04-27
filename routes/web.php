@@ -16,6 +16,7 @@ use App\Http\Controllers\PaymentItemController;
 use App\Http\Controllers\PaymentReceiptController;
 use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\RentalPaymentJournalController;
+use App\Http\Controllers\RentalContractReportController;
 use App\Http\Controllers\PropertyPaymentReportController;
 use App\Http\Controllers\PropertyAnnualIncomeReportController;
 use App\Http\Controllers\PropertyCategoryController;
@@ -303,3 +304,6 @@ Route::get('/reports/contract-tenant-annual-incomes', [ContractTenantAnnualIncom
 
 Route::get('/reports/property-ledgers', [PropertyLedgerReportController::class, 'index'])
     ->name('reports.property-ledgers.index');
+
+Route::get('/reports/rental-contracts', [RentalContractReportController::class, 'index'])
+    ->name('reports.rental-contracts.index');

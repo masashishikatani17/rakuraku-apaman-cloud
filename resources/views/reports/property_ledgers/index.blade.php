@@ -48,6 +48,12 @@
                 >
                     物件別年間収入台帳へ
                 </a>
+                <a
+                    href="{{ route('reports.rental-contracts.index', ['book_id' => $selectedBookId]) }}"
+                    class="button button-secondary"
+                >
+                    賃貸条件一覧へ
+                </a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>

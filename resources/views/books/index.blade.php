@@ -168,6 +168,12 @@
                                     契約者台帳
                                 </a>
                                 <a
+                                    href="{{ route('reports.rental-contracts.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    賃貸条件一覧
+                                </a>
+                                <a
                                     href="{{ route('contract-tenants.create', ['book_id' => $book->id]) }}"
                                     class="button"
                                 >
