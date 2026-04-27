@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccountTitleController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\BusinessOwnerController;
+use App\Http\Controllers\CashBankLedgerController;
 use App\Http\Controllers\ContractTenantController;
 use App\Http\Controllers\ContractTenantAnnualIncomeReportController;
 use App\Http\Controllers\DepartmentController;
@@ -292,6 +293,12 @@ Route::get('/trial-balances', [TrialBalanceController::class, 'index'])
 
 Route::get('/general-ledgers', [GeneralLedgerController::class, 'index'])
     ->name('general-ledgers.index');
+
+Route::get('/cash-ledgers', [CashBankLedgerController::class, 'cashIndex'])
+    ->name('cash-ledgers.index');
+
+Route::get('/bank-ledgers', [CashBankLedgerController::class, 'bankIndex'])
+    ->name('bank-ledgers.index');
 
 Route::get('/reports/property-payments', [PropertyPaymentReportController::class, 'index'])
     ->name('reports.property-payments.index');

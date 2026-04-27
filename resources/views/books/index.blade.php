@@ -306,6 +306,18 @@
                                     仕訳日記帳
                                 </a>
                                 <a
+                                    href="{{ route('cash-ledgers.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    現金出納帳
+                                </a>
+                                <a
+                                    href="{{ route('bank-ledgers.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    預金出納帳
+                                </a>
+                                <a
                                     href="{{ route('journal-entries.create', ['book_id' => $book->id]) }}"
                                     class="button"
                                 >
