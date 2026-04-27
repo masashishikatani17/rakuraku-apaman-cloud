@@ -16,6 +16,7 @@ use App\Http\Controllers\PaymentReceiptController;
 use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\RentalPaymentJournalController;
 use App\Http\Controllers\PropertyPaymentReportController;
+use App\Http\Controllers\PropertyAnnualIncomeReportController;
 use App\Http\Controllers\PropertyCategoryController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\PropertyOwnerController;
@@ -291,3 +292,6 @@ Route::get('/general-ledgers', [GeneralLedgerController::class, 'index'])
 
 Route::get('/reports/property-payments', [PropertyPaymentReportController::class, 'index'])
     ->name('reports.property-payments.index');
+
+Route::get('/reports/property-annual-incomes', [PropertyAnnualIncomeReportController::class, 'index'])
+    ->name('reports.property-annual-incomes.index');
