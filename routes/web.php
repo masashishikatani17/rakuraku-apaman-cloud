@@ -7,6 +7,7 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\JournalDescriptionController;
 use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\PropertyOwnerController;
 use App\Http\Controllers\SubAccountTitleController;
 use App\Http\Controllers\TrialBalanceController;
 use Illuminate\Support\Facades\Route;
@@ -32,6 +33,24 @@ Route::get('/books/create', [BookController::class, 'create'])
 
 Route::post('/books', [BookController::class, 'store'])
     ->name('books.store');
+
+Route::get('/property-owners', [PropertyOwnerController::class, 'index'])
+    ->name('property-owners.index');
+
+Route::get('/property-owners/create', [PropertyOwnerController::class, 'create'])
+    ->name('property-owners.create');
+
+Route::post('/property-owners', [PropertyOwnerController::class, 'store'])
+    ->name('property-owners.store');
+
+Route::get('/property-owners/{propertyOwner}/edit', [PropertyOwnerController::class, 'edit'])
+    ->name('property-owners.edit');
+
+Route::put('/property-owners/{propertyOwner}', [PropertyOwnerController::class, 'update'])
+    ->name('property-owners.update');
+
+Route::delete('/property-owners/{propertyOwner}', [PropertyOwnerController::class, 'destroy'])
+    ->name('property-owners.destroy');
 
 Route::get('/account-titles', [AccountTitleController::class, 'index'])
     ->name('account-titles.index');

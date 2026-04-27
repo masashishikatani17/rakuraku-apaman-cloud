@@ -43,6 +43,11 @@ class Book extends Model
         return $this->hasOne(BookSetting::class);
     }
 
+    public function propertyOwners(): HasMany
+    {
+        return $this->hasMany(PropertyOwner::class);
+    }
+
     public function accountTitles(): HasMany
     {
         return $this->hasMany(AccountTitle::class);
