@@ -10,6 +10,8 @@ use App\Http\Controllers\JournalDescriptionController;
 use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\PaymentAccountController;
 use App\Http\Controllers\PaymentItemController;
+use App\Http\Controllers\PaymentReceiptController;
+use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\PropertyCategoryController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\PropertyOwnerController;
@@ -165,6 +167,43 @@ Route::put('/payment-accounts/{paymentAccount}', [PaymentAccountController::clas
 
 Route::delete('/payment-accounts/{paymentAccount}', [PaymentAccountController::class, 'destroy'])
     ->name('payment-accounts.destroy');
+
+Route::get('/payment-schedules', [PaymentScheduleController::class, 'index'])
+    ->name('payment-schedules.index');
+
+Route::get('/payment-schedules/create', [PaymentScheduleController::class, 'create'])
+    ->name('payment-schedules.create');
+
+Route::post('/payment-schedules', [PaymentScheduleController::class, 'store'])
+    ->name('payment-schedules.store');
+
+Route::get('/payment-schedules/{paymentSchedule}/edit', [PaymentScheduleController::class, 'edit'])
+    ->name('payment-schedules.edit');
+
+Route::put('/payment-schedules/{paymentSchedule}', [PaymentScheduleController::class, 'update'])
+    ->name('payment-schedules.update');
+
+Route::delete('/payment-schedules/{paymentSchedule}', [PaymentScheduleController::class, 'destroy'])
+    ->name('payment-schedules.destroy');
+
+Route::get('/payment-receipts', [PaymentReceiptController::class, 'index'])
+    ->name('payment-receipts.index');
+
+Route::get('/payment-receipts/create', [PaymentReceiptController::class, 'create'])
+    ->name('payment-receipts.create');
+
+Route::post('/payment-receipts', [PaymentReceiptController::class, 'store'])
+    ->name('payment-receipts.store');
+
+Route::get('/payment-receipts/{paymentReceipt}/edit', [PaymentReceiptController::class, 'edit'])
+    ->name('payment-receipts.edit');
+
+Route::put('/payment-receipts/{paymentReceipt}', [PaymentReceiptController::class, 'update'])
+    ->name('payment-receipts.update');
+
+Route::delete('/payment-receipts/{paymentReceipt}', [PaymentReceiptController::class, 'destroy'])
+    ->name('payment-receipts.destroy');
+
 Route::get('/account-titles', [AccountTitleController::class, 'index'])
     ->name('account-titles.index');
 
