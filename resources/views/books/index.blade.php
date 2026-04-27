@@ -312,6 +312,12 @@
                                     部門一覧
                                 </a>
                                 <a
+                                    href="{{ route('department-trial-balances.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    部門別試算表
+                                </a>
+                                <a
                                     href="{{ route('departments.create', ['book_id' => $book->id]) }}"
                                     class="button"
                                 >
