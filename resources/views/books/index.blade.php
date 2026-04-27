@@ -270,6 +270,30 @@
                                     勘定科目登録
                                 </a>
                                 <a
+                                    href="{{ route('sub-account-titles.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    補助科目一覧
+                                </a>
+                                <a
+                                    href="{{ route('sub-account-titles.create', ['book_id' => $book->id]) }}"
+                                    class="button"
+                                >
+                                    補助科目登録
+                                </a>
+                                <a
+                                    href="{{ route('reports.sub-accounts.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    補助科目一覧表
+                                </a>
+                                <a
+                                    href="{{ route('sub-account-ledgers.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    補助科目別元帳
+                                </a>
+                                <a
                                     href="{{ route('journal-descriptions.index', ['book_id' => $book->id]) }}"
                                     class="button button-secondary"
                                 >
