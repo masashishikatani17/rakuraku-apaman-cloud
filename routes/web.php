@@ -7,6 +7,8 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\JournalDescriptionController;
 use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\PropertyCategoryController;
+use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\PropertyOwnerController;
 use App\Http\Controllers\SubAccountTitleController;
 use App\Http\Controllers\TrialBalanceController;
@@ -51,6 +53,42 @@ Route::put('/property-owners/{propertyOwner}', [PropertyOwnerController::class, 
 
 Route::delete('/property-owners/{propertyOwner}', [PropertyOwnerController::class, 'destroy'])
     ->name('property-owners.destroy');
+
+Route::get('/property-categories', [PropertyCategoryController::class, 'index'])
+    ->name('property-categories.index');
+
+Route::get('/property-categories/create', [PropertyCategoryController::class, 'create'])
+    ->name('property-categories.create');
+
+Route::post('/property-categories', [PropertyCategoryController::class, 'store'])
+    ->name('property-categories.store');
+
+Route::get('/property-categories/{propertyCategory}/edit', [PropertyCategoryController::class, 'edit'])
+    ->name('property-categories.edit');
+
+Route::put('/property-categories/{propertyCategory}', [PropertyCategoryController::class, 'update'])
+    ->name('property-categories.update');
+
+Route::delete('/property-categories/{propertyCategory}', [PropertyCategoryController::class, 'destroy'])
+    ->name('property-categories.destroy');
+
+Route::get('/properties', [PropertyController::class, 'index'])
+    ->name('properties.index');
+
+Route::get('/properties/create', [PropertyController::class, 'create'])
+    ->name('properties.create');
+
+Route::post('/properties', [PropertyController::class, 'store'])
+    ->name('properties.store');
+
+Route::get('/properties/{property}/edit', [PropertyController::class, 'edit'])
+    ->name('properties.edit');
+
+Route::put('/properties/{property}', [PropertyController::class, 'update'])
+    ->name('properties.update');
+
+Route::delete('/properties/{property}', [PropertyController::class, 'destroy'])
+    ->name('properties.destroy');
 
 Route::get('/account-titles', [AccountTitleController::class, 'index'])
     ->name('account-titles.index');

@@ -1,19 +1,19 @@
 @extends('layouts.app')
 
-@section('title', '所有者一覧')
+@section('title', '物件区分一覧')
 
 @section('content')
     <div class="page-header">
         <div>
-            <h2 class="page-title">所有者一覧</h2>
-            <p class="page-description">Access の MT_所有者マスター に対応する最初の一覧画面です。</p>
+            <h2 class="page-title">物件区分一覧</h2>
+            <p class="page-description">Access の MT_物件区分 に対応する最初の一覧画面です。</p>
         </div>
         <div class="actions">
             <a
-                href="{{ $selectedBookId ? route('property-owners.create', ['book_id' => $selectedBookId]) : route('property-owners.create') }}"
+                href="{{ $selectedBookId ? route('property-categories.create', ['book_id' => $selectedBookId]) : route('property-categories.create') }}"
                 class="button"
             >
-                所有者を新規登録
+                物件区分を新規登録
             </a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
@@ -32,7 +32,7 @@
     @endif
 
     <div class="card" style="margin-bottom: 16px;">
-        <form method="GET" action="{{ route('property-owners.index') }}">
+        <form method="GET" action="{{ route('property-categories.index') }}">
             <div class="form-grid">
                 <div class="field">
                     <label for="book_id">帳簿で絞り込み</label>
@@ -52,49 +52,45 @@
 
             <div class="actions" style="margin-top: 16px;">
                 <button type="submit" class="button">絞り込む</button>
-                <a href="{{ route('property-owners.index') }}" class="button button-secondary">条件をクリア</a>
+                <a href="{{ route('property-categories.index') }}" class="button button-secondary">条件をクリア</a>
             </div>
         </form>
     </div>
 
     <div class="card">
-        <p class="muted">登録件数: {{ $propertyOwners->count() }} 件</p>
+        <p class="muted">登録件数: {{ $propertyCategories->count() }} 件</p>
 
         <table class="data-table">
             <thead>
                 <tr>
                     <th>ID</th>
                     <th>事業主名 / 帳簿名</th>
-                    <th>所有者CODE</th>
-                    <th>区分</th>
-                    <th>所有者名</th>
-                    <th>所有者名略称</th>
-                    <th>青色申告控除</th>
+                    <th>物件区分CODE</th>
+                    <th>物件区分名</th>
+                    <th>使用物件数</th>
                     <th>並び順</th>
                     <th>状態</th>
                     <th>操作</th>
                 </tr>
             </thead>
             <tbody>
-                @forelse ($propertyOwners as $propertyOwner)
+                @forelse ($propertyCategories as $propertyCategory)
                     <tr>
-                        <td>{{ $propertyOwner->id }}</td>
+                        <td>{{ $propertyCategory->id }}</td>
                         <td>
-                            {{ $propertyOwner->book?->businessOwner?->name ?? '—' }}
+                            {{ $propertyCategory->book?->businessOwner?->name ?? '—' }}
                             /
-                            {{ $propertyOwner->book?->name ?? '—' }}
+                            {{ $propertyCategory->book?->name ?? '—' }}
                         </td>
-                        <td>{{ $propertyOwner->owner_code }}</td>
-                        <td>{{ $propertyOwner->classification_code ?? '—' }}</td>
-                        <td>{{ $propertyOwner->name }}</td>
-                        <td>{{ $propertyOwner->short_name ?: '—' }}</td>
-                        <td>{{ $propertyOwner->blue_return_deduction_code ?? '—' }}</td>
-                        <td>{{ $propertyOwner->sort_order }}</td>
-                        <td>{{ $propertyOwner->is_active ? '有効' : '停止' }}</td>
+                        <td>{{ $propertyCategory->category_code }}</td>
+                        <td>{{ $propertyCategory->name }}</td>
+                        <td>{{ $propertyCategory->properties_count }} 件</td>
+                        <td>{{ $propertyCategory->sort_order }}</td>
+                        <td>{{ $propertyCategory->is_active ? '有効' : '停止' }}</td>
                         <td>
                             <div class="actions">
                                 <a
-                                    href="{{ route('property-owners.edit', $propertyOwner) }}"
+                                    href="{{ route('property-categories.edit', $propertyCategory) }}"
                                     class="button button-secondary"
                                 >
                                     修正
@@ -102,8 +98,8 @@
 
                                 <form
                                     method="POST"
-                                    action="{{ route('property-owners.destroy', $propertyOwner) }}"
-                                    onsubmit="return confirm('この所有者を削除しますか？');"
+                                    action="{{ route('property-categories.destroy', $propertyCategory) }}"
+                                    onsubmit="return confirm('この物件区分を削除しますか？');"
                                     style="display: inline-block; margin: 0;"
                                 >
                                     @csrf
@@ -121,7 +117,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10">まだ所有者が登録されていません。「所有者を新規登録」から最初の1件を作成してください。</td>
+                        <td colspan="8">まだ物件区分が登録されていません。「物件区分を新規登録」から最初の1件を作成してください。</td>
                     </tr>
                 @endforelse
             </tbody>

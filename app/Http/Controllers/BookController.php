@@ -27,6 +27,8 @@ class BookController extends Controller
             ->with(['businessOwner', 'setting'])
             ->withCount([
                 'propertyOwners',
+                'propertyCategories',
+                'properties',
                 'accountTitles',
                 'journalDescriptions',
                 'departments',
