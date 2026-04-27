@@ -1,6 +1,3 @@
---- a/app/Http/Controllers/RentalPaymentJournalController.php
- b/app/Http/Controllers/RentalPaymentJournalController.php
-@@
 <?php
 
 namespace App\Http\Controllers;
@@ -83,7 +80,7 @@ class RentalPaymentJournalController extends Controller
         if ($paymentReceipt->journal_entry_id !== null) {
             return redirect()
                 ->route('rental-payment-journals.index', ['book_id' => $bookId])
-                ->with('error', 'この入金はすでに仕訳作成済みです。');
+                ->with('error', 'この入金はすでに仕訳作成済みです。再作成する場合は、先に仕訳取消を行ってください。');
         }
 
         $paymentAccount = $paymentReceipt->paymentAccount
@@ -99,48 +96,169 @@ class RentalPaymentJournalController extends Controller
                 ->with('error', implode(' ', $validationErrors));
         }
 
-        DB::transaction(function () use ($paymentReceipt, $paymentAccount, $paymentItem, $bookId): void {
-            $journalEntry = JournalEntry::create([
-                'book_id' => $bookId,
-                'journal_description_id' => null,
-                'entry_date' => $paymentReceipt->received_on,
-                'voucher_no' => $this->makeVoucherNo($paymentReceipt),
-                'description_text' => $this->makeDescriptionText($paymentReceipt),
-                'note' => '入金実績ID: ' . $paymentReceipt->id . ' から自動作成',
-                'total_amount' => $paymentReceipt->amount,
-                'entry_type' => 'rental_payment',
-                'status' => 'posted',
-            ]);
-
-            $journalEntry->lines()->createMany([
-                [
-                    'line_no' => 1,
-                    'side' => 'debit',
-                    'account_title_id' => $paymentAccount->account_title_id,
-                    'sub_account_title_id' => $paymentAccount->sub_account_title_id,
-                    'department_id' => null,
-                    'amount' => $paymentReceipt->amount,
-                    'line_note' => '入金口座: ' . $paymentAccount->name,
-                ],
-                [
-                    'line_no' => 2,
-                    'side' => 'credit',
-                    'account_title_id' => $paymentItem->account_title_id,
-                    'sub_account_title_id' => $paymentItem->sub_account_title_id,
-                    'department_id' => null,
-                    'amount' => $paymentReceipt->amount,
-                    'line_note' => '入金項目: ' . $paymentItem->name,
-                ],
-            ]);
-
-            $paymentReceipt->update([
-                'journal_entry_id' => $journalEntry->id,
-            ]);
+        DB::transaction(function () use ($paymentReceipt, $paymentAccount, $paymentItem): void {
+            $this->createJournalFromPaymentReceipt($paymentReceipt, $paymentAccount, $paymentItem);
         });
 
         return redirect()
             ->route('rental-payment-journals.index', ['book_id' => $bookId])
             ->with('status', '賃貸入金仕訳を作成しました。');
+    }
+
+    public function bulkStore(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'book_id' => ['required', 'integer', 'exists:books,id'],
+        ]);
+
+        $bookId = (int) $validated['book_id'];
+
+        $summary = DB::transaction(function () use ($bookId): array {
+            $paymentReceipts = PaymentReceipt::query()
+                ->with([
+                    'paymentSchedule.paymentAccount.accountTitle',
+                    'paymentSchedule.paymentAccount.subAccountTitle',
+                    'rentalContract.property',
+                    'rentalContract.propertyUnit',
+                    'contractTenant',
+                    'paymentItem.accountTitle',
+                    'paymentItem.subAccountTitle',
+                    'paymentAccount.accountTitle',
+                    'paymentAccount.subAccountTitle',
+                    'journalEntry',
+                ])
+                ->where('book_id', $bookId)
+                ->where('status', 'confirmed')
+                ->whereNull('journal_entry_id')
+                ->orderBy('received_on')
+                ->orderBy('id')
+                ->get();
+
+            $createdCount = 0;
+            $skippedCount = 0;
+
+            foreach ($paymentReceipts as $paymentReceipt) {
+                $paymentAccount = $paymentReceipt->paymentAccount
+                    ?? $paymentReceipt->paymentSchedule?->paymentAccount;
+
+                $paymentItem = $paymentReceipt->paymentItem;
+
+                if ($this->validateJournalMapping($paymentAccount, $paymentItem) !== []) {
+                    $skippedCount++;
+                    continue;
+                }
+
+                $this->createJournalFromPaymentReceipt($paymentReceipt, $paymentAccount, $paymentItem);
+                $createdCount++;
+            }
+
+            return [
+                'target_count' => $paymentReceipts->count(),
+                'created_count' => $createdCount,
+                'skipped_count' => $skippedCount,
+            ];
+        });
+
+        return redirect()
+            ->route('rental-payment-journals.index', ['book_id' => $bookId])
+            ->with(
+                'status',
+                '賃貸入金仕訳を一括作成しました。対象 '
+                . $summary['target_count']
+                . ' 件、作成 '
+                . $summary['created_count']
+                . ' 件、作成不可 '
+                . $summary['skipped_count']
+                . ' 件です。'
+            );
+    }
+
+    public function destroy(PaymentReceipt $paymentReceipt): RedirectResponse
+    {
+        $paymentReceipt->load(['journalEntry']);
+
+        $bookId = (int) $paymentReceipt->book_id;
+
+        if ($paymentReceipt->journal_entry_id === null) {
+            return redirect()
+                ->route('rental-payment-journals.index', ['book_id' => $bookId])
+                ->with('error', 'この入金には取消対象の仕訳がありません。');
+        }
+
+        $journalEntry = $paymentReceipt->journalEntry;
+
+        if ($journalEntry === null) {
+            $paymentReceipt->update([
+                'journal_entry_id' => null,
+            ]);
+
+            return redirect()
+                ->route('rental-payment-journals.index', ['book_id' => $bookId])
+                ->with('status', '仕訳が見つからなかったため、入金側の仕訳紐づけだけ解除しました。');
+        }
+
+        if ($journalEntry->entry_type !== 'rental_payment') {
+            return redirect()
+                ->route('rental-payment-journals.index', ['book_id' => $bookId])
+                ->with('error', 'この仕訳は賃貸入金から作成された仕訳ではないため、この画面からは取消できません。');
+        }
+
+        DB::transaction(function () use ($paymentReceipt, $journalEntry): void {
+            $paymentReceipt->update([
+                'journal_entry_id' => null,
+            ]);
+
+            $journalEntry->delete();
+        });
+
+        return redirect()
+            ->route('rental-payment-journals.index', ['book_id' => $bookId])
+            ->with('status', '賃貸入金仕訳を取り消しました。必要に応じて入金を修正し、再度仕訳作成してください。');
+    }
+
+    private function createJournalFromPaymentReceipt(
+        PaymentReceipt $paymentReceipt,
+        PaymentAccount $paymentAccount,
+        PaymentItem $paymentItem
+    ): JournalEntry {
+        $journalEntry = JournalEntry::create([
+            'book_id' => $paymentReceipt->book_id,
+            'journal_description_id' => null,
+            'entry_date' => $paymentReceipt->received_on,
+            'voucher_no' => $this->makeVoucherNo($paymentReceipt),
+            'description_text' => $this->makeDescriptionText($paymentReceipt),
+            'note' => '入金実績ID: ' . $paymentReceipt->id . ' から自動作成',
+            'total_amount' => $paymentReceipt->amount,
+            'entry_type' => 'rental_payment',
+            'status' => 'posted',
+        ]);
+
+        $journalEntry->lines()->createMany([
+            [
+                'line_no' => 1,
+                'side' => 'debit',
+                'account_title_id' => $paymentAccount->account_title_id,
+                'sub_account_title_id' => $paymentAccount->sub_account_title_id,
+                'department_id' => null,
+                'amount' => $paymentReceipt->amount,
+                'line_note' => '入金口座: ' . $paymentAccount->name,
+            ],
+            [
+                'line_no' => 2,
+                'side' => 'credit',
+                'account_title_id' => $paymentItem->account_title_id,
+                'sub_account_title_id' => $paymentItem->sub_account_title_id,
+                'department_id' => null,
+                'amount' => $paymentReceipt->amount,
+                'line_note' => '入金項目: ' . $paymentItem->name,
+            ],
+        ]);
+
+        $paymentReceipt->update([
+            'journal_entry_id' => $journalEntry->id,
+        ]);
+
+        return $journalEntry;
     }
 
     private function validateJournalMapping(

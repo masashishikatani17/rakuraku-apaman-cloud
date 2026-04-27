@@ -3,18 +3,27 @@
 use App\Http\Controllers\AccountTitleController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\BusinessOwnerController;
+use App\Http\Controllers\CashBankLedgerController;
 use App\Http\Controllers\ContractTenantController;
+use App\Http\Controllers\ContractTenantAnnualIncomeReportController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\ExpenseLedgerController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\JournalDescriptionController;
+use App\Http\Controllers\JournalDiaryController;
 use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\MonthlyPaymentScheduleController;
 use App\Http\Controllers\PaymentAccountController;
 use App\Http\Controllers\PaymentItemController;
 use App\Http\Controllers\PaymentReceiptController;
 use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\RentalPaymentJournalController;
+use App\Http\Controllers\RentalContractReportController;
+use App\Http\Controllers\PropertyPaymentReportController;
+use App\Http\Controllers\PropertyAnnualIncomeReportController;
 use App\Http\Controllers\PropertyCategoryController;
 use App\Http\Controllers\PropertyController;
+use App\Http\Controllers\PropertyLedgerReportController;
 use App\Http\Controllers\PropertyOwnerController;
 use App\Http\Controllers\PropertyUnitController;
 use App\Http\Controllers\SubAccountTitleController;
@@ -169,6 +178,12 @@ Route::put('/payment-accounts/{paymentAccount}', [PaymentAccountController::clas
 Route::delete('/payment-accounts/{paymentAccount}', [PaymentAccountController::class, 'destroy'])
     ->name('payment-accounts.destroy');
 
+Route::get('/monthly-payment-schedules/create', [MonthlyPaymentScheduleController::class, 'create'])
+    ->name('monthly-payment-schedules.create');
+
+Route::post('/monthly-payment-schedules', [MonthlyPaymentScheduleController::class, 'store'])
+    ->name('monthly-payment-schedules.store');
+
 Route::get('/payment-schedules', [PaymentScheduleController::class, 'index'])
     ->name('payment-schedules.index');
 
@@ -207,9 +222,15 @@ Route::delete('/payment-receipts/{paymentReceipt}', [PaymentReceiptController::c
 
 Route::get('/rental-payment-journals', [RentalPaymentJournalController::class, 'index'])
     ->name('rental-payment-journals.index');
+ 
+Route::post('/rental-payment-journals/bulk', [RentalPaymentJournalController::class, 'bulkStore'])
+    ->name('rental-payment-journals.bulk-store');
 
 Route::post('/rental-payment-journals/{paymentReceipt}', [RentalPaymentJournalController::class, 'store'])
     ->name('rental-payment-journals.store');
+
+Route::delete('/rental-payment-journals/{paymentReceipt}', [RentalPaymentJournalController::class, 'destroy'])
+    ->name('rental-payment-journals.destroy');
 
 Route::get('/account-titles', [AccountTitleController::class, 'index'])
     ->name('account-titles.index');
@@ -265,8 +286,35 @@ Route::put('/journal-entries/{journalEntry}', [JournalEntryController::class, 'u
 Route::delete('/journal-entries/{journalEntry}', [JournalEntryController::class, 'destroy'])
     ->name('journal-entries.destroy');
 
+Route::get('/journal-diaries', [JournalDiaryController::class, 'index'])
+    ->name('journal-diaries.index');
+
 Route::get('/trial-balances', [TrialBalanceController::class, 'index'])
     ->name('trial-balances.index');
 
 Route::get('/general-ledgers', [GeneralLedgerController::class, 'index'])
     ->name('general-ledgers.index');
+
+Route::get('/cash-ledgers', [CashBankLedgerController::class, 'cashIndex'])
+    ->name('cash-ledgers.index');
+
+Route::get('/bank-ledgers', [CashBankLedgerController::class, 'bankIndex'])
+    ->name('bank-ledgers.index');
+
+Route::get('/expense-ledgers', [ExpenseLedgerController::class, 'index'])
+    ->name('expense-ledgers.index');
+
+Route::get('/reports/property-payments', [PropertyPaymentReportController::class, 'index'])
+    ->name('reports.property-payments.index');
+
+Route::get('/reports/property-annual-incomes', [PropertyAnnualIncomeReportController::class, 'index'])
+    ->name('reports.property-annual-incomes.index');
+
+Route::get('/reports/contract-tenant-annual-incomes', [ContractTenantAnnualIncomeReportController::class, 'index'])
+    ->name('reports.contract-tenant-annual-incomes.index');
+
+Route::get('/reports/property-ledgers', [PropertyLedgerReportController::class, 'index'])
+    ->name('reports.property-ledgers.index');
+
+Route::get('/reports/rental-contracts', [RentalContractReportController::class, 'index'])
+    ->name('reports.rental-contracts.index');

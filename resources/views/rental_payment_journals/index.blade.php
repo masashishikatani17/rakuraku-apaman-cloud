@@ -8,12 +8,22 @@
             'confirmed' => '確定',
             'cancelled' => '取消',
         ];
+
+        $eligibleCount = $paymentReceipts->filter(function ($paymentReceipt) {
+            $paymentAccount = $paymentReceipt->paymentAccount ?? $paymentReceipt->paymentSchedule?->paymentAccount;
+            $paymentItem = $paymentReceipt->paymentItem;
+
+            return $paymentReceipt->status === 'confirmed'
+                && $paymentReceipt->journal_entry_id === null
+                && $paymentAccount?->accountTitle !== null
+                && $paymentItem?->accountTitle !== null;
+        })->count();
     @endphp
 
     <div class="page-header">
         <div>
             <h2 class="page-title">賃貸仕訳処理</h2>
-            <p class="page-description">入金実績から、賃貸入金の会計仕訳を作成します。</p>
+            <p class="page-description">入金実績から賃貸入金の会計仕訳を作成・取消します。</p>
         </div>
         <div class="actions">
             <a
@@ -28,7 +38,7 @@
 
     <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
         初版では、確定済の入金1件につき、借方1行・貸方1行の仕訳を作成します。
-        借方は入金口座の会計科目、貸方は入金項目の会計科目です。
+        今回から、選択中の帳簿について未作成の賃貸仕訳を一括作成できます。
     </div>
 
     @if (session('status'))
@@ -69,6 +79,47 @@
         </form>
     </div>
 
+    <div class="card" style="margin-bottom: 16px;">
+        <div class="form-grid">
+            <div class="field">
+                <label>表示中の対象入金件数</label>
+                <div>{{ $paymentReceipts->count() }} 件</div>
+            </div>
+
+            <div class="field">
+                <label>一括作成できる件数</label>
+                <div style="{{ $eligibleCount > 0 ? 'color: #166534;' : '' }}">
+                    {{ $eligibleCount }} 件
+                </div>
+            </div>
+        </div>
+
+        <div class="actions" style="margin-top: 16px;">
+            @if ($selectedBookId)
+                <form
+                    method="POST"
+                    action="{{ route('rental-payment-journals.bulk-store') }}"
+                    onsubmit="return confirm('選択中の帳簿について、未作成の賃貸入金仕訳を一括作成しますか？');"
+                    style="display: inline-block; margin: 0;"
+                >
+                    @csrf
+                    <input type="hidden" name="book_id" value="{{ $selectedBookId }}">
+                    <button
+                        type="submit"
+                        class="button"
+                        {{ $eligibleCount === 0 ? 'disabled' : '' }}
+                    >
+                        未作成仕訳を一括作成
+                    </button>
+                </form>
+            @else
+                <div class="muted">
+                    一括作成を行う場合は、まず帳簿で絞り込んでください。
+                </div>
+            @endif
+        </div>
+    </div>
+
     <div class="card">
         <p class="muted">対象入金件数: {{ $paymentReceipts->count() }} 件</p>
 
@@ -101,6 +152,10 @@
                             && $paymentReceipt->journal_entry_id === null
                             && $hasDebitAccount
                             && $hasCreditAccount;
+
+                        $canCancelJournal =
+                            $paymentReceipt->journalEntry !== null
+                            && $paymentReceipt->journalEntry->entry_type === 'rental_payment';
                     @endphp
 
                     <tr>
@@ -144,7 +199,8 @@
                                     {{ $paymentAccount->accountTitle->name }}
                                     @if ($paymentAccount->subAccountTitle)
                                         <div class="muted">
-                                            補助: {{ $paymentAccount->subAccountTitle->sub_account_code }}
+                                            補助:
+                                            {{ $paymentAccount->subAccountTitle->sub_account_code }}
                                             {{ $paymentAccount->subAccountTitle->name }}
                                         </div>
                                     @endif
@@ -160,7 +216,8 @@
                                     {{ $paymentItem->accountTitle->name }}
                                     @if ($paymentItem->subAccountTitle)
                                         <div class="muted">
-                                            補助: {{ $paymentItem->subAccountTitle->sub_account_code }}
+                                            補助:
+                                            {{ $paymentItem->subAccountTitle->sub_account_code }}
                                             {{ $paymentItem->subAccountTitle->name }}
                                         </div>
                                     @endif
@@ -178,6 +235,11 @@
                                         / 伝票番号: {{ $paymentReceipt->journalEntry->voucher_no }}
                                     @endif
                                 </div>
+                            @elseif ($paymentReceipt->journal_entry_id !== null)
+                                紐づけ不整合
+                                <div class="muted">
+                                    仕訳ID {{ $paymentReceipt->journal_entry_id }} が見つかりません。取消で紐づけを解除できます。
+                                </div>
                             @elseif ($paymentReceipt->status !== 'confirmed')
                                 作成不可
                                 <div class="muted">
@@ -191,28 +253,66 @@
                             @endif
                         </td>
                         <td>
-                            @if ($paymentReceipt->journalEntry)
-                                <a
-                                    href="{{ route('journal-entries.edit', $paymentReceipt->journalEntry) }}"
-                                    class="button button-secondary"
-                                >
-                                    仕訳を見る
-                                </a>
-                            @elseif ($canCreateJournal)
-                                <form
-                                    method="POST"
-                                    action="{{ route('rental-payment-journals.store', $paymentReceipt) }}"
-                                    onsubmit="return confirm('この入金から賃貸仕訳を作成しますか？');"
-                                    style="display: inline-block; margin: 0;"
-                                >
-                                    @csrf
-                                    <button type="submit" class="button">
-                                        仕訳作成
-                                    </button>
-                                </form>
-                            @else
-                                <span class="muted">対応不要</span>
-                            @endif
+                            <div class="actions">
+                                @if ($paymentReceipt->journalEntry)
+                                    <a
+                                        href="{{ route('journal-entries.edit', $paymentReceipt->journalEntry) }}"
+                                        class="button button-secondary"
+                                    >
+                                        仕訳を見る
+                                    </a>
+
+                                    @if ($canCancelJournal)
+                                        <form
+                                            method="POST"
+                                            action="{{ route('rental-payment-journals.destroy', $paymentReceipt) }}"
+                                            onsubmit="return confirm('この入金から作成した賃貸仕訳を取り消しますか？');"
+                                            style="display: inline-block; margin: 0;"
+                                        >
+                                            @csrf
+                                            @method('DELETE')
+                                            <button
+                                                type="submit"
+                                                class="button"
+                                                style="background: #dc2626;"
+                                            >
+                                                仕訳取消
+                                            </button>
+                                        </form>
+                                    @endif
+                                @elseif ($paymentReceipt->journal_entry_id !== null)
+                                    <form
+                                        method="POST"
+                                        action="{{ route('rental-payment-journals.destroy', $paymentReceipt) }}"
+                                        onsubmit="return confirm('見つからない仕訳との紐づけを解除しますか？');"
+                                        style="display: inline-block; margin: 0;"
+                                    >
+                                        @csrf
+                                        @method('DELETE')
+                                        <button
+                                            type="submit"
+                                            class="button"
+                                            style="background: #dc2626;"
+                                        >
+                                            紐づけ解除
+                                        </button>
+                                    </form>
+                                @elseif ($canCreateJournal)
+                                    <form
+                                        method="POST"
+                                        action="{{ route('rental-payment-journals.store', $paymentReceipt) }}"
+                                        onsubmit="return confirm('この入金から賃貸仕訳を作成しますか？');"
+                                        style="display: inline-block; margin: 0;"
+                                    >
+                                        @csrf
+                                        <button type="submit" class="button">
+                                            仕訳作成
+                                        </button>
+                                    </form>
+                                @else
+                                    <span class="muted">対応不要</span>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                 @empty

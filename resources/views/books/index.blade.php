@@ -150,6 +150,12 @@
                                     物件一覧
                                 </a>
                                 <a
+                                    href="{{ route('reports.property-ledgers.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    物件台帳
+                                </a>
+                                <a
                                     href="{{ route('properties.create', ['book_id' => $book->id]) }}"
                                     class="button"
                                 >
@@ -160,6 +166,12 @@
                                     class="button button-secondary"
                                 >
                                     契約者台帳
+                                </a>
+                                <a
+                                    href="{{ route('reports.rental-contracts.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    賃貸条件一覧
                                 </a>
                                 <a
                                     href="{{ route('contract-tenants.create', ['book_id' => $book->id]) }}"
@@ -204,10 +216,34 @@
                                     入金予定登録
                                 </a>
                                 <a
+                                    href="{{ route('monthly-payment-schedules.create', ['book_id' => $book->id]) }}"
+                                    class="button"
+                                >
+                                    月次入金予定生成
+                                </a>
+                                <a
                                     href="{{ route('payment-receipts.index', ['book_id' => $book->id]) }}"
                                     class="button button-secondary"
                                 >
                                     入金一覧
+                                </a>
+                                <a
+                                    href="{{ route('reports.property-payments.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    物件別入金一覧表
+                                </a>
+                                <a
+                                    href="{{ route('reports.property-annual-incomes.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    物件別年間収入台帳
+                                </a>
+                                <a
+                                    href="{{ route('reports.contract-tenant-annual-incomes.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    契約者別年間収入内訳表
                                 </a>
                                 <a
                                     href="{{ route('payment-receipts.create', ['book_id' => $book->id]) }}"
@@ -262,6 +298,30 @@
                                     class="button button-secondary"
                                 >
                                     仕訳一覧
+                                </a>
+                                <a
+                                    href="{{ route('journal-diaries.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    仕訳日記帳
+                                </a>
+                                <a
+                                    href="{{ route('cash-ledgers.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    現金出納帳
+                                </a>
+                                <a
+                                    href="{{ route('bank-ledgers.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    預金出納帳
+                                </a>
+                                <a
+                                    href="{{ route('expense-ledgers.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    経費帳
                                 </a>
                                 <a
                                     href="{{ route('journal-entries.create', ['book_id' => $book->id]) }}"

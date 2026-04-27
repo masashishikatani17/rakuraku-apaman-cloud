@@ -19,6 +19,18 @@
         </div>
         <div class="actions">
             <a href="{{ $selectedBookId ? route('payment-schedules.create', ['book_id' => $selectedBookId]) : route('payment-schedules.create') }}" class="button">入金予定を新規登録</a>
+            <a
+                href="{{ $selectedBookId ? route('monthly-payment-schedules.create', ['book_id' => $selectedBookId]) : route('monthly-payment-schedules.create') }}"
+                class="button"
+            >
+                月次入金予定生成
+            </a>
+            <a
+                href="{{ $selectedBookId ? route('reports.property-payments.index', ['book_id' => $selectedBookId]) : route('reports.property-payments.index') }}"
+                class="button button-secondary"
+            >
+                物件別入金一覧表
+            </a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
     </div>
