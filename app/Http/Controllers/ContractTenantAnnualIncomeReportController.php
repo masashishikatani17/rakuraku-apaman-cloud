@@ -1,6 +1,3 @@
---- a/app/Http/Controllers/ContractTenantAnnualIncomeReportController.php
- b/app/Http/Controllers/ContractTenantAnnualIncomeReportController.php
-@@
 <?php
 
 namespace App\Http\Controllers;

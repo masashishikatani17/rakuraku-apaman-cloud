@@ -1,6 +1,3 @@
---- /dev/null
- b/resources/views/reports/contract_tenant_annual_incomes/index.blade.php
-@@
 @extends('layouts.app')
 
 @section('title', '契約者別年間収入内訳表')

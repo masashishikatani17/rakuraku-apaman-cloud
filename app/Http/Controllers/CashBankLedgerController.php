@@ -131,7 +131,7 @@ class CashBankLedgerController extends Controller
 
                 $endingRawBalance = round(
                     (float) $opening['raw_balance']
-                     $ledgerRows->sum(fn ($row) => (float) $row->balance_delta_raw),
+                    + $ledgerRows->sum(fn ($row) => (float) $row->balance_delta_raw),
                     2
                 );
 

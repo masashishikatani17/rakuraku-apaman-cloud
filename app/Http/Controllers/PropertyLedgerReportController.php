@@ -1,6 +1,3 @@
---- a/app/Http/Controllers/PropertyLedgerReportController.php
- b/app/Http/Controllers/PropertyLedgerReportController.php
-@@
 <?php
 
 namespace App\Http\Controllers;

@@ -1,6 +1,3 @@
---- /dev/null
- b/resources/views/payment_items/create.blade.php
-@@
 @extends('layouts.app')
 
 @section('title', '入金項目登録')

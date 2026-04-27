@@ -1,6 +1,3 @@
---- a/app/Http/Controllers/JournalDiaryController.php
- b/app/Http/Controllers/JournalDiaryController.php
-@@
 <?php
 
 namespace App\Http\Controllers;

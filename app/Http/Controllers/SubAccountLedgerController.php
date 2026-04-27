@@ -1,6 +1,3 @@
---- a/app/Http/Controllers/SubAccountLedgerController.php
- b/app/Http/Controllers/SubAccountLedgerController.php
-@@
 <?php
 
 namespace App\Http\Controllers;

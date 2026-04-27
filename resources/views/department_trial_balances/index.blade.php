@@ -35,6 +35,12 @@
                     残高試算表へ
                 </a>
                 <a
+                    href="{{ route('reports.monthly-trends.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
+                >
+                    月次推移表へ
+                </a>
+                <a
                     href="{{ route('expense-ledgers.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
                     class="button button-secondary"
                 >
