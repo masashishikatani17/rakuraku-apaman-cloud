@@ -1,6 +1,3 @@
---- /dev/null
- b/resources/views/payment_accounts/edit.blade.php
-@@
 @extends('layouts.app')
 
 @section('title', '入金口座修正')

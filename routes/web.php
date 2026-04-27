@@ -14,6 +14,7 @@ use App\Http\Controllers\JournalDescriptionController;
 use App\Http\Controllers\JournalDiaryController;
 use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\MonthlyPaymentScheduleController;
+use App\Http\Controllers\MonthlyTrendReportController;
 use App\Http\Controllers\PaymentAccountController;
 use App\Http\Controllers\PaymentItemController;
 use App\Http\Controllers\PaymentReceiptController;
@@ -330,3 +331,6 @@ Route::get('/reports/property-ledgers', [PropertyLedgerReportController::class, 
 
 Route::get('/reports/rental-contracts', [RentalContractReportController::class, 'index'])
     ->name('reports.rental-contracts.index');
+
+Route::get('/reports/monthly-trends', [MonthlyTrendReportController::class, 'index'])
+    ->name('reports.monthly-trends.index');

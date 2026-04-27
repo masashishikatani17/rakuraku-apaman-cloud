@@ -1,6 +1,3 @@
---- /dev/null
- b/resources/views/reports/rental_contracts/index.blade.php
-@@
 @extends('layouts.app')
 
 @section('title', '賃貸条件一覧')
