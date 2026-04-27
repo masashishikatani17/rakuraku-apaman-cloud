@@ -334,3 +334,4 @@ Route::get('/reports/rental-contracts', [RentalContractReportController::class, 
 
 Route::get('/reports/monthly-trends', [MonthlyTrendReportController::class, 'index'])
     ->name('reports.monthly-trends.index');
+//　おなかすいた
