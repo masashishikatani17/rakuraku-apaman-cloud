@@ -4,6 +4,7 @@ use App\Http\Controllers\AccountTitleController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\BusinessOwnerController;
 use App\Http\Controllers\ContractTenantController;
+use App\Http\Controllers\ContractTenantAnnualIncomeReportController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\JournalDescriptionController;
@@ -295,3 +296,6 @@ Route::get('/reports/property-payments', [PropertyPaymentReportController::class
 
 Route::get('/reports/property-annual-incomes', [PropertyAnnualIncomeReportController::class, 'index'])
     ->name('reports.property-annual-incomes.index');
+
+Route::get('/reports/contract-tenant-annual-incomes', [ContractTenantAnnualIncomeReportController::class, 'index'])
+    ->name('reports.contract-tenant-annual-incomes.index');

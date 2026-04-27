@@ -1,9 +1,9 @@
 --- /dev/null
- b/resources/views/reports/property_annual_incomes/index.blade.php
+ b/resources/views/reports/contract_tenant_annual_incomes/index.blade.php
 @@
 @extends('layouts.app')
 
-@section('title', '物件別年間収入台帳')
+@section('title', '契約者別年間収入内訳表')
 
 @section('content')
     @php
@@ -18,11 +18,17 @@
 
     <div class="page-header">
         <div>
-            <h2 class="page-title">物件別年間収入台帳</h2>
-            <p class="page-description">物件ごとの月別収入・年間収入を確認します。</p>
+            <h2 class="page-title">契約者別年間収入内訳表</h2>
+            <p class="page-description">契約者ごとの月別収入・年間収入を確認します。</p>
         </div>
         <div class="actions">
             @if ($selectedBookId)
+                <a
+                    href="{{ route('reports.property-annual-incomes.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
+                >
+                    物件別年間収入台帳へ
+                </a>
                 <a
                     href="{{ route('reports.property-payments.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
                     class="button button-secondary"
@@ -30,22 +36,10 @@
                     物件別入金一覧表へ
                 </a>
                 <a
-                    href="{{ route('reports.contract-tenant-annual-incomes.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    href="{{ route('contract-tenants.index', ['book_id' => $selectedBookId]) }}"
                     class="button button-secondary"
                 >
-                    契約者別年間収入内訳表へ
-                </a>
-                <a
-                    href="{{ route('payment-schedules.index', ['book_id' => $selectedBookId]) }}"
-                    class="button button-secondary"
-                >
-                    入金予定一覧へ
-                </a>
-                <a
-                    href="{{ route('payment-receipts.index', ['book_id' => $selectedBookId]) }}"
-                    class="button button-secondary"
-                >
-                    入金一覧へ
+                    契約者台帳へ
                 </a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
@@ -53,12 +47,11 @@
     </div>
 
     <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
-        初版では「入金予定」を基準に、月別の予定額・入金済額・未入金額を集計します。
-        入金済額は、入金実績登録により更新された入金予定側の金額を使用します。
+        初版では「入金予定」を基準に、契約者別・月別の予定額、入金済額、未入金額を集計します。
     </div>
 
     <div class="card" style="margin-bottom: 16px;">
-        <form method="GET" action="{{ route('reports.property-annual-incomes.index') }}">
+        <form method="GET" action="{{ route('reports.contract-tenant-annual-incomes.index') }}">
             <div class="form-grid">
                 <div class="field">
                     <label for="book_id">帳簿<span class="required">必須</span></label>
@@ -69,6 +62,21 @@
                                 {{ (string) $selectedBookId === (string) $book->id ? 'selected' : '' }}
                             >
                                 {{ ($book->businessOwner?->name ?? '事業主未設定') . ' / ' . $book->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="field">
+                    <label for="contract_tenant_id">契約者</label>
+                    <select id="contract_tenant_id" name="contract_tenant_id">
+                        <option value="">すべて表示</option>
+                        @foreach ($contractTenants as $contractTenant)
+                            <option
+                                value="{{ $contractTenant->id }}"
+                                {{ (string) $selectedContractTenantId === (string) $contractTenant->id ? 'selected' : '' }}
+                            >
+                                {{ $contractTenant->tenant_code }} / {{ $contractTenant->name }}
                             </option>
                         @endforeach
                     </select>
@@ -124,7 +132,7 @@
             <div class="actions" style="margin-top: 16px;">
                 <button type="submit" class="button">表示する</button>
                 <a
-                    href="{{ $selectedBookId ? route('reports.property-annual-incomes.index', ['book_id' => $selectedBookId]) : route('reports.property-annual-incomes.index') }}"
+                    href="{{ $selectedBookId ? route('reports.contract-tenant-annual-incomes.index', ['book_id' => $selectedBookId]) : route('reports.contract-tenant-annual-incomes.index') }}"
                     class="button button-secondary"
                 >
                     条件を初期化
@@ -153,8 +161,8 @@
                 </div>
 
                 <div class="field">
-                    <label>対象物件数</label>
-                    <div>{{ $summary['properties_count'] }} 件</div>
+                    <label>対象契約者数</label>
+                    <div>{{ $summary['contract_tenants_count'] }} 件</div>
                 </div>
 
                 <div class="field">
@@ -243,15 +251,15 @@
     </div>
 
     <div class="card" style="margin-bottom: 16px;">
-        <h3 style="margin-top: 0;">物件別年間収入台帳</h3>
+        <h3 style="margin-top: 0;">契約者別年間収入内訳表</h3>
 
         <div style="overflow-x: auto;">
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>物件CODE</th>
-                        <th>物件名</th>
-                        <th>物件区分</th>
+                        <th>契約者CODE</th>
+                        <th>契約者名</th>
+                        <th>物件 / 部屋</th>
                         @foreach ($months as $month)
                             <th>{{ $month->label }}</th>
                         @endforeach
@@ -261,15 +269,26 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @forelse ($propertySummaries as $propertySummary)
+                    @forelse ($contractTenantSummaries as $contractTenantSummary)
                         <tr>
-                            <td>{{ $propertySummary->property_code ?? '—' }}</td>
-                            <td>{{ $propertySummary->property_name ?? '物件未設定' }}</td>
-                            <td>{{ $propertySummary->property_category_name ?? '—' }}</td>
+                            <td>{{ $contractTenantSummary->tenant_code ?? '—' }}</td>
+                            <td>
+                                {{ $contractTenantSummary->tenant_name ?? '契約者未設定' }}
+                                @if ($contractTenantSummary->tenant_short_name)
+                                    <div class="muted">略称: {{ $contractTenantSummary->tenant_short_name }}</div>
+                                @endif
+                            </td>
+                            <td>
+                                @forelse ($contractTenantSummary->property_labels as $propertyLabel)
+                                    <div>{{ $propertyLabel }}</div>
+                                @empty
+                                    —
+                                @endforelse
+                            </td>
 
                             @foreach ($months as $month)
                                 @php
-                                    $monthSummary = $propertySummary->monthly[$month->year_month] ?? [
+                                    $monthSummary = $contractTenantSummary->monthly[$month->year_month] ?? [
                                         'expected_total' => 0,
                                         'received_total' => 0,
                                         'remaining_total' => 0,
@@ -288,15 +307,15 @@
                                 </td>
                             @endforeach
 
-                            <td>{{ number_format((float) $propertySummary->expected_total, 2) }}</td>
-                            <td>{{ number_format((float) $propertySummary->received_total, 2) }}</td>
-                            <td style="{{ (float) $propertySummary->remaining_total > 0 ? 'color: #dc2626;' : 'color: #166534;' }}">
-                                {{ number_format((float) $propertySummary->remaining_total, 2) }}
+                            <td>{{ number_format((float) $contractTenantSummary->expected_total, 2) }}</td>
+                            <td>{{ number_format((float) $contractTenantSummary->received_total, 2) }}</td>
+                            <td style="{{ (float) $contractTenantSummary->remaining_total > 0 ? 'color: #dc2626;' : 'color: #166534;' }}">
+                                {{ number_format((float) $contractTenantSummary->remaining_total, 2) }}
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="{{ 6 + $months->count() }}">表示できる物件別年間収入データがありません。</td>
+                            <td colspan="{{ 6 + $months->count() }}">表示できる契約者別年間収入データがありません。</td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -312,8 +331,8 @@
                 <tr>
                     <th>予定日</th>
                     <th>対象年月</th>
-                    <th>物件 / 部屋</th>
                     <th>契約者</th>
+                    <th>物件 / 部屋</th>
                     <th>入金項目</th>
                     <th>予定金額</th>
                     <th>入金済</th>
@@ -335,6 +354,11 @@
                         <td>{{ $paymentSchedule->due_on?->format('Y-m-d') ?? '—' }}</td>
                         <td>{{ $paymentSchedule->target_year_month }}</td>
                         <td>
+                            {{ $paymentSchedule->contractTenant?->tenant_code ?? '—' }}
+                            /
+                            {{ $paymentSchedule->contractTenant?->name ?? '—' }}
+                        </td>
+                        <td>
                             {{ $paymentSchedule->rentalContract?->property?->property_code ?? '—' }}
                             /
                             {{ $paymentSchedule->rentalContract?->property?->name ?? '—' }}
@@ -343,11 +367,6 @@
                                     部屋: {{ $paymentSchedule->rentalContract->propertyUnit->unit_no }}
                                 </div>
                             @endif
-                        </td>
-                        <td>
-                            {{ $paymentSchedule->contractTenant?->tenant_code ?? '—' }}
-                            /
-                            {{ $paymentSchedule->contractTenant?->name ?? '—' }}
                         </td>
                         <td>
                             {{ $paymentSchedule->paymentItem?->item_code ?? '—' }}

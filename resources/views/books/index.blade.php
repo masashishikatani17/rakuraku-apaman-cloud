@@ -228,6 +228,12 @@
                                     物件別年間収入台帳
                                 </a>
                                 <a
+                                    href="{{ route('reports.contract-tenant-annual-incomes.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    契約者別年間収入内訳表
+                                </a>
+                                <a
                                     href="{{ route('payment-receipts.create', ['book_id' => $book->id]) }}"
                                     class="button"
                                 >

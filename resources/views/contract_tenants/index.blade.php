@@ -23,6 +23,12 @@
             >
                 契約者を新規登録
             </a>
+            <a
+                href="{{ $selectedBookId ? route('reports.contract-tenant-annual-incomes.index', ['book_id' => $selectedBookId]) : route('reports.contract-tenant-annual-incomes.index') }}"
+                class="button button-secondary"
+            >
+                契約者別年間収入内訳表
+            </a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
     </div>
