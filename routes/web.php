@@ -20,6 +20,7 @@ use App\Http\Controllers\PropertyPaymentReportController;
 use App\Http\Controllers\PropertyAnnualIncomeReportController;
 use App\Http\Controllers\PropertyCategoryController;
 use App\Http\Controllers\PropertyController;
+use App\Http\Controllers\PropertyLedgerReportController;
 use App\Http\Controllers\PropertyOwnerController;
 use App\Http\Controllers\PropertyUnitController;
 use App\Http\Controllers\SubAccountTitleController;
@@ -299,3 +300,6 @@ Route::get('/reports/property-annual-incomes', [PropertyAnnualIncomeReportContro
 
 Route::get('/reports/contract-tenant-annual-incomes', [ContractTenantAnnualIncomeReportController::class, 'index'])
     ->name('reports.contract-tenant-annual-incomes.index');
+
+Route::get('/reports/property-ledgers', [PropertyLedgerReportController::class, 'index'])
+    ->name('reports.property-ledgers.index');

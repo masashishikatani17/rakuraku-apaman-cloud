@@ -15,6 +15,12 @@
             >
                 物件を新規登録
             </a>
+            <a
+                href="{{ $selectedBookId ? route('reports.property-ledgers.index', ['book_id' => $selectedBookId]) : route('reports.property-ledgers.index') }}"
+                class="button button-secondary"
+            >
+                物件台帳
+            </a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
     </div>

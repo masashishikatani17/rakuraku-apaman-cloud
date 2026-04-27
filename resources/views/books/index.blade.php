@@ -150,6 +150,12 @@
                                     物件一覧
                                 </a>
                                 <a
+                                    href="{{ route('reports.property-ledgers.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    物件台帳
+                                </a>
+                                <a
                                     href="{{ route('properties.create', ['book_id' => $book->id]) }}"
                                     class="button"
                                 >
