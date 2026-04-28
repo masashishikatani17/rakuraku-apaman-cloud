@@ -124,7 +124,7 @@ class MonthlyTrendReportController extends Controller
                 'at.is_active',
                 'at.sort_order',
             ])
-            ->selectRaw("DATE_FORMAT(je.entry_date, '%Y-%m') as year_month")
+            ->selectRaw("DATE_FORMAT(je.entry_date, '%Y-%m') as ym")
             ->selectRaw(
                 "COALESCE(SUM(CASE WHEN jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total"
             )
@@ -173,7 +173,7 @@ class MonthlyTrendReportController extends Controller
                         ? round($debitTotal - $creditTotal, 2)
                         : round($creditTotal - $debitTotal, 2);
 
-                    $monthly[$row->year_month] = [
+                    $monthly[$row->ym] = [
                         'debit_total' => $debitTotal,
                         'credit_total' => $creditTotal,
                         'amount' => $amount,
