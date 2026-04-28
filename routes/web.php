@@ -1,13 +1,16 @@
 <?php
 
 use App\Http\Controllers\AccountTitleController;
+use App\Http\Controllers\BalanceSheetReportController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\BusinessOwnerController;
 use App\Http\Controllers\CashBankLedgerController;
+use App\Http\Controllers\ClosingAdjustmentJournalController;
 use App\Http\Controllers\ContractTenantController;
 use App\Http\Controllers\ContractTenantAnnualIncomeReportController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DepartmentTrialBalanceController;
+use App\Http\Controllers\DepreciableAssetController;
 use App\Http\Controllers\ExpenseLedgerController;
 use App\Http\Controllers\GeneralLedgerController;
 use App\Http\Controllers\IncomeStatementReportController;
@@ -16,6 +19,7 @@ use App\Http\Controllers\JournalDiaryController;
 use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\MonthlyPaymentScheduleController;
 use App\Http\Controllers\MonthlyTrendReportController;
+use App\Http\Controllers\OpeningBalanceController;
 use App\Http\Controllers\PaymentAccountController;
 use App\Http\Controllers\PaymentItemController;
 use App\Http\Controllers\PaymentReceiptController;
@@ -56,6 +60,12 @@ Route::get('/books/create', [BookController::class, 'create'])
 
 Route::post('/books', [BookController::class, 'store'])
     ->name('books.store');
+
+Route::get('/opening-balances', [OpeningBalanceController::class, 'index'])
+    ->name('opening-balances.index');
+
+Route::post('/opening-balances', [OpeningBalanceController::class, 'store'])
+    ->name('opening-balances.store');
 
 Route::get('/property-owners', [PropertyOwnerController::class, 'index'])
     ->name('property-owners.index');
@@ -294,6 +304,45 @@ Route::delete('/journal-entries/{journalEntry}', [JournalEntryController::class,
 Route::get('/journal-diaries', [JournalDiaryController::class, 'index'])
     ->name('journal-diaries.index');
 
+Route::get('/depreciable-assets', [DepreciableAssetController::class, 'index'])
+    ->name('depreciable-assets.index');
+
+Route::get('/depreciable-assets/create', [DepreciableAssetController::class, 'create'])
+    ->name('depreciable-assets.create');
+
+Route::post('/depreciable-assets', [DepreciableAssetController::class, 'store'])
+    ->name('depreciable-assets.store');
+
+Route::post('/depreciable-assets/depreciation-journals', [DepreciableAssetController::class, 'storeDepreciationJournals'])
+    ->name('depreciable-assets.depreciation-journals.store');
+
+Route::get('/depreciable-assets/{depreciableAsset}/edit', [DepreciableAssetController::class, 'edit'])
+    ->name('depreciable-assets.edit');
+
+Route::put('/depreciable-assets/{depreciableAsset}', [DepreciableAssetController::class, 'update'])
+    ->name('depreciable-assets.update');
+
+Route::delete('/depreciable-assets/{depreciableAsset}', [DepreciableAssetController::class, 'destroy'])
+    ->name('depreciable-assets.destroy');
+
+Route::get('/closing-adjustment-journals', [ClosingAdjustmentJournalController::class, 'index'])
+    ->name('closing-adjustment-journals.index');
+
+Route::get('/closing-adjustment-journals/create', [ClosingAdjustmentJournalController::class, 'create'])
+    ->name('closing-adjustment-journals.create');
+
+Route::post('/closing-adjustment-journals', [ClosingAdjustmentJournalController::class, 'store'])
+    ->name('closing-adjustment-journals.store');
+
+Route::get('/closing-adjustment-journals/{journalEntry}/edit', [ClosingAdjustmentJournalController::class, 'edit'])
+    ->name('closing-adjustment-journals.edit');
+
+Route::put('/closing-adjustment-journals/{journalEntry}', [ClosingAdjustmentJournalController::class, 'update'])
+    ->name('closing-adjustment-journals.update');
+
+Route::delete('/closing-adjustment-journals/{journalEntry}', [ClosingAdjustmentJournalController::class, 'destroy'])
+    ->name('closing-adjustment-journals.destroy');
+
 Route::get('/trial-balances', [TrialBalanceController::class, 'index'])
     ->name('trial-balances.index');
 
@@ -338,3 +387,6 @@ Route::get('/reports/monthly-trends', [MonthlyTrendReportController::class, 'ind
 
 Route::get('/reports/income-statements', [IncomeStatementReportController::class, 'index'])
     ->name('reports.income-statements.index');
+
+Route::get('/reports/balance-sheets', [BalanceSheetReportController::class, 'index'])
+    ->name('reports.balance-sheets.index');

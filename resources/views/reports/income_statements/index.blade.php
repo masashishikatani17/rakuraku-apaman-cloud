@@ -23,6 +23,12 @@
         <div class="actions">
             @if ($selectedBookId)
                 <a
+                    href="{{ route('reports.balance-sheets.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
+                >
+                    貸借対照表へ
+                </a>
+                <a
                     href="{{ route('reports.monthly-trends.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
                     class="button button-secondary"
                 >
@@ -45,6 +51,12 @@
                     class="button button-secondary"
                 >
                     仕訳日記帳へ
+                </a>
+                <a
+                    href="{{ route('depreciable-assets.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
+                >
+                    減価償却へ
                 </a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>

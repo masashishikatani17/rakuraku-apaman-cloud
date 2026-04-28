@@ -3,6 +3,16 @@
 @section('title', '仕訳一覧')
 
 @section('content')
+    @php
+        $entryTypeLabels = [
+            'manual' => '通常',
+            'system' => '自動',
+            'opening' => '開始残高',
+            'closing' => '決算整理',
+            'depreciation' => '減価償却',
+        ];
+    @endphp
+
     <div class="page-header">
         <div>
             <h2 class="page-title">仕訳一覧</h2>
@@ -14,6 +24,18 @@
                 class="button"
             >
                 仕訳を新規登録
+            </a>
+            <a
+                href="{{ $selectedBookId ? route('closing-adjustment-journals.index', ['book_id' => $selectedBookId]) : route('closing-adjustment-journals.index') }}"
+                class="button button-secondary"
+            >
+                決算整理仕訳へ
+            </a>
+            <a
+                href="{{ $selectedBookId ? route('depreciable-assets.index', ['book_id' => $selectedBookId]) : route('depreciable-assets.index') }}"
+                class="button button-secondary"
+            >
+                減価償却へ
             </a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
@@ -65,6 +87,7 @@
                     <th>借方</th>
                     <th>貸方</th>
                     <th>金額</th>
+                    <th>区分</th>
                     <th>状態</th>
                     <th>操作</th>
                 </tr>
@@ -122,16 +145,23 @@
                             @endif
                         </td>
                         <td>{{ number_format((float) $journalEntry->total_amount, 2) }}</td>
+                        <td>{{ $entryTypeLabels[$journalEntry->entry_type] ?? $journalEntry->entry_type }}</td>
                         <td>{{ $journalEntry->status === 'posted' ? '登録済' : '下書き' }}</td>
                         <td>
                             <div class="actions">
-                                <a href="{{ route('journal-entries.edit', $journalEntry) }}" class="button button-secondary">
-                                    修正
-                                </a>
+                                @if ($journalEntry->entry_type === 'closing')
+                                    <a href="{{ route('closing-adjustment-journals.edit', $journalEntry) }}" class="button button-secondary">
+                                        決算修正
+                                    </a>
+                                @else
+                                    <a href="{{ route('journal-entries.edit', $journalEntry) }}" class="button button-secondary">
+                                        修正
+                                    </a>
+                                @endif
 
                                 <form
                                     method="POST"
-                                    action="{{ route('journal-entries.destroy', $journalEntry) }}"
+                                    action="{{ $journalEntry->entry_type === 'closing' ? route('closing-adjustment-journals.destroy', $journalEntry) : route('journal-entries.destroy', $journalEntry) }}"
                                     onsubmit="return confirm('この仕訳を削除しますか？');"
                                     style="display: inline-block; margin: 0;"
                                 >
@@ -150,7 +180,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10">まだ仕訳が登録されていません。「仕訳を新規登録」から最初の1件を作成してください。</td>
+                        <td colspan="11">まだ仕訳が登録されていません。「仕訳を新規登録」から最初の1件を作成してください。</td>
                     </tr>
                 @endforelse
             </tbody>

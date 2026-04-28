@@ -107,4 +107,9 @@ class Book extends Model
     {
         return $this->hasMany(JournalEntry::class);
     }
+
+    public function depreciableAssets(): HasMany
+    {
+        return $this->hasMany(DepreciableAsset::class);
+    }
 }
