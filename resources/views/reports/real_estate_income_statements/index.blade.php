@@ -66,6 +66,12 @@
                 >
                     仕訳日記帳へ
                 </a>
+                <a
+                    href="{{ route('reports.consumption-tax.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
+                >
+                    消費税集計へ
+                </a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>

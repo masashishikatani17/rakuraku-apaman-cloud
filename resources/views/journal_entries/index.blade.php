@@ -44,6 +44,12 @@
             >
                 借入金台帳へ
             </a>
+            <a
+                href="{{ $selectedBookId ? route('csv-exports.index', ['book_id' => $selectedBookId]) : route('csv-exports.index') }}"
+                class="button button-secondary"
+            >
+                CSV出力へ
+            </a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
     </div>
