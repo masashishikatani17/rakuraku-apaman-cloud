@@ -90,4 +90,9 @@ class Property extends Model
     {
         return $this->hasMany(RentalContract::class);
     }
+
+    public function depreciableAssets(): HasMany
+    {
+        return $this->hasMany(DepreciableAsset::class);
+    }
 }

@@ -26,6 +26,12 @@
         <div class="actions">
             @if ($selectedBookId)
                 <a
+                    href="{{ route('opening-balances.index', ['book_id' => $selectedBookId, 'opening_date' => $dateFrom]) }}"
+                    class="button button-secondary"
+                >
+                    開始残高へ
+                </a>
+                <a
                     href="{{ route('general-ledgers.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
                     class="button button-secondary"
                 >
@@ -43,13 +49,25 @@
                 >
                     月次推移表へ
                 </a>
+                <a
+                    href="{{ route('reports.income-statements.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
+                >
+                    損益計算書へ
+                </a>
+                <a
+                    href="{{ route('reports.balance-sheets.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
+                >
+                    貸借対照表へ
+                </a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
     </div>
 
     <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
-        現在は「登録済の仕訳」のみを集計しています。開始残高、決算整理、部門別集計は次の段階で追加します。
+        登録済みの仕訳を勘定科目ごとに集計します。開始残高入力で作成した開始残高仕訳も集計対象に含まれます。
     </div>
 
     <div class="card" style="margin-bottom: 16px;">
