@@ -112,4 +112,9 @@ class Book extends Model
     {
         return $this->hasMany(DepreciableAsset::class);
     }
+
+    public function borrowingLoans(): HasMany
+    {
+        return $this->hasMany(BorrowingLoan::class);
+    }
 }

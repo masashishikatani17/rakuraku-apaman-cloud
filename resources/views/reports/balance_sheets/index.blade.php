@@ -70,6 +70,12 @@
                 >
                     不動産所得集計へ
                 </a>
+                <a
+                    href="{{ route('borrowing-loans.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
+                >
+                    借入金台帳へ
+                </a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>

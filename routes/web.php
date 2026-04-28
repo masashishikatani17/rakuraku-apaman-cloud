@@ -68,6 +68,27 @@ Route::get('/opening-balances', [OpeningBalanceController::class, 'index'])
 Route::post('/opening-balances', [OpeningBalanceController::class, 'store'])
     ->name('opening-balances.store');
 
+Route::get('/borrowing-loans', [BorrowingLoanController::class, 'index'])
+    ->name('borrowing-loans.index');
+
+Route::get('/borrowing-loans/create', [BorrowingLoanController::class, 'create'])
+    ->name('borrowing-loans.create');
+
+Route::post('/borrowing-loans', [BorrowingLoanController::class, 'store'])
+    ->name('borrowing-loans.store');
+
+Route::post('/borrowing-loans/repayment-journals', [BorrowingLoanController::class, 'storeRepaymentJournals'])
+    ->name('borrowing-loans.repayment-journals.store');
+
+Route::get('/borrowing-loans/{borrowingLoan}/edit', [BorrowingLoanController::class, 'edit'])
+    ->name('borrowing-loans.edit');
+
+Route::put('/borrowing-loans/{borrowingLoan}', [BorrowingLoanController::class, 'update'])
+    ->name('borrowing-loans.update');
+
+Route::delete('/borrowing-loans/{borrowingLoan}', [BorrowingLoanController::class, 'destroy'])
+    ->name('borrowing-loans.destroy');
+
 Route::get('/property-owners', [PropertyOwnerController::class, 'index'])
     ->name('property-owners.index');
 
