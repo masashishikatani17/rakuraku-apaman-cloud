@@ -10,6 +10,7 @@ use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DepartmentTrialBalanceController;
 use App\Http\Controllers\ExpenseLedgerController;
 use App\Http\Controllers\GeneralLedgerController;
+use App\Http\Controllers\IncomeStatementReportController;
 use App\Http\Controllers\JournalDescriptionController;
 use App\Http\Controllers\JournalDiaryController;
 use App\Http\Controllers\JournalEntryController;
@@ -334,4 +335,6 @@ Route::get('/reports/rental-contracts', [RentalContractReportController::class, 
 
 Route::get('/reports/monthly-trends', [MonthlyTrendReportController::class, 'index'])
     ->name('reports.monthly-trends.index');
-//　おなかすいた
+
+Route::get('/reports/income-statements', [IncomeStatementReportController::class, 'index'])
+    ->name('reports.income-statements.index');
