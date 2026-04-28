@@ -19,6 +19,7 @@ class PdfExportController extends Controller
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
             'report_type' => ['nullable', 'in:income_statement,balance_sheet,trial_balance,journal_diary,real_estate_income'],
             'display' => ['nullable', 'in:non_zero,all'],
+            'paper_size' => ['nullable', 'in:a4_portrait,a4_landscape,a3_landscape'],
         ]);
 
         $requestedBookId = isset($validated['book_id'])
@@ -54,6 +55,8 @@ class PdfExportController extends Controller
             'display' => $validated['display'] ?? 'non_zero',
             'reportTypeLabels' => $this->reportTypeLabels(),
             'displayLabels' => $this->displayLabels(),
+            'paperSize' => $validated['paper_size'] ?? 'a4_portrait',
+            'paperSizeLabels' => $this->paperSizeLabels(),
         ]);
     }
 
@@ -65,6 +68,7 @@ class PdfExportController extends Controller
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
             'report_type' => ['required', 'in:income_statement,balance_sheet,trial_balance,journal_diary,real_estate_income'],
             'display' => ['nullable', 'in:non_zero,all'],
+            'paper_size' => ['nullable', 'in:a4_portrait,a4_landscape,a3_landscape'],
         ]);
 
         $book = Book::query()
@@ -79,6 +83,7 @@ class PdfExportController extends Controller
 
         $display = $validated['display'] ?? 'non_zero';
         $reportType = $validated['report_type'];
+        $paperSize = $validated['paper_size'] ?? 'a4_portrait';
 
         $payload = match ($reportType) {
             'income_statement' => $this->buildIncomeStatementPayload((int) $book->id, $dateFrom, $dateTo, $display),
@@ -96,6 +101,8 @@ class PdfExportController extends Controller
             'reportTitle' => $this->reportTypeLabels()[$reportType] ?? $reportType,
             'display' => $display,
             'displayLabels' => $this->displayLabels(),
+            'paperSize' => $paperSize,
+            'paperSizeLabels' => $this->paperSizeLabels(),
             'payload' => $payload,
             'generatedAt' => now()->format('Y-m-d H:i:s'),
         ]);
@@ -117,6 +124,15 @@ class PdfExportController extends Controller
         return [
             'non_zero' => '0円科目を非表示',
             'all' => '0円科目も表示',
+        ];
+    }
+ 
+    private function paperSizeLabels(): array
+    {
+        return [
+            'a4_portrait' => 'A4 縦',
+            'a4_landscape' => 'A4 横',
+            'a3_landscape' => 'A3 横',
         ];
     }
 
