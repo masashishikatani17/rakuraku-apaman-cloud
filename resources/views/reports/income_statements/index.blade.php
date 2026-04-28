@@ -58,6 +58,12 @@
                 >
                     減価償却へ
                 </a>
+                <a
+                    href="{{ route('reports.real-estate-income-statements.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
+                >
+                    不動産所得集計へ
+                </a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>

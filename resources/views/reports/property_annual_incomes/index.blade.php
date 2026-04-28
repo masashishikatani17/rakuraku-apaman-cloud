@@ -27,6 +27,12 @@
                     物件別入金一覧表へ
                 </a>
                 <a
+                    href="{{ route('reports.real-estate-income-statements.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
+                >
+                    不動産所得集計へ
+                </a>
+                <a
                     href="{{ route('reports.contract-tenant-annual-incomes.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
                     class="button button-secondary"
                 >

@@ -33,6 +33,7 @@ use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\PropertyLedgerReportController;
 use App\Http\Controllers\PropertyOwnerController;
 use App\Http\Controllers\PropertyUnitController;
+use App\Http\Controllers\RealEstateIncomeStatementReportController;
 use App\Http\Controllers\SubAccountTitleController;
 use App\Http\Controllers\SubAccountReportController;
 use App\Http\Controllers\SubAccountLedgerController;
@@ -390,3 +391,7 @@ Route::get('/reports/income-statements', [IncomeStatementReportController::class
 
 Route::get('/reports/balance-sheets', [BalanceSheetReportController::class, 'index'])
     ->name('reports.balance-sheets.index');
+
+Route::get('/reports/real-estate-income-statements', [RealEstateIncomeStatementReportController::class, 'index'])
+    ->name('reports.real-estate-income-statements.index');
+
