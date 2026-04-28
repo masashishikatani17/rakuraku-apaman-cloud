@@ -1,3 +1,13 @@
+@php
+    $categoryLabels = [
+        'asset' => '資産',
+        'liability' => '負債',
+        'equity' => '純資産',
+        'revenue' => '収益',
+        'expense' => '費用',
+    ];
+@endphp
+
 <table>
     <thead>
         <tr>
@@ -14,7 +24,7 @@
             <tr>
                 <td>{{ $row->account_code }}</td>
                 <td>{{ $row->account_name }}</td>
-                <td>{{ $row->category }}</td>
+                <td class="text-center">{{ $categoryLabels[$row->category] ?? $row->category }}</td>
                 <td class="text-end">{{ number_format((float) $row->debit_total, 2) }}</td>
                 <td class="text-end">{{ number_format((float) $row->credit_total, 2) }}</td>
                 <td class="text-end">{{ number_format((float) $row->amount, 2) }}</td>

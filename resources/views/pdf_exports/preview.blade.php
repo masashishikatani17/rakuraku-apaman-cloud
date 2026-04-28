@@ -8,7 +8,7 @@
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             color: #111827;
-            background: #eef2f7;
+            background: #dfe5ef;
             font-size: 12px;
         }
 
@@ -39,22 +39,41 @@
         }
 
         .paper {
-            width: 210mm;
-            min-height: 297mm;
+            width:
+                @if ($paperSize === 'a3_landscape')
+                    420mm
+                @elseif ($paperSize === 'a4_landscape')
+                    297mm
+                @else
+                    210mm
+                @endif;
+            min-height:
+                @if ($paperSize === 'a3_landscape')
+                    297mm
+                @elseif ($paperSize === 'a4_landscape')
+                    210mm
+                @else
+                    297mm
+                @endif;
             margin: 16px auto;
-            padding: 14mm;
+            padding: 10mm 12mm;
             box-sizing: border-box;
             background: #ffffff;
             box-shadow: 0 6px 24px rgba(15, 23, 42, 0.18);
         }
 
         .report-header {
-            display: flex;
-            justify-content: space-between;
-            gap: 16px;
-            border-bottom: 2px solid #111827;
+            border: 2px solid #111827;
+            padding: 8px;
+            margin-bottom: 10px;
+        }
+
+        .report-title-block {
+            text-align: center;
             padding-bottom: 8px;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #111827;
         }
 
         h1 {
@@ -65,8 +84,33 @@
         h2 {
             margin: 18px 0 8px;
             font-size: 16px;
-            border-left: 4px solid #1d4ed8;
+            border-left: 6px solid #111827;
             padding-left: 8px;
+        }
+ 
+        .report-title-main {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 0.18em;
+        }
+
+        .report-subtitle {
+            margin-top: 4px;
+            color: #4b5563;
+            font-size: 11px;
+        }
+
+        .report-meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px 12px;
+            font-size: 11px;
+        }
+
+        .report-meta-grid .label {
+            display: inline-block;
+            min-width: 74px;
+            color: #4b5563;
         }
 
         .meta {
@@ -74,6 +118,24 @@
             line-height: 1.6;
             text-align: right;
             white-space: nowrap;
+        }
+
+        .report-note {
+            margin: 10px 0;
+            padding: 6px 8px;
+            border: 1px solid #9ca3af;
+            background: #f9fafb;
+            color: #374151;
+            font-size: 10px;
+        }
+
+        .print-footer {
+            margin-top: 12px;
+            padding-top: 6px;
+            border-top: 1px solid #9ca3af;
+            color: #6b7280;
+            font-size: 10px;
+            text-align: right;
         }
 
         .summary-grid {
@@ -84,10 +146,10 @@
         }
 
         .summary-card {
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
+            border: 1px solid #111827;
+            border-radius: 0;
             padding: 8px;
-            background: #f9fafb;
+            background: #ffffff;
         }
 
         .summary-label {
@@ -110,14 +172,15 @@
 
         th,
         td {
-            border: 1px solid #d1d5db;
-            padding: 5px 6px;
+            border: 1px solid #111827;
+            padding: 4px 5px;
             vertical-align: top;
         }
 
         th {
-            background: #f3f4f6;
+            background: #e5e7eb;
             font-weight: 700;
+            text-align: center;
         }
 
         tr {
@@ -144,6 +207,7 @@
         @media print {
             body {
                 background: #ffffff;
+                font-size: 10.5px;
             }
 
             .print-toolbar {
@@ -159,8 +223,15 @@
             }
 
             @page {
-                size: A4 portrait;
-                margin: 12mm;
+                size:
+                    @if ($paperSize === 'a3_landscape')
+                        A3 landscape
+                    @elseif ($paperSize === 'a4_landscape')
+                        A4 landscape
+                    @else
+                        A4 portrait
+                    @endif;
+                margin: 9mm;
             }
         }
     </style>
@@ -168,27 +239,33 @@
 <body>
     <div class="print-toolbar">
         <button type="button" onclick="window.print()">印刷する</button>
-        <a href="{{ route('pdf-exports.index', ['book_id' => $book->id, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'report_type' => $reportType, 'display' => $display]) }}">
+        <a href="{{ route('pdf-exports.index', ['book_id' => $book->id, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'report_type' => $reportType, 'display' => $display, 'paper_size' => $paperSize]) }}">
             PDF出力条件へ戻る
         </a>
-        <span>印刷画面で「PDFに保存」を選択してください。</span>
+        <span>{{ $paperSizeLabels[$paperSize] ?? $paperSize }}で印刷します。印刷画面で「PDFに保存」を選択してください。</span>
     </div>
 
     <main class="paper">
         <header class="report-header">
-            <div>
-                <h1>{{ $reportTitle }}</h1>
-                <div class="muted">
-                    {{ ($book->businessOwner?->name ?? '事業主未設定') . ' / ' . $book->name }}
+            <div class="report-title-block">
+                <div class="report-title-main">{{ $reportTitle }}</div>
+                <div class="report-subtitle">
+                    らくらく社計簿-アパマン編 / {{ $paperSizeLabels[$paperSize] ?? $paperSize }}
                 </div>
             </div>
-            <div class="meta">
-                <div>対象期間: {{ $dateFrom ?: '開始未指定' }} 〜 {{ $dateTo ?: '終了未指定' }}</div>
-                <div>出力日時: {{ $generatedAt }}</div>
-                <div>表示方法: {{ $displayLabels[$display] ?? $display }}</div>
+            <div class="report-meta-grid">
+                <div><span class="label">事業主</span>{{ $book->businessOwner?->name ?? '事業主未設定' }}</div>
+                <div><span class="label">帳簿名</span>{{ $book->name }}</div>
+                <div><span class="label">対象期間</span>{{ $dateFrom ?: '開始未指定' }} 〜 {{ $dateTo ?: '終了未指定' }}</div>
+                <div><span class="label">出力日時</span>{{ $generatedAt }}</div>
+                <div><span class="label">表示方法</span>{{ $displayLabels[$display] ?? $display }}</div>
+                <div><span class="label">帳票区分</span>{{ $reportType }}</div>
             </div>
         </header>
 
+        <div class="report-note">
+            本帳票はAccess版に近い確認用の印刷レイアウト初版です。正式な提出用帳票・税務申告書様式への完全準拠は後続工程で整備します。
+        </div>
         @if ($reportType === 'income_statement')
             <section>
                 <div class="summary-grid">
@@ -397,6 +474,10 @@
                 @include('pdf_exports.partials.account_amount_rows', ['rows' => $payload['expenseRows'], 'emptyMessage' => '費用科目はありません。'])
             </section>
         @endif
+
+        <footer class="print-footer">
+            {{ $reportTitle }} / {{ ($book->businessOwner?->name ?? '事業主未設定') . ' / ' . $book->name }} / {{ $generatedAt }}
+        </footer>
     </main>
 </body>
 </html>

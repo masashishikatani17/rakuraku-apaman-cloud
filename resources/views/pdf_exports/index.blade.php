@@ -10,6 +10,7 @@
             'date_to' => $dateTo,
             'report_type' => $reportType,
             'display' => $display,
+            'paper_size' => $paperSize,
         ];
     @endphp
 
@@ -87,6 +88,17 @@
                         @endforeach
                     </select>
                 </div>
+
+                <div class="field">
+                    <label for="paper_size">用紙・向き</label>
+                    <select id="paper_size" name="paper_size">
+                        @foreach ($paperSizeLabels as $value => $label)
+                            <option value="{{ $value }}" {{ $paperSize === $value ? 'selected' : '' }}>
+                                {{ $label }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
 
             <div class="actions" style="margin-top: 16px;">
@@ -127,6 +139,10 @@
                     <tr>
                         <th>表示方法</th>
                         <td>{{ $displayLabels[$display] ?? $display }}</td>
+                    </tr>
+                    <tr>
+                        <th>用紙・向き</th>
+                        <td>{{ $paperSizeLabels[$paperSize] ?? $paperSize }}</td>
                     </tr>
                 </tbody>
             </table>
