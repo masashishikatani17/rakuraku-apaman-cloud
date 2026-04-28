@@ -3,11 +3,14 @@
 use App\Http\Controllers\AccountTitleController;
 use App\Http\Controllers\BalanceSheetReportController;
 use App\Http\Controllers\BookController;
+use App\Http\Controllers\BorrowingLoanController;
 use App\Http\Controllers\BusinessOwnerController;
 use App\Http\Controllers\CashBankLedgerController;
 use App\Http\Controllers\ClosingAdjustmentJournalController;
+use App\Http\Controllers\ConsumptionTaxReportController;
 use App\Http\Controllers\ContractTenantController;
 use App\Http\Controllers\ContractTenantAnnualIncomeReportController;
+use App\Http\Controllers\CsvExportController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DepartmentTrialBalanceController;
 use App\Http\Controllers\DepreciableAssetController;
@@ -33,6 +36,7 @@ use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\PropertyLedgerReportController;
 use App\Http\Controllers\PropertyOwnerController;
 use App\Http\Controllers\PropertyUnitController;
+use App\Http\Controllers\RealEstateIncomeStatementReportController;
 use App\Http\Controllers\SubAccountTitleController;
 use App\Http\Controllers\SubAccountReportController;
 use App\Http\Controllers\SubAccountLedgerController;
@@ -61,11 +65,38 @@ Route::get('/books/create', [BookController::class, 'create'])
 Route::post('/books', [BookController::class, 'store'])
     ->name('books.store');
 
+Route::get('/csv-exports', [CsvExportController::class, 'index'])
+    ->name('csv-exports.index');
+
+Route::get('/csv-exports/download', [CsvExportController::class, 'download'])
+    ->name('csv-exports.download');
+
 Route::get('/opening-balances', [OpeningBalanceController::class, 'index'])
     ->name('opening-balances.index');
 
 Route::post('/opening-balances', [OpeningBalanceController::class, 'store'])
     ->name('opening-balances.store');
+
+Route::get('/borrowing-loans', [BorrowingLoanController::class, 'index'])
+    ->name('borrowing-loans.index');
+
+Route::get('/borrowing-loans/create', [BorrowingLoanController::class, 'create'])
+    ->name('borrowing-loans.create');
+
+Route::post('/borrowing-loans', [BorrowingLoanController::class, 'store'])
+    ->name('borrowing-loans.store');
+
+Route::post('/borrowing-loans/repayment-journals', [BorrowingLoanController::class, 'storeRepaymentJournals'])
+    ->name('borrowing-loans.repayment-journals.store');
+
+Route::get('/borrowing-loans/{borrowingLoan}/edit', [BorrowingLoanController::class, 'edit'])
+    ->name('borrowing-loans.edit');
+
+Route::put('/borrowing-loans/{borrowingLoan}', [BorrowingLoanController::class, 'update'])
+    ->name('borrowing-loans.update');
+
+Route::delete('/borrowing-loans/{borrowingLoan}', [BorrowingLoanController::class, 'destroy'])
+    ->name('borrowing-loans.destroy');
 
 Route::get('/property-owners', [PropertyOwnerController::class, 'index'])
     ->name('property-owners.index');
@@ -390,3 +421,9 @@ Route::get('/reports/income-statements', [IncomeStatementReportController::class
 
 Route::get('/reports/balance-sheets', [BalanceSheetReportController::class, 'index'])
     ->name('reports.balance-sheets.index');
+
+Route::get('/reports/real-estate-income-statements', [RealEstateIncomeStatementReportController::class, 'index'])
+    ->name('reports.real-estate-income-statements.index');
+
+Route::get('/reports/consumption-tax', [ConsumptionTaxReportController::class, 'index'])
+    ->name('reports.consumption-tax.index');

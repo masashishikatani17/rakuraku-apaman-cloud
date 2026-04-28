@@ -1,0 +1,50 @@
+@extends('layouts.app')
+
+@section('title', '借入金登録')
+
+@section('content')
+    <div class="page-header">
+        <div>
+            <h2 class="page-title">借入金登録</h2>
+            <p class="page-description">借入条件を登録し、返済予定表を作成します。</p>
+        </div>
+        <div class="actions">
+            <a
+                href="{{ $selectedBookId ? route('borrowing-loans.index', ['book_id' => $selectedBookId]) : route('borrowing-loans.index') }}"
+                class="button button-secondary"
+            >
+                借入金台帳へ戻る
+            </a>
+        </div>
+    </div>
+
+    @if ($errors->any())
+        <div class="alert alert-danger">
+            <ul style="margin: 0; padding-left: 20px;">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    <div class="card">
+        <form method="POST" action="{{ route('borrowing-loans.store') }}">
+            @csrf
+            @include('borrowing_loans.partials.form', [
+                'borrowingLoan' => $borrowingLoan,
+                'selectedBookId' => $selectedBookId,
+            ])
+
+            <div class="actions" style="margin-top: 16px;">
+                <button type="submit" class="button">登録する</button>
+                <a
+                    href="{{ $selectedBookId ? route('borrowing-loans.index', ['book_id' => $selectedBookId]) : route('borrowing-loans.index') }}"
+                    class="button button-secondary"
+                >
+                    キャンセル
+                </a>
+            </div>
+        </form>
+    </div>
+@endsection

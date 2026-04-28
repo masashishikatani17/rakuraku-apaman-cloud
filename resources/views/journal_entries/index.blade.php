@@ -10,6 +10,7 @@
             'opening' => '開始残高',
             'closing' => '決算整理',
             'depreciation' => '減価償却',
+            'loan_repayment' => '借入返済',
         ];
     @endphp
 
@@ -36,6 +37,18 @@
                 class="button button-secondary"
             >
                 減価償却へ
+            </a>
+            <a
+                href="{{ $selectedBookId ? route('borrowing-loans.index', ['book_id' => $selectedBookId]) : route('borrowing-loans.index') }}"
+                class="button button-secondary"
+            >
+                借入金台帳へ
+            </a>
+            <a
+                href="{{ $selectedBookId ? route('csv-exports.index', ['book_id' => $selectedBookId]) : route('csv-exports.index') }}"
+                class="button button-secondary"
+            >
+                CSV出力へ
             </a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
