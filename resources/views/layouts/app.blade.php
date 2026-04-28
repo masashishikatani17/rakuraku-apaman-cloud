@@ -214,6 +214,7 @@
             <nav class="site-nav">
                 <a href="{{ route('business-owners.index') }}">事業主一覧</a>
                 <a href="{{ route('business-owners.create') }}">事業主登録</a>
+                <a href="{{ route('pdf-exports.index') }}">PDF出力</a>
             </nav>
         </div>
     </header>
