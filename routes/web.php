@@ -23,6 +23,7 @@ use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\MonthlyPaymentScheduleController;
 use App\Http\Controllers\MonthlyTrendReportController;
 use App\Http\Controllers\OpeningBalanceController;
+use App\Http\Controllers\PdfExportController;
 use App\Http\Controllers\PaymentAccountController;
 use App\Http\Controllers\PaymentItemController;
 use App\Http\Controllers\PaymentReceiptController;
@@ -427,3 +428,9 @@ Route::get('/reports/real-estate-income-statements', [RealEstateIncomeStatementR
 
 Route::get('/reports/consumption-tax', [ConsumptionTaxReportController::class, 'index'])
     ->name('reports.consumption-tax.index');
+    
+Route::get('/pdf-exports', [PdfExportController::class, 'index'])
+    ->name('pdf-exports.index');
+
+Route::get('/pdf-exports/preview', [PdfExportController::class, 'preview'])
+    ->name('pdf-exports.preview');
