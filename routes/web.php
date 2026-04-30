@@ -31,6 +31,8 @@ use App\Http\Controllers\PdfExportController;
 use App\Http\Controllers\PaymentAccountController;
 use App\Http\Controllers\PaymentItemController;
 use App\Http\Controllers\PaymentReceiptController;
+ use App\Http\Controllers\PaymentReconciliationActionController;
+use App\Http\Controllers\PaymentReconciliationCheckController;
 use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\RentalPaymentJournalController;
 use App\Http\Controllers\RentalContractMoveOutController;
@@ -325,6 +327,21 @@ Route::put('/payment-receipts/{paymentReceipt}', [PaymentReceiptController::clas
 
 Route::delete('/payment-receipts/{paymentReceipt}', [PaymentReceiptController::class, 'destroy'])
     ->name('payment-receipts.destroy');
+
+Route::get('/payment-reconciliation-checks', [PaymentReconciliationCheckController::class, 'index'])
+    ->name('payment-reconciliation-checks.index');
+ 
+Route::get('/payment-reconciliation-actions', [PaymentReconciliationActionController::class, 'index'])
+    ->name('payment-reconciliation-actions.index');
+ 
+Route::post('/payment-reconciliation-actions/shortage-carryover', [PaymentReconciliationActionController::class, 'carryoverShortage'])
+    ->name('payment-reconciliation-actions.shortage-carryover');
+ 
+Route::post('/payment-reconciliation-actions/overpayment-apply', [PaymentReconciliationActionController::class, 'applyOverpayment'])
+    ->name('payment-reconciliation-actions.overpayment-apply');
+ 
+Route::delete('/payment-reconciliation-actions/{paymentReconciliationAction}', [PaymentReconciliationActionController::class, 'destroy'])
+    ->name('payment-reconciliation-actions.destroy');
 
 Route::get('/rental-payment-journals', [RentalPaymentJournalController::class, 'index'])
     ->name('rental-payment-journals.index');

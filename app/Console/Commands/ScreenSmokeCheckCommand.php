@@ -178,6 +178,8 @@ class ScreenSmokeCheckCommand extends Command
             ['label' => '入金予定', 'name' => 'payment-schedules.index', 'params' => $bookParams],
             ['label' => '入金実績', 'name' => 'payment-receipts.index', 'params' => $bookParams],
             ['label' => '賃貸入金仕訳', 'name' => 'rental-payment-journals.index', 'params' => $bookParams],
+            ['label' => '入金差額チェック', 'name' => 'payment-reconciliation-checks.index', 'params' => $bookParams],
+            ['label' => '入金差額処理', 'name' => 'payment-reconciliation-actions.index', 'params' => $bookParams],
 
             ['label' => '月額変更履歴', 'name' => 'rental-contract-terms.index', 'params' => $bookParams],
             ['label' => '退去処理', 'name' => 'rental-contract-move-outs.index', 'params' => $bookParams],
