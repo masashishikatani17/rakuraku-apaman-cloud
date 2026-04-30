@@ -41,6 +41,18 @@
                 >
                     借入金台帳へ
                 </a>
+                <a
+                    href="{{ route('property-journal-allocations.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
+                >
+                    物件別仕訳配賦へ
+                </a>
+                <a
+                    href="{{ route('reports.property-profit-loss-checks.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
+                >
+                    物件別損益チェックへ
+                </a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
