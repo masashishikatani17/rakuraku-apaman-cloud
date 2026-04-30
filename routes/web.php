@@ -31,6 +31,7 @@ use App\Http\Controllers\PdfExportController;
 use App\Http\Controllers\PaymentAccountController;
 use App\Http\Controllers\PaymentItemController;
 use App\Http\Controllers\PaymentReceiptController;
+use App\Http\Controllers\PaymentReconciliationCheckController;
 use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\RentalPaymentJournalController;
 use App\Http\Controllers\RentalContractMoveOutController;
@@ -325,6 +326,10 @@ Route::put('/payment-receipts/{paymentReceipt}', [PaymentReceiptController::clas
 
 Route::delete('/payment-receipts/{paymentReceipt}', [PaymentReceiptController::class, 'destroy'])
     ->name('payment-receipts.destroy');
+
+Route::get('/payment-reconciliation-checks', [PaymentReconciliationCheckController::class, 'index'])
+    ->name('payment-reconciliation-checks.index');
+
 
 Route::get('/rental-payment-journals', [RentalPaymentJournalController::class, 'index'])
     ->name('rental-payment-journals.index');
