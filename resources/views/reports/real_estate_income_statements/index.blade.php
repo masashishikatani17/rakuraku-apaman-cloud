@@ -14,6 +14,26 @@
             'expense' => '必要経費',
         ];
 
+        $realEstateStatementCategoryLabels = [
+            'auto' => '自動判定',
+            'none' => '決算書対象外',
+            'revenue_rent' => '収入: 賃貸料',
+            'revenue_common_service' => '収入: 共益費',
+            'revenue_parking' => '収入: 駐車料',
+            'revenue_key_money' => '収入: 礼金・権利金',
+            'revenue_other' => '収入: その他',
+            'expense_tax_dues' => '経費: 租税公課',
+            'expense_insurance' => '経費: 損害保険料',
+            'expense_repair' => '経費: 修繕費',
+            'expense_depreciation' => '経費: 減価償却費',
+            'expense_interest' => '経費: 借入金利子',
+            'expense_management_fee' => '経費: 管理費',
+            'expense_commission' => '経費: 支払手数料',
+            'expense_salary' => '経費: 給料賃金',
+            'expense_utilities' => '経費: 水道光熱費',
+            'expense_other' => '経費: その他',
+        ];
+
         $sideLabels = [
             'debit' => '借方',
             'credit' => '貸方',
@@ -377,6 +397,7 @@
                     <th>科目CODE</th>
                     <th>科目名</th>
                     <th>区分</th>
+                    <th>決算書区分</th>
                     <th>通常残高</th>
                     <th>借方合計</th>
                     <th>貸方合計</th>
@@ -390,6 +411,7 @@
                         <td>{{ $row->account_code }}</td>
                         <td>{{ $row->account_name }}</td>
                         <td>{{ $categoryLabels[$row->category] ?? $row->category }}</td>
+                        <td>{{ $realEstateStatementCategoryLabels[$row->real_estate_statement_category ?? 'auto'] ?? ($row->real_estate_statement_category ?? '自動判定') }}</td>
                         <td>{{ $sideLabels[$row->normal_balance] ?? $row->normal_balance }}</td>
                         <td style="text-align: right;">{{ number_format((float) $row->debit_total, 2) }}</td>
                         <td style="text-align: right;">{{ number_format((float) $row->credit_total, 2) }}</td>
@@ -405,7 +427,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8">収入金額の対象科目がありません。</td>
+                        <td colspan="9">収入金額の対象科目がありません。</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -421,6 +443,7 @@
                     <th>科目CODE</th>
                     <th>科目名</th>
                     <th>区分</th>
+                    <th>決算書区分</th>
                     <th>通常残高</th>
                     <th>借方合計</th>
                     <th>貸方合計</th>
@@ -434,6 +457,7 @@
                         <td>{{ $row->account_code }}</td>
                         <td>{{ $row->account_name }}</td>
                         <td>{{ $categoryLabels[$row->category] ?? $row->category }}</td>
+                        <td>{{ $realEstateStatementCategoryLabels[$row->real_estate_statement_category ?? 'auto'] ?? ($row->real_estate_statement_category ?? '自動判定') }}</td>
                         <td>{{ $sideLabels[$row->normal_balance] ?? $row->normal_balance }}</td>
                         <td style="text-align: right;">{{ number_format((float) $row->debit_total, 2) }}</td>
                         <td style="text-align: right;">{{ number_format((float) $row->credit_total, 2) }}</td>
@@ -449,7 +473,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8">必要経費の対象科目がありません。</td>
+                        <td colspan="9">必要経費の対象科目がありません。</td>
                     </tr>
                 @endforelse
             </tbody>

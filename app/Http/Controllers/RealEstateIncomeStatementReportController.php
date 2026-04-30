@@ -111,6 +111,7 @@ class RealEstateIncomeStatementReportController extends Controller
                 'at.account_code',
                 'at.name as account_name',
                 'at.category',
+                'at.real_estate_statement_category',
                 'at.normal_balance',
                 'at.is_active',
                 'at.sort_order',
@@ -126,6 +127,7 @@ class RealEstateIncomeStatementReportController extends Controller
                 'at.account_code',
                 'at.name',
                 'at.category',
+                'at.real_estate_statement_category',
                 'at.normal_balance',
                 'at.is_active',
                 'at.sort_order'
@@ -146,6 +148,7 @@ class RealEstateIncomeStatementReportController extends Controller
                     'account_code' => $row->account_code,
                     'account_name' => $row->account_name,
                     'category' => $row->category,
+                    'real_estate_statement_category' => $row->real_estate_statement_category ?: 'auto',
                     'normal_balance' => $row->normal_balance,
                     'is_active' => (bool) $row->is_active,
                     'sort_order' => (int) $row->sort_order,
