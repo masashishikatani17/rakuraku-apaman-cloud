@@ -81,6 +81,12 @@
                     物件別年間収入台帳へ
                 </a>
                 <a
+                    href="{{ route('reports.property-owner-profit-losses.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
+                >
+                    物件・所有者別損益へ
+                </a>
+                <a
                     href="{{ route('journal-diaries.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
                     class="button button-secondary"
                 >
