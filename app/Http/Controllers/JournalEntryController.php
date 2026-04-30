@@ -7,6 +7,7 @@ use App\Models\Book;
 use App\Models\Department;
 use App\Models\JournalDescription;
 use App\Models\JournalEntry;
+use App\Models\Property;
 use App\Models\SubAccountTitle;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
@@ -32,9 +33,11 @@ class JournalEntryController extends Controller
                 'debitLines.accountTitle',
                 'debitLines.subAccountTitle',
                 'debitLines.department',
+                'debitLines.property',
                 'creditLines.accountTitle',
                 'creditLines.subAccountTitle',
                 'creditLines.department',
+                'creditLines.property',
             ])
             ->orderByDesc('entry_date')
             ->orderByDesc('id');
@@ -212,10 +215,19 @@ class JournalEntryController extends Controller
             ->orderBy('id')
             ->get();
 
+        $properties = Property::query()
+            ->where('book_id', $bookId)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('property_code')
+            ->orderBy('id')
+            ->get();
+
         return [
             'accountTitles' => $accountTitles,
             'subAccountTitles' => $subAccountTitles,
             'departments' => $departments,
+            'properties' => $properties,
             'journalDescriptions' => $journalDescriptions,
         ];
     }
@@ -226,6 +238,7 @@ class JournalEntryController extends Controller
             'accountTitles' => collect(),
             'subAccountTitles' => collect(),
             'departments' => collect(),
+            'properties' => collect(),
             'journalDescriptions' => collect(),
         ];
     }
@@ -276,6 +289,15 @@ class JournalEntryController extends Controller
                         ->where('is_active', true)
                 ),
             ],
+            'debit_property_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('properties', 'id')->where(
+                    fn ($query) => $query
+                        ->where('book_id', $bookId)
+                        ->where('is_active', true)
+                ),
+            ],
             'debit_amount' => ['required', 'numeric', 'gt:0'],
             'debit_line_note' => ['nullable', 'string', 'max:255'],
 
@@ -293,6 +315,15 @@ class JournalEntryController extends Controller
                 'nullable',
                 'integer',
                 Rule::exists('departments', 'id')->where(
+                    fn ($query) => $query
+                        ->where('book_id', $bookId)
+                        ->where('is_active', true)
+                ),
+            ],
+            'credit_property_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('properties', 'id')->where(
                     fn ($query) => $query
                         ->where('book_id', $bookId)
                         ->where('is_active', true)
@@ -417,6 +448,7 @@ class JournalEntryController extends Controller
                 'account_title_id' => $validated['debit_account_title_id'],
                 'sub_account_title_id' => $validated['debit_sub_account_title_id'] ?? null,
                 'department_id' => $validated['debit_department_id'] ?? null,
+                'property_id' => $validated['debit_property_id'] ?? null,
                 'amount' => $validated['debit_amount'],
                 'line_note' => $validated['debit_line_note'] ?? null,
             ],
@@ -426,6 +458,7 @@ class JournalEntryController extends Controller
                 'account_title_id' => $validated['credit_account_title_id'],
                 'sub_account_title_id' => $validated['credit_sub_account_title_id'] ?? null,
                 'department_id' => $validated['credit_department_id'] ?? null,
+                'property_id' => $validated['credit_property_id'] ?? null,
                 'amount' => $validated['credit_amount'],
                 'line_note' => $validated['credit_line_note'] ?? null,
             ],

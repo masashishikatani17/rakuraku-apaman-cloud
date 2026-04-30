@@ -188,6 +188,24 @@
                             </div>
 
                             <div class="field">
+                                <label for="debit_property_id">物件</label>
+                                <select id="debit_property_id" name="debit_property_id">
+                                    <option value="">選択しない</option>
+                                    @foreach ($properties as $property)
+                                        <option
+                                            value="{{ $property->id }}"
+                                            {{ (string) old('debit_property_id') === (string) $property->id ? 'selected' : '' }}
+                                        >
+                                            {{ $property->property_code . ' / ' . $property->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="muted">
+                                    修繕費・管理費など、物件別損益に反映したい場合に選択します。
+                                </div>
+                            </div>
+
+                            <div class="field">
                                 <label for="debit_amount">金額<span class="required">必須</span></label>
                                 <input
                                     id="debit_amount"
@@ -259,6 +277,24 @@
                                         </option>
                                     @endforeach
                                 </select>
+                            </div>
+
+                            <div class="field">
+                                <label for="credit_property_id">物件</label>
+                                <select id="credit_property_id" name="credit_property_id">
+                                    <option value="">選択しない</option>
+                                    @foreach ($properties as $property)
+                                        <option
+                                            value="{{ $property->id }}"
+                                            {{ (string) old('credit_property_id') === (string) $property->id ? 'selected' : '' }}
+                                        >
+                                            {{ $property->property_code . ' / ' . $property->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="muted">
+                                    物件別に収益・経費を見たい場合に選択します。
+                                </div>
                             </div>
 
                             <div class="field">

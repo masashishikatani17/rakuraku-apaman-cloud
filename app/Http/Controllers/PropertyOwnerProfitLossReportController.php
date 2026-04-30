@@ -160,6 +160,17 @@ class PropertyOwnerProfitLossReportController extends Controller
             $rows[$key]['loan_payment_total'] = round((float) $loanRow->payment_total, 2);
         }
 
+        $journalRows = $this->buildPropertyJournalRows($bookId, $dateFrom, $dateTo);
+        foreach ($journalRows as $journalRow) {
+            $key = $journalRow->property_id !== null ? (string) $journalRow->property_id : 'none';
+            $this->ensurePropertyRow($rows, $key);
+
+            $rows[$key]['journal_lines_count'] = (int) $journalRow->lines_count;
+            $rows[$key]['journal_revenue_total'] = round((float) $journalRow->revenue_total, 2);
+            $rows[$key]['journal_expense_total'] = round((float) $journalRow->expense_total, 2);
+            $rows[$key]['journal_profit_loss_total'] = round((float) $journalRow->revenue_total - (float) $journalRow->expense_total, 2);
+        }
+
         return collect($rows)
             ->map(function (array $row): object {
                 $row['estimated_income_by_expected'] = round(
@@ -175,7 +186,8 @@ class PropertyOwnerProfitLossReportController extends Controller
                     - (float) $row['loan_interest_total'],
                     2
                 );
-
+                $row['estimated_income_with_journal_by_expected'] = round((float) $row['estimated_income_by_expected'] + (float) $row['journal_profit_loss_total'], 2);
+                $row['estimated_income_with_journal_by_received'] = round((float) $row['estimated_income_by_received'] + (float) $row['journal_profit_loss_total'], 2);
                 return (object) $row;
             })
             ->filter(function (object $row) use ($display): bool {
@@ -187,6 +199,7 @@ class PropertyOwnerProfitLossReportController extends Controller
                     || abs((float) $row->rental_received_total) >= 0.005
                     || abs((float) $row->depreciation_total) >= 0.005
                     || abs((float) $row->loan_interest_total) >= 0.005
+                    || abs((float) $row->journal_profit_loss_total) >= 0.005
                     || abs((float) $row->estimated_income_by_expected) >= 0.005
                     || abs((float) $row->estimated_income_by_received) >= 0.005;
             })
@@ -223,8 +236,14 @@ class PropertyOwnerProfitLossReportController extends Controller
             'loan_principal_total' => 0.0,
             'loan_interest_total' => 0.0,
             'loan_payment_total' => 0.0,
+            'journal_lines_count' => 0,
+            'journal_revenue_total' => 0.0,
+            'journal_expense_total' => 0.0,
+            'journal_profit_loss_total' => 0.0,
             'estimated_income_by_expected' => 0.0,
             'estimated_income_by_received' => 0.0,
+            'estimated_income_with_journal_by_expected' => 0.0,
+            'estimated_income_with_journal_by_received' => 0.0,
         ];
     }
 
@@ -312,6 +331,51 @@ class PropertyOwnerProfitLossReportController extends Controller
         return $query->get();
     }
 
+    private function buildPropertyJournalRows(int $bookId, ?string $dateFrom, ?string $dateTo): Collection
+    {
+        $query = DB::table('journal_entry_lines as jel')
+            ->join('journal_entries as je', 'je.id', '=', 'jel.journal_entry_id')
+            ->join('account_titles as at', 'at.id', '=', 'jel.account_title_id')
+            ->where('je.book_id', $bookId)
+            ->where('je.status', 'posted')
+            ->whereNotNull('jel.property_id')
+            ->whereIn('at.category', ['revenue', 'expense'])
+            ->whereNotIn('je.entry_type', ['rental_payment', 'depreciation', 'loan_repayment'])
+            ->select([
+                'jel.property_id',
+            ])
+            ->selectRaw('COUNT(jel.id) as lines_count')
+            ->selectRaw("
+                COALESCE(SUM(
+                    CASE
+                        WHEN at.category = 'revenue' AND at.normal_balance = jel.side THEN jel.amount
+                        WHEN at.category = 'revenue' AND at.normal_balance <> jel.side THEN -jel.amount
+                        ELSE 0
+                    END
+                ), 0) as revenue_total
+            ")
+            ->selectRaw("
+                COALESCE(SUM(
+                    CASE
+                        WHEN at.category = 'expense' AND at.normal_balance = jel.side THEN jel.amount
+                        WHEN at.category = 'expense' AND at.normal_balance <> jel.side THEN -jel.amount
+                        ELSE 0
+                    END
+                ), 0) as expense_total
+            ")
+            ->groupBy('jel.property_id');
+
+        if (!empty($dateFrom)) {
+            $query->whereDate('je.entry_date', '>=', $dateFrom);
+        }
+
+        if (!empty($dateTo)) {
+            $query->whereDate('je.entry_date', '<=', $dateTo);
+        }
+
+        return $query->get();
+    }
+
     private function buildOwnerRows(Collection $propertyRows): Collection
     {
         return $propertyRows
@@ -329,8 +393,11 @@ class PropertyOwnerProfitLossReportController extends Controller
                     'rental_remaining_total' => round($rows->sum(fn (object $row) => (float) $row->rental_remaining_total), 2),
                     'depreciation_total' => round($rows->sum(fn (object $row) => (float) $row->depreciation_total), 2),
                     'loan_interest_total' => round($rows->sum(fn (object $row) => (float) $row->loan_interest_total), 2),
+                    'journal_profit_loss_total' => round($rows->sum(fn (object $row) => (float) $row->journal_profit_loss_total), 2),
                     'estimated_income_by_expected' => round($rows->sum(fn (object $row) => (float) $row->estimated_income_by_expected), 2),
                     'estimated_income_by_received' => round($rows->sum(fn (object $row) => (float) $row->estimated_income_by_received), 2),
+                    'estimated_income_with_journal_by_expected' => round($rows->sum(fn (object $row) => (float) $row->estimated_income_with_journal_by_expected), 2),
+                    'estimated_income_with_journal_by_received' => round($rows->sum(fn (object $row) => (float) $row->estimated_income_with_journal_by_received), 2),
                 ];
             })
             ->sortBy(fn (object $row): string => str_pad((string) ($row->owner_code ?? 999999), 10, '0', STR_PAD_LEFT) . '|' . $row->owner_name)
@@ -425,8 +492,11 @@ class PropertyOwnerProfitLossReportController extends Controller
             'rental_remaining_total' => round($propertyRows->sum(fn (object $row) => (float) $row->rental_remaining_total), 2),
             'depreciation_total' => round($propertyRows->sum(fn (object $row) => (float) $row->depreciation_total), 2),
             'loan_interest_total' => round($propertyRows->sum(fn (object $row) => (float) $row->loan_interest_total), 2),
+            'journal_profit_loss_total' => round($propertyRows->sum(fn (object $row) => (float) $row->journal_profit_loss_total), 2),
             'estimated_income_by_expected_total' => round($propertyRows->sum(fn (object $row) => (float) $row->estimated_income_by_expected), 2),
             'estimated_income_by_received_total' => round($propertyRows->sum(fn (object $row) => (float) $row->estimated_income_by_received), 2),
+            'estimated_income_with_journal_by_expected_total' => round($propertyRows->sum(fn (object $row) => (float) $row->estimated_income_with_journal_by_expected), 2),
+            'estimated_income_with_journal_by_received_total' => round($propertyRows->sum(fn (object $row) => (float) $row->estimated_income_with_journal_by_received), 2),
         ];
     }
 }

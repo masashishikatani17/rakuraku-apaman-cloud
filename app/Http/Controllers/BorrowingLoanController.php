@@ -610,6 +610,7 @@ class BorrowingLoanController extends Controller
                 'account_title_id' => $loan->principal_account_title_id,
                 'sub_account_title_id' => null,
                 'department_id' => $loan->department_id,
+                'property_id' => $loan->property_id,
                 'amount' => $principalAmount,
                 'line_note' => $lineNote,
             ];
@@ -622,6 +623,7 @@ class BorrowingLoanController extends Controller
                 'account_title_id' => $loan->interest_expense_account_title_id,
                 'sub_account_title_id' => null,
                 'department_id' => $loan->department_id,
+                'property_id' => $loan->property_id,
                 'amount' => $interestAmount,
                 'line_note' => $lineNote,
             ];
@@ -633,6 +635,7 @@ class BorrowingLoanController extends Controller
             'account_title_id' => $loan->payment_account_title_id,
             'sub_account_title_id' => null,
             'department_id' => null,
+            'property_id' => $loan->property_id,
             'amount' => $totalAmount,
             'line_note' => $lineNote,
         ];
