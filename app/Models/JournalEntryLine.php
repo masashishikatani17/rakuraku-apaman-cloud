@@ -17,6 +17,7 @@ class JournalEntryLine extends Model
         'account_title_id',
         'sub_account_title_id',
         'department_id',
+        'property_id',
         'amount',
         'line_note',
     ];
@@ -27,6 +28,7 @@ class JournalEntryLine extends Model
         'account_title_id' => 'integer',
         'sub_account_title_id' => 'integer',
         'department_id' => 'integer',
+        'property_id' => 'integer',
         'amount' => 'decimal:2',
     ];
 
@@ -48,5 +50,10 @@ class JournalEntryLine extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function property(): BelongsTo
+    {
+        return $this->belongsTo(Property::class);
     }
 }

@@ -232,7 +232,8 @@ class RentalPaymentJournalController extends Controller
             'entry_type' => 'rental_payment',
             'status' => 'posted',
         ]);
-
+        
+        $propertyId = $paymentReceipt->rentalContract?->property_id;
         $journalEntry->lines()->createMany([
             [
                 'line_no' => 1,
@@ -240,6 +241,7 @@ class RentalPaymentJournalController extends Controller
                 'account_title_id' => $paymentAccount->account_title_id,
                 'sub_account_title_id' => $paymentAccount->sub_account_title_id,
                 'department_id' => null,
+                'property_id' => $propertyId,
                 'amount' => $paymentReceipt->amount,
                 'line_note' => '入金口座: ' . $paymentAccount->name,
             ],
@@ -249,6 +251,7 @@ class RentalPaymentJournalController extends Controller
                 'account_title_id' => $paymentItem->account_title_id,
                 'sub_account_title_id' => $paymentItem->sub_account_title_id,
                 'department_id' => null,
+                'property_id' => $propertyId,
                 'amount' => $paymentReceipt->amount,
                 'line_note' => '入金項目: ' . $paymentItem->name,
             ],

@@ -48,8 +48,9 @@
 
     <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
         初版では、物件別の賃貸収入は入金予定、減価償却費は固定資産台帳、借入金利子は借入金台帳から集計します。
-        一般仕訳の修繕費・管理費などは、現時点では物件別に紐づいていないため、この集計には含めていません。
-        後続で仕訳明細に物件を持たせると、修繕費や管理費も物件別損益へ反映できます。
+        今回から仕訳明細にも物件を紐づけられるため、物件を設定した収益・費用仕訳は「物件紐づけ仕訳損益」として表示します。
+        賃貸入金仕訳・減価償却仕訳・借入返済仕訳には物件IDを自動付与しますが、この画面では二重計上を避けるため、
+        「物件紐づけ仕訳損益」からはそれらの自動仕訳を除外し、手入力・決算整理などの物件紐づけ仕訳だけを集計します。
     </div>
 
     <div class="card" style="margin-bottom: 16px;">
@@ -165,6 +166,11 @@
                 </div>
 
                 <div class="field">
+                    <label>物件紐づけ仕訳損益</label>
+                    <div>{{ number_format((float) $summary['journal_profit_loss_total'], 2) }}</div>
+                </div>
+
+                <div class="field">
                     <label>参考所得・予定額基準</label>
                     <div style="{{ (float) $summary['estimated_income_by_expected_total'] >= 0 ? 'color: #166534;' : 'color: #dc2626;' }}">
                         {{ number_format((float) $summary['estimated_income_by_expected_total'], 2) }}
@@ -175,6 +181,20 @@
                     <label>参考所得・入金済基準</label>
                     <div style="{{ (float) $summary['estimated_income_by_received_total'] >= 0 ? 'color: #166534;' : 'color: #dc2626;' }}">
                         {{ number_format((float) $summary['estimated_income_by_received_total'], 2) }}
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>参考所得・予定額基準+物件仕訳</label>
+                    <div style="{{ (float) $summary['estimated_income_with_journal_by_expected_total'] >= 0 ? 'color: #166534;' : 'color: #dc2626;' }}">
+                        {{ number_format((float) $summary['estimated_income_with_journal_by_expected_total'], 2) }}
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label>参考所得・入金済基準+物件仕訳</label>
+                    <div style="{{ (float) $summary['estimated_income_with_journal_by_received_total'] >= 0 ? 'color: #166534;' : 'color: #dc2626;' }}">
+                        {{ number_format((float) $summary['estimated_income_with_journal_by_received_total'], 2) }}
                     </div>
                 </div>
             </div>
@@ -195,8 +215,11 @@
                     <th>未入金</th>
                     <th>減価償却費</th>
                     <th>借入金利子</th>
+                    <th>物件仕訳損益</th>
                     <th>参考所得・予定額基準</th>
                     <th>参考所得・入金済基準</th>
+                    <th>予定額基準+物件仕訳</th>
+                    <th>入金済基準+物件仕訳</th>
                 </tr>
             </thead>
             <tbody>
@@ -212,16 +235,25 @@
                         </td>
                         <td style="text-align: right;">{{ number_format((float) $row->depreciation_total, 2) }}</td>
                         <td style="text-align: right;">{{ number_format((float) $row->loan_interest_total, 2) }}</td>
+                        <td style="text-align: right; {{ (float) $row->journal_profit_loss_total >= 0 ? 'color: #166534;' : 'color: #dc2626;' }}">
+                            {{ number_format((float) $row->journal_profit_loss_total, 2) }}
+                        </td>
                         <td style="text-align: right; {{ (float) $row->estimated_income_by_expected >= 0 ? 'color: #166534;' : 'color: #dc2626;' }}">
                             {{ number_format((float) $row->estimated_income_by_expected, 2) }}
                         </td>
                         <td style="text-align: right; {{ (float) $row->estimated_income_by_received >= 0 ? 'color: #166534;' : 'color: #dc2626;' }}">
                             {{ number_format((float) $row->estimated_income_by_received, 2) }}
                         </td>
+                        <td style="text-align: right; {{ (float) $row->estimated_income_with_journal_by_expected >= 0 ? 'color: #166534;' : 'color: #dc2626;' }}">
+                            {{ number_format((float) $row->estimated_income_with_journal_by_expected, 2) }}
+                        </td>
+                        <td style="text-align: right; {{ (float) $row->estimated_income_with_journal_by_received >= 0 ? 'color: #166534;' : 'color: #dc2626;' }}">
+                            {{ number_format((float) $row->estimated_income_with_journal_by_received, 2) }}
+                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10">所有者別に集計できるデータがありません。</td>
+                        <td colspan="13">所有者別に集計できるデータがありません。</td>
                     </tr>
                 @endforelse
             </tbody>
@@ -246,8 +278,12 @@
                     <th>減価償却費</th>
                     <th>返済件数</th>
                     <th>借入金利子</th>
+                    <th>物件仕訳行数</th>
+                    <th>物件仕訳損益</th>
                     <th>参考所得・予定額基準</th>
                     <th>参考所得・入金済基準</th>
+                    <th>予定額基準+物件仕訳</th>
+                    <th>入金済基準+物件仕訳</th>
                 </tr>
             </thead>
             <tbody>
@@ -271,16 +307,26 @@
                         <td style="text-align: right;">{{ number_format((float) $row->depreciation_total, 2) }}</td>
                         <td>{{ $row->loan_repayments_count }} 件</td>
                         <td style="text-align: right;">{{ number_format((float) $row->loan_interest_total, 2) }}</td>
+                        <td>{{ $row->journal_lines_count }} 行</td>
+                        <td style="text-align: right; {{ (float) $row->journal_profit_loss_total >= 0 ? 'color: #166534;' : 'color: #dc2626;' }}">
+                            {{ number_format((float) $row->journal_profit_loss_total, 2) }}
+                        </td>
                         <td style="text-align: right; {{ (float) $row->estimated_income_by_expected >= 0 ? 'color: #166534;' : 'color: #dc2626;' }}">
                             {{ number_format((float) $row->estimated_income_by_expected, 2) }}
                         </td>
                         <td style="text-align: right; {{ (float) $row->estimated_income_by_received >= 0 ? 'color: #166534;' : 'color: #dc2626;' }}">
                             {{ number_format((float) $row->estimated_income_by_received, 2) }}
                         </td>
+                        <td style="text-align: right; {{ (float) $row->estimated_income_with_journal_by_expected >= 0 ? 'color: #166534;' : 'color: #dc2626;' }}">
+                            {{ number_format((float) $row->estimated_income_with_journal_by_expected, 2) }}
+                        </td>
+                        <td style="text-align: right; {{ (float) $row->estimated_income_with_journal_by_received >= 0 ? 'color: #166534;' : 'color: #dc2626;' }}">
+                            {{ number_format((float) $row->estimated_income_with_journal_by_received, 2) }}
+                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="14">物件別に集計できるデータがありません。</td>
+                        <td colspan="18">物件別に集計できるデータがありません。</td>
                     </tr>
                 @endforelse
             </tbody>

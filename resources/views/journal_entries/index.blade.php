@@ -135,6 +135,11 @@
                                         部門: {{ $debitLine->department->department_code }} {{ $debitLine->department->name }}
                                     </div>
                                 @endif
+                                @if ($debitLine->property)
+                                    <div class="muted">
+                                        物件: {{ $debitLine->property->property_code }} {{ $debitLine->property->name }}
+                                    </div>
+                                @endif
                             @else
                                 —
                             @endif
@@ -151,6 +156,11 @@
                                 @if ($creditLine->department)
                                     <div class="muted">
                                         部門: {{ $creditLine->department->department_code }} {{ $creditLine->department->name }}
+                                    </div>
+                                @endif
+                                @if ($creditLine->property)
+                                    <div class="muted">
+                                        物件: {{ $creditLine->property->property_code }} {{ $creditLine->property->name }}
                                     </div>
                                 @endif
                             @else
