@@ -535,27 +535,27 @@ class RentalMoveOutSettlementController extends Controller
             'additional_billing_total' => round($settlements->sum(fn (RentalMoveOutSettlement $settlement) => (float) $settlement->additional_billing_amount), 2),
         ];
     }
-+
-+    private function makeJournalDescriptionText(RentalMoveOutSettlement $settlement): string
-+    {
-+        $tenantName = $settlement->rentalContract?->contractTenant?->name ?? '契約者不明';
-+        $propertyName = $settlement->rentalContract?->property?->name;
-+        $unitNo = $settlement->rentalContract?->propertyUnit?->unit_no;
-+
-+        return mb_substr(trim('退去精算 / ' . $tenantName . ' / ' . $propertyName . ' / ' . $unitNo), 0, 255);
-+    }
-+
-+    private function makeVoucherNo(RentalMoveOutSettlement $settlement): string
-+    {
-+        $baseVoucherNo = 'MO' . str_pad((string) $settlement->id, 8, '0', STR_PAD_LEFT);
-+        $voucherNo = $baseVoucherNo;
-+        $suffix = 1;
-+
-+        while (JournalEntry::query()->where('book_id', $settlement->book_id)->where('voucher_no', $voucherNo)->exists()) {
-+            $voucherNo = mb_substr($baseVoucherNo, 0, 16) . '-' . $suffix;
-+            $suffix++;
-+        }
-+
-+        return $voucherNo;
-+    }
+
+    private function makeJournalDescriptionText(RentalMoveOutSettlement $settlement): string
+    {
+        $tenantName = $settlement->rentalContract?->contractTenant?->name ?? '契約者不明';
+        $propertyName = $settlement->rentalContract?->property?->name;
+        $unitNo = $settlement->rentalContract?->propertyUnit?->unit_no;
+
+        return mb_substr(trim('退去精算 / ' . $tenantName . ' / ' . $propertyName . ' / ' . $unitNo), 0, 255);
+    }
+
+    private function makeVoucherNo(RentalMoveOutSettlement $settlement): string
+    {
+        $baseVoucherNo = 'MO' . str_pad((string) $settlement->id, 8, '0', STR_PAD_LEFT);
+        $voucherNo = $baseVoucherNo;
+        $suffix = 1;
+
+        while (JournalEntry::query()->where('book_id', $settlement->book_id)->where('voucher_no', $voucherNo)->exists()) {
+            $voucherNo = mb_substr($baseVoucherNo, 0, 16) . '-' . $suffix;
+            $suffix++;
+        }
+
+        return $voucherNo;
+    }
 }
