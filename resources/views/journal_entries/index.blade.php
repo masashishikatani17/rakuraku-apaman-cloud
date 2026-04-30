@@ -27,6 +27,19 @@
                 仕訳を新規登録
             </a>
             <a
+                href="{{ $selectedBookId ? route('journal-entries.complex.create', ['book_id' => $selectedBookId]) : route('journal-entries.complex.create') }}"
+                class="button"
+                style="background: #0f766e;"
+            >
+                複合仕訳を登録
+            </a>
+            <a
+                href="{{ $selectedBookId ? route('journal-entry-templates.index', ['book_id' => $selectedBookId]) : route('journal-entry-templates.index') }}"
+                class="button button-secondary"
+            >
+                仕訳テンプレートへ
+            </a>
+            <a
                 href="{{ $selectedBookId ? route('closing-adjustment-journals.index', ['book_id' => $selectedBookId]) : route('closing-adjustment-journals.index') }}"
                 class="button button-secondary"
             >
@@ -176,11 +189,19 @@
                                     <a href="{{ route('closing-adjustment-journals.edit', $journalEntry) }}" class="button button-secondary">
                                         決算修正
                                     </a>
+                                @elseif ($journalEntry->debitLines->count() > 1 || $journalEntry->creditLines->count() > 1)
+                                    <a href="{{ route('journal-entries.complex.edit', $journalEntry) }}" class="button button-secondary">
+                                        複合修正
+                                    </a>
                                 @else
                                     <a href="{{ route('journal-entries.edit', $journalEntry) }}" class="button button-secondary">
                                         修正
                                     </a>
                                 @endif
+
+                                <a href="{{ route('journal-entries.copy', $journalEntry) }}" class="button button-secondary">
+                                    コピー
+                                </a>
 
                                 <form
                                     method="POST"

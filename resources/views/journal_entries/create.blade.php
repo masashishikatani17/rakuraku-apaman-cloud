@@ -71,6 +71,19 @@
                 </div>
             @endif
 
+            @if ($copySourceJournalEntry)
+                <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
+                    仕訳ID {{ $copySourceJournalEntry->id }} の内容をコピーしています。
+                    伝票番号は重複防止のため空欄にしています。必要に応じて日付・金額・摘要を変更して登録してください。
+                </div>
+            @endif
+
+            @if (session('status'))
+                <div class="alert alert-success">
+                    {{ session('status') }}
+                </div>
+            @endif
+
             <div class="card">
                 <form method="POST" action="{{ route('journal-entries.store') }}">
                     @csrf
@@ -90,7 +103,7 @@
                                 id="entry_date"
                                 type="date"
                                 name="entry_date"
-                                value="{{ old('entry_date', now()->format('Y-m-d')) }}"
+                                value="{{ old('entry_date', $defaultEntryDate ?? now()->format('Y-m-d')) }}"
                                 required
                             >
                         </div>
@@ -113,7 +126,7 @@
                                 @foreach ($journalDescriptions as $journalDescription)
                                     <option
                                         value="{{ $journalDescription->id }}"
-                                        {{ (string) old('journal_description_id') === (string) $journalDescription->id ? 'selected' : '' }}
+                                        {{ (string) old('journal_description_id', $copySourceJournalEntry?->journal_description_id) === (string) $journalDescription->id ? 'selected' : '' }}
                                     >
                                         {{ ($journalDescription->description_code ?: 'コードなし') . ' / ' . $journalDescription->description_text }}
                                     </option>
@@ -127,7 +140,7 @@
                                 id="description_text"
                                 type="text"
                                 name="description_text"
-                                value="{{ old('description_text') }}"
+                                value="{{ old('description_text', $copySourceJournalEntry?->description_text) }}"
                                 maxlength="255"
                                 placeholder="登録済摘要を使う場合は空でも可"
                             >
@@ -135,7 +148,7 @@
 
                         <div class="field field-full">
                             <label for="note">備考</label>
-                            <textarea id="note" name="note">{{ old('note') }}</textarea>
+                            <textarea id="note" name="note">{{ old('note', $copySourceJournalEntry?->note) }}</textarea>
                         </div>
                     </div>
 
@@ -149,7 +162,7 @@
                                     @foreach ($accountTitles as $accountTitle)
                                         <option
                                             value="{{ $accountTitle->id }}"
-                                            {{ (string) old('debit_account_title_id') === (string) $accountTitle->id ? 'selected' : '' }}
+                                            {{ (string) old('debit_account_title_id', $copyDebitLine?->account_title_id) === (string) $accountTitle->id ? 'selected' : '' }}
                                         >
                                             {{ $accountTitle->account_code . ' / ' . $accountTitle->name }}
                                         </option>
@@ -164,7 +177,7 @@
                                     @foreach ($subAccountTitles as $subAccountTitle)
                                         <option
                                             value="{{ $subAccountTitle->id }}"
-                                            {{ (string) old('debit_sub_account_title_id') === (string) $subAccountTitle->id ? 'selected' : '' }}
+                                            {{ (string) old('debit_sub_account_title_id', $copyDebitLine?->sub_account_title_id) === (string) $subAccountTitle->id ? 'selected' : '' }}
                                         >
                                             {{ ($subAccountTitle->accountTitle?->account_code ?? '') . ' / ' . $subAccountTitle->sub_account_code . ' / ' . $subAccountTitle->name }}
                                         </option>
@@ -179,7 +192,7 @@
                                     @foreach ($departments as $department)
                                         <option
                                             value="{{ $department->id }}"
-                                            {{ (string) old('debit_department_id') === (string) $department->id ? 'selected' : '' }}
+                                            {{ (string) old('debit_department_id', $copyDebitLine?->department_id) === (string) $department->id ? 'selected' : '' }}
                                         >
                                             {{ $department->department_code . ' / ' . $department->name }}
                                         </option>
@@ -194,7 +207,7 @@
                                     @foreach ($properties as $property)
                                         <option
                                             value="{{ $property->id }}"
-                                            {{ (string) old('debit_property_id') === (string) $property->id ? 'selected' : '' }}
+                                            {{ (string) old('debit_property_id', $copyDebitLine?->property_id) === (string) $property->id ? 'selected' : '' }}
                                         >
                                             {{ $property->property_code . ' / ' . $property->name }}
                                         </option>
@@ -211,7 +224,7 @@
                                     id="debit_amount"
                                     type="number"
                                     name="debit_amount"
-                                    value="{{ old('debit_amount') }}"
+                                    value="{{ old('debit_amount', $copyDebitLine?->amount) }}"
                                     min="0.01"
                                     step="0.01"
                                     required
@@ -224,7 +237,7 @@
                                     id="debit_line_note"
                                     type="text"
                                     name="debit_line_note"
-                                    value="{{ old('debit_line_note') }}"
+                                    value="{{ old('debit_line_note', $copyDebitLine?->line_note) }}"
                                     maxlength="255"
                                 >
                             </div>
@@ -241,7 +254,7 @@
                                     @foreach ($accountTitles as $accountTitle)
                                         <option
                                             value="{{ $accountTitle->id }}"
-                                            {{ (string) old('credit_account_title_id') === (string) $accountTitle->id ? 'selected' : '' }}
+                                            {{ (string) old('credit_account_title_id', $copyCreditLine?->account_title_id) === (string) $accountTitle->id ? 'selected' : '' }}
                                         >
                                             {{ $accountTitle->account_code . ' / ' . $accountTitle->name }}
                                         </option>
@@ -256,7 +269,7 @@
                                     @foreach ($subAccountTitles as $subAccountTitle)
                                         <option
                                             value="{{ $subAccountTitle->id }}"
-                                            {{ (string) old('credit_sub_account_title_id') === (string) $subAccountTitle->id ? 'selected' : '' }}
+                                            {{ (string) old('credit_sub_account_title_id', $copyCreditLine?->sub_account_title_id) === (string) $subAccountTitle->id ? 'selected' : '' }}
                                         >
                                             {{ ($subAccountTitle->accountTitle?->account_code ?? '') . ' / ' . $subAccountTitle->sub_account_code . ' / ' . $subAccountTitle->name }}
                                         </option>
@@ -271,7 +284,7 @@
                                     @foreach ($departments as $department)
                                         <option
                                             value="{{ $department->id }}"
-                                            {{ (string) old('credit_department_id') === (string) $department->id ? 'selected' : '' }}
+                                            {{ (string) old('credit_department_id', $copyCreditLine?->department_id) === (string) $department->id ? 'selected' : '' }}
                                         >
                                             {{ $department->department_code . ' / ' . $department->name }}
                                         </option>
@@ -286,7 +299,7 @@
                                     @foreach ($properties as $property)
                                         <option
                                             value="{{ $property->id }}"
-                                            {{ (string) old('credit_property_id') === (string) $property->id ? 'selected' : '' }}
+                                            {{ (string) old('credit_property_id', $copyCreditLine?->property_id) === (string) $property->id ? 'selected' : '' }}
                                         >
                                             {{ $property->property_code . ' / ' . $property->name }}
                                         </option>
@@ -303,7 +316,7 @@
                                     id="credit_amount"
                                     type="number"
                                     name="credit_amount"
-                                    value="{{ old('credit_amount') }}"
+                                    value="{{ old('credit_amount', $copyCreditLine?->amount) }}"
                                     min="0.01"
                                     step="0.01"
                                     required
@@ -316,10 +329,25 @@
                                     id="credit_line_note"
                                     type="text"
                                     name="credit_line_note"
-                                    value="{{ old('credit_line_note') }}"
+                                    value="{{ old('credit_line_note', $copyCreditLine?->line_note) }}"
                                     maxlength="255"
                                 >
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="field field-full" style="margin-top: 24px;">
+                        <label>連続入力</label>
+                        <div class="checkbox-wrap">
+                            <input type="hidden" name="continue_input" value="0">
+                            <input
+                                id="continue_input"
+                                type="checkbox"
+                                name="continue_input"
+                                value="1"
+                                {{ old('continue_input', '0') === '1' ? 'checked' : '' }}
+                            >
+                            <label for="continue_input">登録後、同じ帳簿・同じ日付で続けて入力する</label>
                         </div>
                     </div>
 
