@@ -39,6 +39,7 @@
                 <a href="{{ route('payment-schedules.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">入金予定一覧へ</a>
                 <a href="{{ route('payment-receipts.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">入金一覧へ</a>
                 <a href="{{ route('rental-payment-journals.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">賃貸仕訳処理へ</a>
+                <a href="{{ route('payment-reconciliation-actions.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button">差額処理へ</a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
@@ -168,6 +169,8 @@
                     <th>入金項目</th>
                     <th>予定額</th>
                     <th>確定入金</th>
+                    <th>過入金充当済</th>
+                    <th>不足繰越済</th>
                     <th>不足額</th>
                     <th>過入金</th>
                     <th>予定状態</th>
@@ -202,6 +205,8 @@
                         <td>{{ $row->payment_item_name ?? '—' }}</td>
                         <td style="text-align: right;">{{ number_format((float) $row->expected_amount, 2) }}</td>
                         <td style="text-align: right;">{{ number_format((float) $row->confirmed_received_amount, 2) }}</td>
+                        <td style="text-align: right;">{{ number_format((float) ($row->outgoing_application_amount ?? 0), 2) }}</td>
+                        <td style="text-align: right;">{{ number_format((float) ($row->shortage_carryover_amount ?? 0), 2) }}</td>
                         <td style="text-align: right; color: #dc2626;">{{ number_format((float) $row->remaining_amount, 2) }}</td>
                         <td style="text-align: right; color: #f97316;">{{ number_format((float) $row->overpaid_amount, 2) }}</td>
                         <td>{{ $scheduleStatusLabels[$row->payment_schedule_status] ?? $row->payment_schedule_status }}</td>
@@ -215,7 +220,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="13">指定条件に一致する入金差額はありません。</td>
+                        <td colspan="15">指定条件に一致する入金差額はありません。</td>
                     </tr>
                 @endforelse
             </tbody>

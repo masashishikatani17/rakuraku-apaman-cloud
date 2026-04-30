@@ -96,6 +96,13 @@ class PaymentReconciliationCheckController extends Controller
             ->selectRaw("COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as confirmed_receipts_count")
             ->groupBy('payment_schedule_id');
 
+        $outgoingActionsSubQuery = DB::table('payment_reconciliation_actions')
+            ->select('source_payment_schedule_id')
+            ->selectRaw("COALESCE(SUM(CASE WHEN status = 'posted' AND action_type = 'overpayment_application' THEN amount ELSE 0 END), 0) as outgoing_application_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN status = 'posted' AND action_type = 'shortage_carryover' THEN amount ELSE 0 END), 0) as shortage_carryover_total")
+            ->groupBy('source_payment_schedule_id');
+
+
         $query = PaymentSchedule::query()
             ->with([
                 'book.businessOwner',
@@ -108,10 +115,15 @@ class PaymentReconciliationCheckController extends Controller
             ->leftJoinSub($receiptTotalsSubQuery, 'receipt_totals', function ($join): void {
                 $join->on('receipt_totals.payment_schedule_id', '=', 'payment_schedules.id');
             })
+            ->leftJoinSub($outgoingActionsSubQuery, 'outgoing_actions', function ($join): void {
+                $join->on('outgoing_actions.source_payment_schedule_id', '=', 'payment_schedules.id');
+            })
             ->where('payment_schedules.book_id', $bookId)
             ->select('payment_schedules.*')
             ->selectRaw('COALESCE(receipt_totals.confirmed_received_total, 0) as confirmed_received_total')
             ->selectRaw('COALESCE(receipt_totals.confirmed_receipts_count, 0) as confirmed_receipts_count')
+            ->selectRaw('COALESCE(outgoing_actions.outgoing_application_total, 0) as outgoing_application_total')
+            ->selectRaw('COALESCE(outgoing_actions.shortage_carryover_total, 0) as shortage_carryover_total')
             ->orderBy('payment_schedules.due_on')
             ->orderBy('payment_schedules.id');
 
@@ -129,9 +141,12 @@ class PaymentReconciliationCheckController extends Controller
                 $expectedAmount = round((float) $schedule->expected_amount, 2);
                 $scheduleReceivedAmount = round((float) $schedule->received_amount, 2);
                 $confirmedReceivedAmount = round((float) ($schedule->confirmed_received_total ?? 0), 2);
-                $differenceAmount = round($confirmedReceivedAmount - $expectedAmount, 2);
-                $remainingAmount = round(max($expectedAmount - $confirmedReceivedAmount, 0), 2);
-                $overpaidAmount = round(max($confirmedReceivedAmount - $expectedAmount, 0), 2);
+                $outgoingApplicationAmount = round((float) ($schedule->outgoing_application_total ?? 0), 2);
+                $shortageCarryoverAmount = round((float) ($schedule->shortage_carryover_total ?? 0), 2);
+                $netReceivedAmount = round(max($confirmedReceivedAmount - $outgoingApplicationAmount, 0), 2);
+                $differenceAmount = round($netReceivedAmount - $expectedAmount, 2);
+                $remainingAmount = round(max($expectedAmount - $netReceivedAmount - $shortageCarryoverAmount, 0), 2);
+                $overpaidAmount = round(max($netReceivedAmount - $expectedAmount, 0), 2);
                 $status = $this->resolveReconciliationStatus($schedule->status, $expectedAmount, $confirmedReceivedAmount);
 
                 return (object) [
@@ -149,6 +164,9 @@ class PaymentReconciliationCheckController extends Controller
                     'expected_amount' => $expectedAmount,
                     'schedule_received_amount' => $scheduleReceivedAmount,
                     'confirmed_received_amount' => $confirmedReceivedAmount,
+                    'outgoing_application_amount' => $outgoingApplicationAmount,
+                    'shortage_carryover_amount' => $shortageCarryoverAmount,
+                    'net_received_amount' => $netReceivedAmount,
                     'difference_amount' => $differenceAmount,
                     'remaining_amount' => $remainingAmount,
                     'overpaid_amount' => $overpaidAmount,

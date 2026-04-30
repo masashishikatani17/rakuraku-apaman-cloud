@@ -37,6 +37,12 @@
             >
                 入金差額チェック
             </a>
+            <a
+                href="{{ $selectedBookId ? route('payment-reconciliation-actions.index', ['book_id' => $selectedBookId]) : route('payment-reconciliation-actions.index') }}"
+                class="button button-secondary"
+            >
+                入金差額処理
+            </a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
     </div>
