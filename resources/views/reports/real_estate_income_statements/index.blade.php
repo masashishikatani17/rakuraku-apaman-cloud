@@ -192,6 +192,11 @@
                     <label>PL科目数</label>
                     <div>{{ $summary['accounting_rows_count'] }} 科目</div>
                 </div>
+
+                <div class="field">
+                    <label>決算書区分対象</label>
+                    <div>{{ $summary['statement_category_rows_count'] }} 科目</div>
+                </div>
             </div>
         </div>
     @endif
@@ -225,6 +230,54 @@
                     </td>
                     <td>収入金額 - 必要経費</td>
                 </tr>
+            </tbody>
+        </table>
+    </div>
+ 
+    <div class="card" style="margin-bottom: 16px;">
+        <h3 style="margin-top: 0;">決算書区分別集計</h3>
+
+        <div class="alert alert-success" style="background: #f8fafc; color: #334155; border-color: #cbd5e1;">
+            勘定科目マスタの「不動産所得決算書区分」を優先して集計します。
+            区分が「自動判定」の科目は、科目名から賃貸料・駐車料・修繕費・借入金利子などを仮分類します。
+        </div>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>決算書区分</th>
+                    <th>大区分</th>
+                    <th>科目数</th>
+                    <th>金額</th>
+                    <th>内訳科目</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse ($statementCategoryRows as $row)
+                    <tr>
+                        <td>{{ $row->statement_category_label }}</td>
+                        <td>{{ $categoryLabels[$row->category] ?? $row->category }}</td>
+                        <td>{{ $row->accounts_count }} 科目</td>
+                        <td style="text-align: right; {{ (float) $row->amount < 0 ? 'color: #dc2626;' : '' }}">
+                            {{ number_format((float) $row->amount, 2) }}
+                        </td>
+                        <td>
+                            @foreach ($row->rows as $accountRow)
+                                <div>
+                                    {{ $accountRow->account_code }}
+                                    {{ $accountRow->account_name }}
+                                    <span class="muted">
+                                        {{ number_format((float) $accountRow->amount, 2) }}
+                                    </span>
+                                </div>
+                            @endforeach
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="5">決算書区分別に集計できる科目がありません。</td>
+                    </tr>
+                @endforelse
             </tbody>
         </table>
     </div>
@@ -411,7 +464,7 @@
                         <td>{{ $row->account_code }}</td>
                         <td>{{ $row->account_name }}</td>
                         <td>{{ $categoryLabels[$row->category] ?? $row->category }}</td>
-                        <td>{{ $realEstateStatementCategoryLabels[$row->real_estate_statement_category ?? 'auto'] ?? ($row->real_estate_statement_category ?? '自動判定') }}</td>
+                        <td>{{ $row->real_estate_statement_category_label ?? ($realEstateStatementCategoryLabels[$row->real_estate_statement_category ?? 'auto'] ?? ($row->real_estate_statement_category ?? '自動判定')) }}</td>
                         <td>{{ $sideLabels[$row->normal_balance] ?? $row->normal_balance }}</td>
                         <td style="text-align: right;">{{ number_format((float) $row->debit_total, 2) }}</td>
                         <td style="text-align: right;">{{ number_format((float) $row->credit_total, 2) }}</td>
@@ -457,7 +510,7 @@
                         <td>{{ $row->account_code }}</td>
                         <td>{{ $row->account_name }}</td>
                         <td>{{ $categoryLabels[$row->category] ?? $row->category }}</td>
-                        <td>{{ $realEstateStatementCategoryLabels[$row->real_estate_statement_category ?? 'auto'] ?? ($row->real_estate_statement_category ?? '自動判定') }}</td>
+                        <td>{{ $row->real_estate_statement_category_label ?? ($realEstateStatementCategoryLabels[$row->real_estate_statement_category ?? 'auto'] ?? ($row->real_estate_statement_category ?? '自動判定')) }}</td>
                         <td>{{ $sideLabels[$row->normal_balance] ?? $row->normal_balance }}</td>
                         <td style="text-align: right;">{{ number_format((float) $row->debit_total, 2) }}</td>
                         <td style="text-align: right;">{{ number_format((float) $row->credit_total, 2) }}</td>
