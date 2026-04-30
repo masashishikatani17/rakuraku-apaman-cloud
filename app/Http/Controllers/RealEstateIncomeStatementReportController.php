@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AccountTitle;
 use App\Models\Book;
 use App\Models\DepreciableAsset;
 use Carbon\CarbonImmutable;
@@ -51,6 +52,7 @@ class RealEstateIncomeStatementReportController extends Controller
         $paymentItemRows = collect();
         $propertyIncomeRows = collect();
         $depreciableAssetRows = collect();
+        $statementCategoryRows = collect();
 
         if ($selectedBook !== null) {
             $bookId = (int) $selectedBook->id;
@@ -59,6 +61,7 @@ class RealEstateIncomeStatementReportController extends Controller
             $paymentItemRows = $this->buildPaymentItemRows($bookId, $dateFrom, $dateTo);
             $propertyIncomeRows = $this->buildPropertyIncomeRows($bookId, $dateFrom, $dateTo);
             $depreciableAssetRows = $this->buildDepreciableAssetRows($bookId, $dateFrom, $dateTo);
+            $statementCategoryRows = $this->buildStatementCategoryRows($accountingRows);
         }
 
         return view('reports.real_estate_income_statements.index', [
@@ -72,6 +75,7 @@ class RealEstateIncomeStatementReportController extends Controller
             'revenueRows' => $accountingRows->where('category', 'revenue')->values(),
             'expenseRows' => $accountingRows->where('category', 'expense')->values(),
             'paymentItemRows' => $paymentItemRows,
+            'statementCategoryRows' => $statementCategoryRows,
             'propertyIncomeRows' => $propertyIncomeRows,
             'depreciableAssetRows' => $depreciableAssetRows,
             'summary' => $this->buildSummary(
@@ -114,6 +118,7 @@ class RealEstateIncomeStatementReportController extends Controller
                 'at.real_estate_statement_category',
                 'at.normal_balance',
                 'at.is_active',
+                'at.real_estate_statement_category',
                 'at.sort_order',
             ])
             ->selectRaw(
@@ -130,6 +135,7 @@ class RealEstateIncomeStatementReportController extends Controller
                 'at.real_estate_statement_category',
                 'at.normal_balance',
                 'at.is_active',
+                'at.real_estate_statement_category',
                 'at.sort_order'
             )
             ->orderBy('at.sort_order')
@@ -142,6 +148,8 @@ class RealEstateIncomeStatementReportController extends Controller
                 $amount = $row->normal_balance === 'debit'
                     ? round($debitTotal - $creditTotal, 2)
                     : round($creditTotal - $debitTotal, 2);
+                    
+                $statementCategory = $this->resolveRealEstateStatementCategory($row->category, $row->account_name, $row->real_estate_statement_category);
 
                 return (object) [
                     'account_title_id' => (int) $row->account_title_id,
@@ -152,6 +160,8 @@ class RealEstateIncomeStatementReportController extends Controller
                     'normal_balance' => $row->normal_balance,
                     'is_active' => (bool) $row->is_active,
                     'sort_order' => (int) $row->sort_order,
+                    'real_estate_statement_category' => $statementCategory,
+                    'real_estate_statement_category_label' => AccountTitle::REAL_ESTATE_STATEMENT_CATEGORIES[$statementCategory] ?? $statementCategory,
                     'debit_total' => $debitTotal,
                     'credit_total' => $creditTotal,
                     'amount' => $amount,
@@ -366,6 +376,114 @@ class RealEstateIncomeStatementReportController extends Controller
             'book_value_after_period' => 0.0,
         ];
     }
+ 
+    private function buildStatementCategoryRows(Collection $accountingRows): Collection
+    {
+        return $accountingRows
+            ->groupBy('real_estate_statement_category')
+            ->map(function (Collection $rows, string $statementCategory) {
+                $first = $rows->first();
+                $category = (string) ($first->category ?? '');
+                $amount = round($rows->sum(fn ($row) => (float) $row->amount), 2);
+
+                return (object) [
+                    'statement_category' => $statementCategory,
+                    'statement_category_label' => AccountTitle::REAL_ESTATE_STATEMENT_CATEGORIES[$statementCategory] ?? $statementCategory,
+                    'category' => $category,
+                    'accounts_count' => $rows->count(),
+                    'amount' => $amount,
+                    'rows' => $rows->values(),
+                ];
+            })
+            ->sortBy(function ($row): string {
+                $categoryOrder = $row->category === 'revenue' ? '1' : ($row->category === 'expense' ? '2' : '9');
+
+                return $categoryOrder . '|' . $row->statement_category_label;
+            })
+            ->values();
+    }
+
+    private function resolveRealEstateStatementCategory(string $category, string $accountName, ?string $configuredCategory): string
+    {
+        $configuredCategory = $configuredCategory ?: 'auto';
+
+        if ($configuredCategory !== 'auto') {
+            return $configuredCategory;
+        }
+
+        if ($category === 'revenue') {
+            if ($this->containsAny($accountName, ['家賃', '賃料', '地代'])) {
+                return 'revenue_rent';
+            }
+
+            if ($this->containsAny($accountName, ['共益', '管理費収入'])) {
+                return 'revenue_common_service';
+            }
+
+            if ($this->containsAny($accountName, ['駐車', '車庫'])) {
+                return 'revenue_parking';
+            }
+
+            if ($this->containsAny($accountName, ['礼金', '権利金', '更新料'])) {
+                return 'revenue_key_money';
+            }
+
+            return 'revenue_other';
+        }
+
+        if ($category === 'expense') {
+            if ($this->containsAny($accountName, ['租税', '固定資産税', '都市計画税', '印紙'])) {
+                return 'expense_tax_dues';
+            }
+
+            if ($this->containsAny($accountName, ['保険'])) {
+                return 'expense_insurance';
+            }
+
+            if ($this->containsAny($accountName, ['修繕', '修理'])) {
+                return 'expense_repair';
+            }
+
+            if ($this->containsAny($accountName, ['減価償却'])) {
+                return 'expense_depreciation';
+            }
+
+            if ($this->containsAny($accountName, ['支払利息', '借入金利子', '利息'])) {
+                return 'expense_interest';
+            }
+
+            if ($this->containsAny($accountName, ['管理費', '管理委託'])) {
+                return 'expense_management_fee';
+            }
+
+            if ($this->containsAny($accountName, ['手数料'])) {
+                return 'expense_commission';
+            }
+
+            if ($this->containsAny($accountName, ['給料', '給与', '賃金'])) {
+                return 'expense_salary';
+            }
+
+            if ($this->containsAny($accountName, ['水道', '光熱', '電気', 'ガス'])) {
+                return 'expense_utilities';
+            }
+
+            return 'expense_other';
+        }
+
+        return 'none';
+    }
+
+    private function containsAny(string $haystack, array $needles): bool
+    {
+        foreach ($needles as $needle) {
+            if ($needle !== '' && mb_stripos($haystack, $needle) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private function buildSummary(
         Collection $accountingRows,
@@ -386,6 +504,8 @@ class RealEstateIncomeStatementReportController extends Controller
                 ->sum(fn ($row) => (float) $row->amount),
             2
         );
+
+        $statementTargetRows = $accountingRows->where('real_estate_statement_category', '!=', 'none');
 
         $rentalExpectedTotal = round(
             $paymentItemRows->sum(fn ($row) => (float) $row->expected_total),
@@ -417,6 +537,7 @@ class RealEstateIncomeStatementReportController extends Controller
             'rental_remaining_total' => $rentalRemainingTotal,
             'property_rows_count' => $propertyIncomeRows->count(),
             'payment_item_rows_count' => $paymentItemRows->count(),
+            'statement_category_rows_count' => $statementTargetRows->count(),
             'depreciable_assets_count' => $depreciableAssetRows->count(),
             'depreciation_total' => $depreciationTotal,
         ];
