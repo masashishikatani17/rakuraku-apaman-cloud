@@ -43,6 +43,18 @@
                 >
                     物件別年間収入台帳へ
                 </a>
+                <a
+                    href="{{ route('rental-contract-move-outs.index', ['book_id' => $selectedBookId]) }}"
+                    class="button button-secondary"
+                >
+                    退去処理へ
+                </a>
+                <a
+                    href="{{ route('reports.occupancy-statuses.index', ['book_id' => $selectedBookId]) }}"
+                    class="button button-secondary"
+                >
+                    空室・入退去予定へ
+                </a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
@@ -358,6 +370,15 @@
                                     >
                                         物件台帳
                                     </a>
+                                    @if ($rentalContract->contract_status !== 'ended')
+                                        <a
+                                            href="{{ route('rental-contract-move-outs.index', ['book_id' => $rentalContract->book_id, 'rental_contract_id' => $rentalContract->id]) }}"
+                                            class="button"
+                                            style="background: #dc2626;"
+                                        >
+                                            退去処理
+                                        </a>
+                                    @endif
                                 @endif
                             </div>
                         </td>

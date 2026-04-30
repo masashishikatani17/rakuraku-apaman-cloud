@@ -117,4 +117,14 @@ class Book extends Model
     {
         return $this->hasMany(BorrowingLoan::class);
     }
+
+    public function rentalContractTerms(): HasMany
+    {
+        return $this->hasMany(RentalContractTerm::class);
+    }
+
+    public function rentalMoveOutSettlements(): HasMany
+    {
+        return $this->hasMany(RentalMoveOutSettlement::class);
+    }
 }

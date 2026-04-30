@@ -11,6 +11,7 @@
             'closing' => '決算整理',
             'depreciation' => '減価償却',
             'loan_repayment' => '借入返済',
+            'move_out_settlement' => '退去精算',
         ];
     @endphp
 

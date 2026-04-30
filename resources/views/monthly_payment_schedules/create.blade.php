@@ -31,6 +31,11 @@
             >
                 入金予定一覧へ戻る
             </a>
+            @if ($selectedBookId)
+                <a href="{{ route('rental-contract-terms.index', ['book_id' => $selectedBookId, 'target_year_month' => $targetYearMonth]) }}" class="button button-secondary">
+                    月額変更履歴へ
+                </a>
+            @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
     </div>

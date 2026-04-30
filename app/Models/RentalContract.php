@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class RentalContract extends Model
 {
@@ -72,5 +74,15 @@ class RentalContract extends Model
     public function propertyUnit(): BelongsTo
     {
         return $this->belongsTo(PropertyUnit::class);
+    }
+
+    public function terms(): HasMany
+    {
+        return $this->hasMany(RentalContractTerm::class)->orderBy('effective_from_year_month');
+    }
+
+    public function moveOutSettlement(): HasOne
+    {
+        return $this->hasOne(RentalMoveOutSettlement::class);
     }
 }

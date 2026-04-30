@@ -25,6 +25,7 @@ use App\Http\Controllers\JournalEntryTemplateController;
 use App\Http\Controllers\JournalPropertyLinkController;
 use App\Http\Controllers\MonthlyPaymentScheduleController;
 use App\Http\Controllers\MonthlyTrendReportController;
+use App\Http\Controllers\OccupancyStatusReportController;
 use App\Http\Controllers\OpeningBalanceController;
 use App\Http\Controllers\PdfExportController;
 use App\Http\Controllers\PaymentAccountController;
@@ -32,7 +33,10 @@ use App\Http\Controllers\PaymentItemController;
 use App\Http\Controllers\PaymentReceiptController;
 use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\RentalPaymentJournalController;
+use App\Http\Controllers\RentalContractMoveOutController;
+use App\Http\Controllers\RentalMoveOutSettlementController;
 use App\Http\Controllers\RentalContractReportController;
+use App\Http\Controllers\RentalContractTermController;
 use App\Http\Controllers\PropertyPaymentReportController;
 use App\Http\Controllers\PropertyAnnualIncomeReportController;
 use App\Http\Controllers\PropertyCategoryController;
@@ -236,6 +240,55 @@ Route::get('/monthly-payment-schedules/create', [MonthlyPaymentScheduleControlle
 
 Route::post('/monthly-payment-schedules', [MonthlyPaymentScheduleController::class, 'store'])
     ->name('monthly-payment-schedules.store');
+
+Route::get('/rental-contract-terms', [RentalContractTermController::class, 'index'])
+    ->name('rental-contract-terms.index');
+
+Route::post('/rental-contract-terms', [RentalContractTermController::class, 'store'])
+    ->name('rental-contract-terms.store');
+
+Route::post('/rental-contract-terms/rebuild', [RentalContractTermController::class, 'rebuild'])
+    ->name('rental-contract-terms.rebuild');
+
+Route::delete('/rental-contract-terms/{rentalContractTerm}', [RentalContractTermController::class, 'destroy'])
+    ->name('rental-contract-terms.destroy');
+
+Route::get('/rental-contract-move-outs', [RentalContractMoveOutController::class, 'index'])
+    ->name('rental-contract-move-outs.index');
+
+Route::post('/rental-contract-move-outs', [RentalContractMoveOutController::class, 'store'])
+    ->name('rental-contract-move-outs.store');
+
+Route::get('/rental-move-out-settlements', [RentalMoveOutSettlementController::class, 'index'])
+    ->name('rental-move-out-settlements.index');
+
+Route::get('/rental-move-out-settlements/create', [RentalMoveOutSettlementController::class, 'create'])
+    ->name('rental-move-out-settlements.create');
+
+Route::post('/rental-move-out-settlements', [RentalMoveOutSettlementController::class, 'store'])
+    ->name('rental-move-out-settlements.store');
+
+Route::get('/rental-move-out-settlements/{rentalMoveOutSettlement}/journal-entry/create', [RentalMoveOutSettlementController::class, 'createJournal'])
+    ->name('rental-move-out-settlements.journal.create');
+
+Route::post('/rental-move-out-settlements/{rentalMoveOutSettlement}/journal-entry', [RentalMoveOutSettlementController::class, 'storeJournal'])
+    ->name('rental-move-out-settlements.journal.store');
+
+Route::delete('/rental-move-out-settlements/{rentalMoveOutSettlement}/journal-entry', [RentalMoveOutSettlementController::class, 'destroyJournal'])
+    ->name('rental-move-out-settlements.journal.destroy');
+
+Route::get('/rental-move-out-settlements/{rentalMoveOutSettlement}', [RentalMoveOutSettlementController::class, 'show'])
+    ->name('rental-move-out-settlements.show');
+
+
+Route::get('/rental-move-out-settlements/{rentalMoveOutSettlement}/edit', [RentalMoveOutSettlementController::class, 'edit'])
+    ->name('rental-move-out-settlements.edit');
+
+Route::put('/rental-move-out-settlements/{rentalMoveOutSettlement}', [RentalMoveOutSettlementController::class, 'update'])
+    ->name('rental-move-out-settlements.update');
+
+Route::delete('/rental-move-out-settlements/{rentalMoveOutSettlement}', [RentalMoveOutSettlementController::class, 'destroy'])
+    ->name('rental-move-out-settlements.destroy');
 
 Route::get('/payment-schedules', [PaymentScheduleController::class, 'index'])
     ->name('payment-schedules.index');
@@ -473,6 +526,9 @@ Route::get('/reports/rental-contracts', [RentalContractReportController::class, 
 
 Route::get('/reports/monthly-trends', [MonthlyTrendReportController::class, 'index'])
     ->name('reports.monthly-trends.index');
+
+Route::get('/reports/occupancy-statuses', [OccupancyStatusReportController::class, 'index'])
+    ->name('reports.occupancy-statuses.index');
 
 Route::get('/reports/income-statements', [IncomeStatementReportController::class, 'index'])
     ->name('reports.income-statements.index');
