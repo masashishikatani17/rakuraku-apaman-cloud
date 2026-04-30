@@ -6,6 +6,7 @@ use App\Http\Controllers\BookController;
 use App\Http\Controllers\BorrowingLoanController;
 use App\Http\Controllers\BusinessOwnerController;
 use App\Http\Controllers\CashBankLedgerController;
+use App\Http\Controllers\ComplexJournalEntryController;
 use App\Http\Controllers\ClosingAdjustmentJournalController;
 use App\Http\Controllers\ConsumptionTaxReportController;
 use App\Http\Controllers\ContractTenantController;
@@ -20,6 +21,7 @@ use App\Http\Controllers\IncomeStatementReportController;
 use App\Http\Controllers\JournalDescriptionController;
 use App\Http\Controllers\JournalDiaryController;
 use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\JournalEntryTemplateController;
 use App\Http\Controllers\JournalPropertyLinkController;
 use App\Http\Controllers\MonthlyPaymentScheduleController;
 use App\Http\Controllers\MonthlyTrendReportController;
@@ -316,6 +318,30 @@ Route::get('/journal-descriptions/create', [JournalDescriptionController::class,
 Route::post('/journal-descriptions', [JournalDescriptionController::class, 'store'])
     ->name('journal-descriptions.store');
 
+Route::get('/journal-entry-templates', [JournalEntryTemplateController::class, 'index'])
+    ->name('journal-entry-templates.index');
+
+Route::get('/journal-entry-templates/create', [JournalEntryTemplateController::class, 'create'])
+    ->name('journal-entry-templates.create');
+
+Route::post('/journal-entry-templates', [JournalEntryTemplateController::class, 'store'])
+    ->name('journal-entry-templates.store');
+
+Route::get('/journal-entry-templates/{journalEntryTemplate}/edit', [JournalEntryTemplateController::class, 'edit'])
+    ->name('journal-entry-templates.edit');
+
+Route::put('/journal-entry-templates/{journalEntryTemplate}', [JournalEntryTemplateController::class, 'update'])
+    ->name('journal-entry-templates.update');
+
+Route::delete('/journal-entry-templates/{journalEntryTemplate}', [JournalEntryTemplateController::class, 'destroy'])
+    ->name('journal-entry-templates.destroy');
+
+Route::get('/journal-entry-templates/{journalEntryTemplate}/journal-entry/create', [JournalEntryTemplateController::class, 'createJournal'])
+    ->name('journal-entry-templates.journal.create');
+
+Route::post('/journal-entry-templates/{journalEntryTemplate}/journal-entry', [JournalEntryTemplateController::class, 'storeJournal'])
+    ->name('journal-entry-templates.journal.store');
+
 Route::get('/departments', [DepartmentController::class, 'index'])
     ->name('departments.index');
 
@@ -331,8 +357,23 @@ Route::get('/journal-entries', [JournalEntryController::class, 'index'])
 Route::get('/journal-entries/create', [JournalEntryController::class, 'create'])
     ->name('journal-entries.create');
 
+Route::get('/journal-entries/complex/create', [ComplexJournalEntryController::class, 'create'])
+    ->name('journal-entries.complex.create');
+
+Route::post('/journal-entries/complex', [ComplexJournalEntryController::class, 'store'])
+    ->name('journal-entries.complex.store');
+
+Route::get('/journal-entries/complex/{journalEntry}/edit', [ComplexJournalEntryController::class, 'edit'])
+    ->name('journal-entries.complex.edit');
+
+Route::put('/journal-entries/complex/{journalEntry}', [ComplexJournalEntryController::class, 'update'])
+    ->name('journal-entries.complex.update');
+
 Route::post('/journal-entries', [JournalEntryController::class, 'store'])
     ->name('journal-entries.store');
+
+Route::get('/journal-entries/{journalEntry}/copy', [JournalEntryController::class, 'copy'])
+    ->name('journal-entries.copy');
 
 Route::get('/journal-entries/{journalEntry}/edit', [JournalEntryController::class, 'edit'])
     ->name('journal-entries.edit');

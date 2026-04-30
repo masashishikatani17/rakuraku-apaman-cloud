@@ -57,6 +57,10 @@ class JournalEntryController extends Controller
 
     public function create(Request $request): View
     {
+        $defaultEntryDate = $request->filled('entry_date')
+            ? (string) $request->input('entry_date')
+            : now()->format('Y-m-d');
+
         $books = $this->getSelectableBooks();
 
         $selectedBookId = $request->filled('book_id')
@@ -80,6 +84,34 @@ class JournalEntryController extends Controller
             'books' => $books,
             'selectedBook' => $selectedBook,
             'selectedBookId' => $selectedBookId,
+            'defaultEntryDate' => $defaultEntryDate,
+            'copySourceJournalEntry' => null,
+            'copyDebitLine' => null,
+            'copyCreditLine' => null,
+        ], $formData));
+    }
+
+    public function copy(JournalEntry $journalEntry): View
+    {
+        $journalEntry->load(['book.businessOwner', 'journalDescription', 'lines']);
+
+        $selectedBookId = (int) $journalEntry->book_id;
+        $books = $this->getSelectableBooks($selectedBookId);
+        $selectedBook = $books->firstWhere('id', $selectedBookId);
+
+        $formData = $this->loadFormMasterData($selectedBookId);
+
+        $debitLine = $journalEntry->lines->firstWhere('side', 'debit');
+        $creditLine = $journalEntry->lines->firstWhere('side', 'credit');
+
+        return view('journal_entries.create', array_merge([
+            'books' => $books,
+            'selectedBook' => $selectedBook,
+            'selectedBookId' => $selectedBookId,
+            'defaultEntryDate' => $journalEntry->entry_date?->format('Y-m-d') ?? now()->format('Y-m-d'),
+            'copySourceJournalEntry' => $journalEntry,
+            'copyDebitLine' => $debitLine,
+            'copyCreditLine' => $creditLine,
         ], $formData));
     }
 
@@ -95,9 +127,20 @@ class JournalEntryController extends Controller
         $this->resolveDescriptionText($validated, $bookId);
         $this->validateLineConsistency($validated, $bookId);
 
-        DB::transaction(function () use ($validated, $bookId): void {
-            $this->saveJournalEntry(new JournalEntry(), $validated, $bookId);
+        $savedJournalEntry = null;
+
+        DB::transaction(function () use ($validated, $bookId, &$savedJournalEntry): void {
+            $savedJournalEntry = $this->saveJournalEntry(new JournalEntry(), $validated, $bookId);
         });
+
+        if ($request->boolean('continue_input')) {
+            return redirect()
+                ->route('journal-entries.create', [
+                    'book_id' => $bookId,
+                    'entry_date' => $validated['entry_date'],
+                ])
+                ->with('status', '仕訳を登録しました。続けて入力できます。');
+        }
 
         return redirect()
             ->route('journal-entries.index', ['book_id' => $bookId])
