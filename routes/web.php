@@ -36,6 +36,7 @@ use App\Http\Controllers\PropertyCategoryController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\PropertyLedgerReportController;
 use App\Http\Controllers\PropertyOwnerController;
+use App\Http\Controllers\PropertyOwnerProfitLossReportController;
 use App\Http\Controllers\PropertyUnitController;
 use App\Http\Controllers\RealEstateIncomeStatementReportController;
 use App\Http\Controllers\SubAccountTitleController;
@@ -434,7 +435,10 @@ Route::get('/reports/real-estate-income-statements', [RealEstateIncomeStatementR
 
 Route::get('/reports/consumption-tax', [ConsumptionTaxReportController::class, 'index'])
     ->name('reports.consumption-tax.index');
-    
+
+Route::get('/reports/property-owner-profit-losses', [PropertyOwnerProfitLossReportController::class, 'index'])
+    ->name('reports.property-owner-profit-losses.index');
+
 Route::get('/pdf-exports', [PdfExportController::class, 'index'])
     ->name('pdf-exports.index');
 
