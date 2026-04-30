@@ -20,6 +20,7 @@ use App\Http\Controllers\IncomeStatementReportController;
 use App\Http\Controllers\JournalDescriptionController;
 use App\Http\Controllers\JournalDiaryController;
 use App\Http\Controllers\JournalEntryController;
+use App\Http\Controllers\JournalPropertyLinkController;
 use App\Http\Controllers\MonthlyPaymentScheduleController;
 use App\Http\Controllers\MonthlyTrendReportController;
 use App\Http\Controllers\OpeningBalanceController;
@@ -35,8 +36,10 @@ use App\Http\Controllers\PropertyAnnualIncomeReportController;
 use App\Http\Controllers\PropertyCategoryController;
 use App\Http\Controllers\PropertyController;
 use App\Http\Controllers\PropertyLedgerReportController;
+use App\Http\Controllers\PropertyJournalAllocationController;
 use App\Http\Controllers\PropertyOwnerController;
 use App\Http\Controllers\PropertyOwnerProfitLossReportController;
+use App\Http\Controllers\PropertyProfitLossCheckController;
 use App\Http\Controllers\PropertyUnitController;
 use App\Http\Controllers\RealEstateIncomeStatementReportController;
 use App\Http\Controllers\SubAccountTitleController;
@@ -340,6 +343,12 @@ Route::put('/journal-entries/{journalEntry}', [JournalEntryController::class, 'u
 Route::delete('/journal-entries/{journalEntry}', [JournalEntryController::class, 'destroy'])
     ->name('journal-entries.destroy');
 
+Route::get('/journal-property-links', [JournalPropertyLinkController::class, 'index'])
+    ->name('journal-property-links.index');
+
+Route::post('/journal-property-links/sync', [JournalPropertyLinkController::class, 'sync'])
+    ->name('journal-property-links.sync');
+
 Route::get('/journal-diaries', [JournalDiaryController::class, 'index'])
     ->name('journal-diaries.index');
 
@@ -438,6 +447,15 @@ Route::get('/reports/consumption-tax', [ConsumptionTaxReportController::class, '
 
 Route::get('/reports/property-owner-profit-losses', [PropertyOwnerProfitLossReportController::class, 'index'])
     ->name('reports.property-owner-profit-losses.index');
+
+Route::get('/property-journal-allocations', [PropertyJournalAllocationController::class, 'index'])
+    ->name('property-journal-allocations.index');
+
+Route::post('/property-journal-allocations', [PropertyJournalAllocationController::class, 'update'])
+    ->name('property-journal-allocations.update');
+
+Route::get('/reports/property-profit-loss-checks', [PropertyProfitLossCheckController::class, 'index'])
+    ->name('reports.property-profit-loss-checks.index');
 
 Route::get('/pdf-exports', [PdfExportController::class, 'index'])
     ->name('pdf-exports.index');
