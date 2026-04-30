@@ -41,6 +41,8 @@ class AccountTitleController extends Controller
             'books' => $books,
             'accountTitles' => $accountTitles,
             'selectedBookId' => $selectedBookId,
+            'consumptionTaxCategoryLabels' => AccountTitle::consumptionTaxCategoryLabels(),
+            'realEstateStatementCategoryLabels' => AccountTitle::realEstateStatementCategoryLabels(),
         ]);
     }
 
@@ -60,6 +62,8 @@ class AccountTitleController extends Controller
         return view('account_titles.create', [
             'books' => $books,
             'selectedBookId' => $selectedBookId,
+            'consumptionTaxCategoryLabels' => AccountTitle::consumptionTaxCategoryLabels(),
+            'realEstateStatementCategoryLabels' => AccountTitle::realEstateStatementCategoryLabels(),
         ]);
     }
 
@@ -78,6 +82,9 @@ class AccountTitleController extends Controller
             'name' => ['required', 'string', 'max:120'],
             'category' => ['required', 'in:asset,liability,equity,revenue,expense'],
             'normal_balance' => ['required', 'in:debit,credit'],
+            'consumption_tax_category' => ['nullable', Rule::in(array_keys(AccountTitle::consumptionTaxCategoryLabels()))],
+            'consumption_tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'real_estate_statement_category' => ['nullable', Rule::in(array_keys(AccountTitle::realEstateStatementCategoryLabels()))],
             'allows_sub_account' => ['required', 'boolean'],
             'is_active' => ['required', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:999999'],
@@ -87,11 +94,63 @@ class AccountTitleController extends Controller
         $validated['allows_sub_account'] = $request->boolean('allows_sub_account');
         $validated['is_active'] = $request->boolean('is_active');
         $validated['sort_order'] = $validated['sort_order'] ?? 0;
+        $validated['consumption_tax_category'] = $validated['consumption_tax_category'] ?? 'auto';
+        $validated['consumption_tax_rate'] = $validated['consumption_tax_rate'] ?? null;
+        $validated['real_estate_statement_category'] = $validated['real_estate_statement_category'] ?? 'auto';
 
         AccountTitle::create($validated);
 
         return redirect()
             ->route('account-titles.index', ['book_id' => $validated['book_id']])
             ->with('status', '勘定科目を登録しました。');
+    }
+
+    public function edit(AccountTitle $accountTitle): View
+    {
+        $accountTitle->load('book.businessOwner');
+
+        return view('account_titles.edit', [
+            'accountTitle' => $accountTitle,
+            'consumptionTaxCategoryLabels' => AccountTitle::consumptionTaxCategoryLabels(),
+            'realEstateStatementCategoryLabels' => AccountTitle::realEstateStatementCategoryLabels(),
+        ]);
+    }
+
+    public function update(Request $request, AccountTitle $accountTitle): RedirectResponse
+    {
+        $validated = $request->validate([
+            'account_code' => [
+                'required',
+                'string',
+                'max:20',
+                Rule::unique('account_titles', 'account_code')
+                    ->where(fn ($query) => $query->where('book_id', $accountTitle->book_id))
+                    ->ignore($accountTitle->id),
+            ],
+            'name' => ['required', 'string', 'max:120'],
+            'category' => ['required', 'in:asset,liability,equity,revenue,expense'],
+            'normal_balance' => ['required', 'in:debit,credit'],
+            'consumption_tax_category' => ['nullable', Rule::in(array_keys(AccountTitle::consumptionTaxCategoryLabels()))],
+            'consumption_tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'real_estate_statement_category' => ['nullable', Rule::in(array_keys(AccountTitle::realEstateStatementCategoryLabels()))],
+            'allows_sub_account' => ['required', 'boolean'],
+            'is_active' => ['required', 'boolean'],
+            'sort_order' => ['nullable', 'integer', 'min:0', 'max:999999'],
+            'note' => ['nullable', 'string'],
+        ]);
+
+        $validated['allows_sub_account'] = $request->boolean('allows_sub_account');
+        $validated['is_active'] = $request->boolean('is_active');
+        $validated['sort_order'] = $validated['sort_order'] ?? 0;
+        $validated['consumption_tax_category'] = $validated['consumption_tax_category'] ?? 'auto';
+        $validated['consumption_tax_rate'] = $validated['consumption_tax_rate'] ?? null;
+        $validated['real_estate_statement_category'] = $validated['real_estate_statement_category'] ?? 'auto';
+
+        $accountTitle->fill($validated);
+        $accountTitle->save();
+
+        return redirect()
+            ->route('account-titles.index', ['book_id' => $accountTitle->book_id])
+            ->with('status', '勘定科目を更新しました。');
     }
 }

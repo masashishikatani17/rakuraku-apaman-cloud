@@ -98,7 +98,44 @@
                             <option value="credit" {{ old('normal_balance') === 'credit' ? 'selected' : '' }}>貸方</option>
                         </select>
                     </div>
+                    <div class="field">
+                        <label for="consumption_tax_category">消費税区分</label>
+                        <select id="consumption_tax_category" name="consumption_tax_category">
+                            @foreach ($consumptionTaxCategoryLabels as $value => $label)
+                                <option value="{{ $value }}" {{ old('consumption_tax_category', 'auto') === $value ? 'selected' : '' }}>
+                                    {{ $label }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <div class="muted">未確定の場合は「自動判定」のままで構いません。</div>
+                    </div>
 
+                    <div class="field">
+                        <label for="consumption_tax_rate">消費税率</label>
+                        <input
+                            id="consumption_tax_rate"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            name="consumption_tax_rate"
+                            value="{{ old('consumption_tax_rate') }}"
+                            placeholder="例: 10.00"
+                        >
+
+                        <div class="muted">空欄の場合は、消費税集計画面で指定した税率を使います。</div>
+                    </div>
+
+                    <div class="field field-full">
+                        <label for="real_estate_statement_category">不動産所得決算書区分</label>
+                        <select id="real_estate_statement_category" name="real_estate_statement_category">
+                            @foreach ($realEstateStatementCategoryLabels as $value => $label)
+                                <option value="{{ $value }}" {{ old('real_estate_statement_category', 'auto') === $value ? 'selected' : '' }}>
+                                    {{ $label }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
                     <div class="field">
                         <label for="sort_order">並び順</label>
                         <input

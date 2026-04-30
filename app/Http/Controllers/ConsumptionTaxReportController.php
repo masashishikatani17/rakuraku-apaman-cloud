@@ -126,6 +126,8 @@ class ConsumptionTaxReportController extends Controller
                 'at.account_code',
                 'at.name as account_name',
                 'at.category',
+                'at.consumption_tax_category',
+                'at.consumption_tax_rate',
                 'at.normal_balance',
                 'at.is_active',
                 'at.sort_order',
@@ -137,6 +139,8 @@ class ConsumptionTaxReportController extends Controller
                 'at.account_code',
                 'at.name',
                 'at.category',
+                'at.consumption_tax_category',
+                'at.consumption_tax_rate',
                 'at.normal_balance',
                 'at.is_active',
                 'at.sort_order'
@@ -161,8 +165,12 @@ class ConsumptionTaxReportController extends Controller
                 ? round($debitTotal - $creditTotal, 2)
                 : round($creditTotal - $debitTotal, 2);
 
-            $classification = $this->classifyTaxTarget((string) $row->category, (string) $row->account_name);
-            $tax = $this->calculateConsumptionTax($amount, $taxRate, $amountMode, $classification['taxable']);
+            $consumptionTaxCategory = (string) ($row->consumption_tax_category ?: 'auto');
+            $effectiveTaxRate = $row->consumption_tax_rate !== null
+                ? (float) $row->consumption_tax_rate
+                : $taxRate;
+            $classification = $this->classifyTaxTarget((string) $row->category, (string) $row->account_name, $consumptionTaxCategory);
+            $tax = $this->calculateConsumptionTax($amount, $effectiveTaxRate, $amountMode, $classification['taxable']);
 
             return (object) [
                 'account_title_id' => (int) $row->account_title_id,
@@ -172,6 +180,8 @@ class ConsumptionTaxReportController extends Controller
                 'normal_balance' => $row->normal_balance,
                 'is_active' => (bool) $row->is_active,
                 'sort_order' => (int) $row->sort_order,
+                'consumption_tax_category' => $consumptionTaxCategory,
+                'tax_rate' => $effectiveTaxRate,
                 'debit_total' => $debitTotal,
                 'credit_total' => $creditTotal,
                 'amount' => $amount,
@@ -191,8 +201,48 @@ class ConsumptionTaxReportController extends Controller
         return $rows->values();
     }
 
-    private function classifyTaxTarget(string $category, string $accountName): array
+    private function classifyTaxTarget(string $category, string $accountName, string $masterCategory): array
     {
+        if ($masterCategory !== 'auto') {
+            return match ($masterCategory) {
+                'taxable_sales' => [
+                    'taxable' => true,
+                    'label' => '課税売上',
+                    'reason' => '勘定科目マスタの消費税区分で課税売上に設定されています。',
+                ],
+                'taxable_purchase' => [
+                    'taxable' => true,
+                    'label' => '課税仕入',
+                    'reason' => '勘定科目マスタの消費税区分で課税仕入に設定されています。',
+                ],
+                'exempt_sales' => [
+                    'taxable' => false,
+                    'label' => '非課税売上',
+                    'reason' => '勘定科目マスタの消費税区分で非課税売上に設定されています。',
+                ],
+                'non_taxable' => [
+                    'taxable' => false,
+                    'label' => '非課税',
+                    'reason' => '勘定科目マスタの消費税区分で非課税に設定されています。',
+                ],
+                'out_of_scope' => [
+                    'taxable' => false,
+                    'label' => '不課税',
+                    'reason' => '勘定科目マスタの消費税区分で不課税に設定されています。',
+                ],
+                'not_applicable' => [
+                    'taxable' => false,
+                    'label' => '対象外',
+                    'reason' => '勘定科目マスタの消費税区分で対象外に設定されています。',
+                ],
+                default => [
+                    'taxable' => false,
+                    'label' => '対象外',
+                    'reason' => '勘定科目マスタの消費税区分が未対応の値です。',
+                ],
+            };
+        }
+
         $commonExcludedKeywords = [
             '非課税',
             '不課税',

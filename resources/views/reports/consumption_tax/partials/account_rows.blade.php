@@ -7,6 +7,7 @@
             <th>通常残高</th>
             <th>仕訳金額</th>
             <th>判定</th>
+            <th>税率</th>
             <th>税抜相当額</th>
             <th>消費税相当額</th>
             <th>税込相当額</th>
@@ -36,6 +37,7 @@
                         <span class="muted">{{ $row->tax_target_label }}</span>
                     @endif
                 </td>
+                <td style="text-align: right;">{{ number_format((float) ($row->tax_rate ?? 0), 2) }}%</td>
                 <td style="text-align: right;">{{ number_format((float) $row->tax_base_amount, 2) }}</td>
                 <td style="text-align: right;">{{ number_format((float) $row->consumption_tax_amount, 2) }}</td>
                 <td style="text-align: right;">{{ number_format((float) $row->tax_included_amount, 2) }}</td>
@@ -51,7 +53,7 @@
             </tr>
         @empty
             <tr>
-                <td colspan="11">{{ $emptyMessage }}</td>
+                <td colspan="12">{{ $emptyMessage }}</td>
             </tr>
         @endforelse
     </tbody>

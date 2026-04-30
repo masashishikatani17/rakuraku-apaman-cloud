@@ -288,6 +288,12 @@ Route::get('/account-titles/create', [AccountTitleController::class, 'create'])
 Route::post('/account-titles', [AccountTitleController::class, 'store'])
     ->name('account-titles.store');
 
+Route::get('/account-titles/{accountTitle}/edit', [AccountTitleController::class, 'edit'])
+    ->name('account-titles.edit');
+
+Route::put('/account-titles/{accountTitle}', [AccountTitleController::class, 'update'])
+    ->name('account-titles.update');
+
 Route::get('/sub-account-titles', [SubAccountTitleController::class, 'index'])
     ->name('sub-account-titles.index');
 

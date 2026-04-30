@@ -79,6 +79,8 @@
                     <th>科目名</th>
                     <th>区分</th>
                     <th>通常残高</th>
+                    <th>消費税区分</th>
+                    <th>決算書区分</th>
                     <th>補助科目</th>
                     <th>補助科目数</th>
                     <th>並び順</th>
@@ -96,11 +98,26 @@
                         <td>{{ $accountTitle->name }}</td>
                         <td>{{ $categoryLabels[$accountTitle->category] ?? $accountTitle->category }}</td>
                         <td>{{ $normalBalanceLabels[$accountTitle->normal_balance] ?? $accountTitle->normal_balance }}</td>
+                        <td>
+                            {{ $consumptionTaxCategoryLabels[$accountTitle->consumption_tax_category ?? 'auto'] ?? ($accountTitle->consumption_tax_category ?? '自動判定') }}
+                            @if ($accountTitle->consumption_tax_rate !== null)
+                                <div class="muted">税率: {{ number_format((float) $accountTitle->consumption_tax_rate, 2) }}%</div>
+                            @endif
+                        </td>
+                        <td>{{ $realEstateStatementCategoryLabels[$accountTitle->real_estate_statement_category ?? 'auto'] ?? ($accountTitle->real_estate_statement_category ?? '自動判定') }}</td>
                         <td>{{ $accountTitle->allows_sub_account ? '使用する' : '使用しない' }}</td>
                         <td>{{ $accountTitle->sub_account_titles_count }} 件</td>
                         <td>{{ $accountTitle->sort_order }}</td>
                         <td>{{ $accountTitle->is_active ? '有効' : '停止' }}</td>
                         <td>
+                            <div class="actions" style="margin-bottom: 8px;">
+                                <a
+                                    href="{{ route('account-titles.edit', $accountTitle) }}"
+                                    class="button button-secondary"
+                                >
+                                    修正
+                                </a>
+                            </div>
                             @if ($accountTitle->allows_sub_account)
                                 <div class="actions">
                                     <a
@@ -123,7 +140,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="12">まだ勘定科目が登録されていません。「勘定科目を新規登録」から最初の1件を作成してください。</td>
+                        <td colspan="14">まだ勘定科目が登録されていません。「勘定科目を新規登録」から最初の1件を作成してください。</td>
                     </tr>
                 @endforelse
             </tbody>
