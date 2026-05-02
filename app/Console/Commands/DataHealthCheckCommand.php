@@ -221,6 +221,8 @@ class DataHealthCheckCommand extends Command
             'depreciation',
             'loan_repayment',
             'move_out_settlement',
+            'overpayment_deposit',
+            'overpayment_deposit_application',
         ];
 
         $query = DB::table('journal_entries')
@@ -383,7 +385,7 @@ class DataHealthCheckCommand extends Command
 
         $query = DB::table('journal_entry_lines as jel')
             ->join('journal_entries as je', 'je.id', '=', 'jel.journal_entry_id')
-            ->whereIn('je.entry_type', ['rental_payment', 'depreciation', 'loan_repayment', 'move_out_settlement'])
+            ->whereIn('je.entry_type', ['rental_payment', 'depreciation', 'loan_repayment', 'move_out_settlement', 'overpayment_deposit', 'overpayment_deposit_application'])
             ->whereNull('jel.property_id');
 
         $this->applyBookFilter($query, 'je.book_id', $bookId);
