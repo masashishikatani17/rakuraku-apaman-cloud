@@ -171,6 +171,16 @@ class DataHealthCheckCommand extends Command
                 'callback' => fn () => $this->checkCancelledPaymentReconciliationActionLinks($bookId),
             ],
             [
+                'name' => 'blue_return_balance_difference',
+                'label' => '青色BS差額',
+                'callback' => fn () => $this->checkBlueReturnBalanceDifference($bookId),
+            ],
+            [
+                'name' => 'real_estate_statement_category_consistency',
+                'label' => '不動産所得決算書区分の整合性',
+                'callback' => fn () => $this->checkRealEstateStatementCategoryConsistency($bookId),
+            ],
+            [
                 'name' => 'payment_deposit_balance',
                 'label' => '預り金残高の過充当',
                 'callback' => fn () => $this->checkPaymentDepositBalance($bookId),
@@ -544,6 +554,231 @@ class DataHealthCheckCommand extends Command
             $count === 0 ? '取消済み差額処理に残存する入金予定・入金実績・仕訳はありません。' : '取消済み差額処理に、まだ残っている入金予定・入金実績・仕訳があります。取消処理の確認が必要です。'
         );
     }
+
+    private function checkBlueReturnBalanceDifference(?int $bookId): array
+    {
+        if (! Schema::hasTable('books') || ! Schema::hasTable('journal_entries') || ! Schema::hasTable('journal_entry_lines')) {
+            return $this->skipped('青色BS差額チェックに必要なテーブルがありません。');
+        }
+
+        $booksQuery = DB::table('books')
+            ->where('is_active', true)
+            ->select([
+                'id',
+                'name',
+                'period_start_date',
+                'period_end_date',
+            ]);
+
+        $this->applyBookFilter($booksQuery, 'id', $bookId);
+
+        $books = $booksQuery->get();
+        $differenceCount = 0;
+
+        foreach ($books as $book) {
+            $incomeTotal = $this->calculateProfitLossTotalForBook(
+                (int) $book->id,
+                $book->period_start_date,
+                $book->period_end_date
+            );
+
+            $balanceTotals = $this->calculateBalanceSheetTotalsForBook(
+                (int) $book->id,
+                $book->period_end_date
+            );
+
+            $liabilityEquityIncomeTotal = round(
+                $balanceTotals['liability_total']
+                + $balanceTotals['equity_total']
+                + $incomeTotal,
+                2
+            );
+
+            $difference = round($balanceTotals['asset_total'] - $liabilityEquityIncomeTotal, 2);
+
+            if (abs($difference) >= 0.005) {
+                $differenceCount++;
+            }
+        }
+
+        return $this->result(
+            $differenceCount === 0 ? 'OK' : 'WARNING',
+            $differenceCount,
+            $differenceCount === 0
+                ? '青色申告決算書プレビュー上のBS差額はありません。'
+                : '青色申告決算書プレビュー上のBS差額がある帳簿があります。元入金・事業主貸借・開始残高を確認してください。'
+        );
+    }
+
+    private function checkRealEstateStatementCategoryConsistency(?int $bookId): array
+    {
+        if (! Schema::hasTable('account_titles')) {
+            return $this->skipped('account_titles テーブルがありません。');
+        }
+
+        $validCategories = [
+            'auto',
+            'none',
+            'revenue_rent',
+            'revenue_common_service',
+            'revenue_parking',
+            'revenue_key_money',
+            'revenue_other',
+            'expense_tax_dues',
+            'expense_insurance',
+            'expense_repair',
+            'expense_depreciation',
+            'expense_interest',
+            'expense_management_fee',
+            'expense_commission',
+            'expense_salary',
+            'expense_utilities',
+            'expense_other',
+        ];
+
+        $query = DB::table('account_titles')
+            ->whereIn('category', ['revenue', 'expense'])
+            ->where(function ($query) use ($validCategories): void {
+                $query
+                    ->where(function ($query) use ($validCategories): void {
+                        $query
+                            ->whereNotNull('real_estate_statement_category')
+                            ->where('real_estate_statement_category', '<>', '')
+                            ->whereNotIn('real_estate_statement_category', $validCategories);
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where('category', 'revenue')
+                            ->where('real_estate_statement_category', 'like', 'expense\_%');
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where('category', 'expense')
+                            ->where('real_estate_statement_category', 'like', 'revenue\_%');
+                    });
+            });
+
+        $this->applyBookFilter($query, 'book_id', $bookId);
+
+        $count = $query->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'ERROR',
+            $count,
+            $count === 0
+                ? '不動産所得決算書区分に明らかな不整合はありません。'
+                : '収益科目に経費区分、または経費科目に収入区分など、決算書区分の不整合があります。勘定科目マスタを確認してください。'
+        );
+    }
+
+    private function calculateProfitLossTotalForBook(int $bookId, ?string $dateFrom, ?string $dateTo): float
+    {
+        $query = DB::table('journal_entry_lines as jel')
+            ->join('journal_entries as je', 'je.id', '=', 'jel.journal_entry_id')
+            ->join('account_titles as at', 'at.id', '=', 'jel.account_title_id')
+            ->where('je.book_id', $bookId)
+            ->where('je.status', 'posted')
+            ->whereIn('at.category', ['revenue', 'expense'])
+            ->select([
+                'at.category',
+                'at.normal_balance',
+                'jel.side',
+            ])
+            ->selectRaw('COALESCE(SUM(jel.amount), 0) as amount_total')
+            ->groupBy('at.category', 'at.normal_balance', 'jel.side');
+
+        if (!empty($dateFrom)) {
+            $query->whereDate('je.entry_date', '>=', $dateFrom);
+        }
+
+        if (!empty($dateTo)) {
+            $query->whereDate('je.entry_date', '<=', $dateTo);
+        }
+
+        $revenueTotal = 0.0;
+        $expenseTotal = 0.0;
+
+        foreach ($query->get() as $row) {
+            $signedAmount = $this->signedAmountByNormalBalance(
+                (string) $row->normal_balance,
+                (string) $row->side,
+                (float) $row->amount_total
+            );
+
+            if ($row->category === 'revenue') {
+                $revenueTotal += $signedAmount;
+            }
+
+            if ($row->category === 'expense') {
+                $expenseTotal += $signedAmount;
+            }
+        }
+
+        return round($revenueTotal - $expenseTotal, 2);
+    }
+
+    private function calculateBalanceSheetTotalsForBook(int $bookId, ?string $dateTo): array
+    {
+        $query = DB::table('journal_entry_lines as jel')
+            ->join('journal_entries as je', 'je.id', '=', 'jel.journal_entry_id')
+            ->join('account_titles as at', 'at.id', '=', 'jel.account_title_id')
+            ->where('je.book_id', $bookId)
+            ->where('je.status', 'posted')
+            ->whereIn('at.category', ['asset', 'liability', 'equity'])
+            ->select([
+                'at.category',
+                'at.normal_balance',
+                'jel.side',
+            ])
+            ->selectRaw('COALESCE(SUM(jel.amount), 0) as amount_total')
+            ->groupBy('at.category', 'at.normal_balance', 'jel.side');
+
+        if (!empty($dateTo)) {
+            $query->whereDate('je.entry_date', '<=', $dateTo);
+        }
+
+        $totals = [
+            'asset_total' => 0.0,
+            'liability_total' => 0.0,
+            'equity_total' => 0.0,
+        ];
+
+        foreach ($query->get() as $row) {
+            $amount = $this->signedAmountByNormalBalance(
+                (string) $row->normal_balance,
+                (string) $row->side,
+                (float) $row->amount_total
+            );
+
+            if ($row->category === 'asset') {
+                $totals['asset_total'] += $amount;
+            }
+
+            if ($row->category === 'liability') {
+                $totals['liability_total'] += $amount;
+            }
+
+            if ($row->category === 'equity') {
+                $totals['equity_total'] += $amount;
+            }
+        }
+
+        return [
+            'asset_total' => round($totals['asset_total'], 2),
+            'liability_total' => round($totals['liability_total'], 2),
+            'equity_total' => round($totals['equity_total'], 2),
+        ];
+    }
+
+    private function signedAmountByNormalBalance(string $normalBalance, string $side, float $amount): float
+    {
+        if ($normalBalance === 'debit') {
+            return $side === 'debit' ? $amount : -$amount;
+        }
+
+        return $side === 'credit' ? $amount : -$amount;
+    }
+
 
     private function checkPaymentDepositBalance(?int $bookId): array
     {
