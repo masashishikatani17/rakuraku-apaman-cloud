@@ -99,8 +99,14 @@
                     消費税集計へ
                 </a>
                 <a
-                    href="{{ route('reports.blue-return-statement-previews.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    href="{{ route('reports.real-estate-closing-details.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
                     class="button"
+                >
+                    決算書内訳確認へ
+                </a>
+                <a
+                    href="{{ route('reports.blue-return-statement-previews.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
                 >
                     青色申告決算書プレビューへ
                 </a>
