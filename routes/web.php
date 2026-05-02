@@ -29,6 +29,7 @@ use App\Http\Controllers\OccupancyStatusReportController;
 use App\Http\Controllers\OpeningBalanceController;
 use App\Http\Controllers\PdfExportController;
 use App\Http\Controllers\PaymentAccountController;
+use App\Http\Controllers\PaymentDepositBalanceReportController;
 use App\Http\Controllers\PaymentItemController;
 use App\Http\Controllers\PaymentReceiptController;
 use App\Http\Controllers\PaymentReconciliationActionController;
@@ -361,6 +362,9 @@ Route::post('/payment-overpayment-deposit-applications', [PaymentOverpaymentDepo
 
 Route::delete('/payment-overpayment-deposit-applications/{paymentReconciliationAction}', [PaymentOverpaymentDepositApplicationController::class, 'destroy'])
     ->name('payment-overpayment-deposit-applications.destroy');
+
+Route::get('/reports/payment-deposit-balances', [PaymentDepositBalanceReportController::class, 'index'])
+    ->name('reports.payment-deposit-balances.index');
 
 Route::get('/rental-payment-journals', [RentalPaymentJournalController::class, 'index'])
     ->name('rental-payment-journals.index');

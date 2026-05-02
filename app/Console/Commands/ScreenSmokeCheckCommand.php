@@ -182,6 +182,7 @@ class ScreenSmokeCheckCommand extends Command
             ['label' => '入金差額処理', 'name' => 'payment-reconciliation-actions.index', 'params' => $bookParams],
             ['label' => '過入金預り仕訳', 'name' => 'payment-overpayment-deposits.index', 'params' => $bookParams],
             ['label' => '預り金充当仕訳', 'name' => 'payment-overpayment-deposit-applications.index', 'params' => $bookParams],
+            ['label' => '預り金残高一覧', 'name' => 'reports.payment-deposit-balances.index', 'params' => $bookParams],
 
             ['label' => '月額変更履歴', 'name' => 'rental-contract-terms.index', 'params' => $bookParams],
             ['label' => '退去処理', 'name' => 'rental-contract-move-outs.index', 'params' => $bookParams],

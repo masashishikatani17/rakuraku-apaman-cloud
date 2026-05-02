@@ -12,6 +12,7 @@
             @if ($selectedBookId)
                 <a href="{{ route('payment-overpayment-deposits.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button button-secondary">過入金預り仕訳へ</a>
                 <a href="{{ route('payment-reconciliation-actions.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button button-secondary">入金差額処理へ</a>
+                <a href="{{ route('reports.payment-deposit-balances.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button">預り金残高一覧へ</a>
                 <a href="{{ route('journal-entries.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">仕訳一覧へ</a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
