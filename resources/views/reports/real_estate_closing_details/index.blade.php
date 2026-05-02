@@ -69,6 +69,21 @@
         次の段階で、補正額と補正理由を保存できるようにします。
     </div>
 
+    @if (session('status'))
+        <div class="alert alert-success">{{ session('status') }}</div>
+    @endif
+
+    @if ($errors->any())
+        <div class="alert alert-error">
+            <strong>入力内容を確認してください。</strong>
+            <ul>
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     <div class="card" style="margin-bottom: 16px;">
         <form method="GET" action="{{ route('reports.real-estate-closing-details.index') }}">
             <div class="form-grid">
@@ -307,6 +322,18 @@
     <div class="card">
         <h3 style="margin-top: 0;">科目別 申告用金額確認</h3>
 
+        <form method="POST" action="{{ route('reports.real-estate-closing-details.adjustments.update') }}">
+            @csrf
+            <input type="hidden" name="book_id" value="{{ $selectedBookId }}">
+            <input type="hidden" name="date_from" value="{{ $dateFrom }}">
+            <input type="hidden" name="date_to" value="{{ $dateTo }}">
+            <input type="hidden" name="display" value="{{ $display }}">
+
+            <div class="alert alert-success" style="background: #f8fafc; color: #334155; border-color: #cbd5e1;">
+                補正額は申告用金額へ反映され、青色申告決算書プレビューにも反映されます。
+                補正不要の科目は0円・理由空欄のままで構いません。
+            </div>
+
         <table class="data-table">
             <thead>
                 <tr>
@@ -316,6 +343,7 @@
                     <th>決算書区分</th>
                     <th>会計集計額</th>
                     <th>補正額</th>
+                    <th>補正理由</th>
                     <th>申告用金額</th>
                     <th>確認</th>
                     <th>元帳</th>
@@ -324,12 +352,31 @@
             <tbody>
                 @forelse ($accountRows as $row)
                     <tr>
+                        <input type="hidden" name="adjustments[{{ $row->account_title_id }}][account_title_id]" value="{{ $row->account_title_id }}">
+                        <input type="hidden" name="adjustments[{{ $row->account_title_id }}][statement_category]" value="{{ $row->statement_category }}">
                         <td>{{ $row->account_code }}</td>
                         <td>{{ $row->account_name }}</td>
                         <td>{{ $categoryLabels[$row->category] ?? $row->category }}</td>
                         <td>{{ $row->statement_category_label }}</td>
                         <td style="text-align: right;">{{ number_format((float) $row->accounting_amount, 2) }}</td>
-                        <td style="text-align: right;">{{ number_format((float) $row->adjustment_amount, 2) }}</td>
+                        <td style="text-align: right;">
+                            <input
+                                type="number"
+                                name="adjustments[{{ $row->account_title_id }}][adjustment_amount]"
+                                value="{{ old('adjustments.' . $row->account_title_id . '.adjustment_amount', $row->adjustment_amount) }}"
+                                step="0.01"
+                                style="max-width: 140px; text-align: right;"
+                            >
+                        </td>
+                        <td>
+                            <input
+                                type="text"
+                                name="adjustments[{{ $row->account_title_id }}][reason]"
+                                value="{{ old('adjustments.' . $row->account_title_id . '.reason', $row->adjustment_reason) }}"
+                                maxlength="255"
+                                placeholder="例: 家事按分、税務調整など"
+                            >
+                        </td>
                         <td style="text-align: right;">{{ number_format((float) $row->filing_amount, 2) }}</td>
                         <td style="{{ $row->needs_review ? 'color: #dc2626;' : 'color: #166534;' }}">
                             {{ $row->needs_review ? '対象外区分に金額あり' : 'OK' }}
@@ -345,10 +392,15 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="9">科目別の確認対象がありません。</td>
+                        <td colspan="10">科目別の確認対象がありません。</td>
                     </tr>
                 @endforelse
             </tbody>
         </table>
+
+            <div class="actions" style="margin-top: 16px;">
+                <button type="submit" class="button">補正額を保存</button>
+            </div>
+        </form>
     </div>
 @endsection

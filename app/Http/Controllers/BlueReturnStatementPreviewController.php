@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AccountTitle;
 use App\Models\Book;
+use App\Models\RealEstateClosingAdjustment;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -77,6 +78,8 @@ class BlueReturnStatementPreviewController extends Controller
         ?string $dateTo,
         string $display
     ): Collection {
+        $closingAdjustments = $this->getClosingAdjustments($bookId, $dateFrom, $dateTo);
+
         $rows = DB::table('account_titles as at')
             ->leftJoin('journal_entry_lines as jel', 'jel.account_title_id', '=', 'at.id')
             ->leftJoin('journal_entries as je', function ($join) use ($bookId, $dateFrom, $dateTo): void {
@@ -117,7 +120,7 @@ class BlueReturnStatementPreviewController extends Controller
             ->orderBy('at.sort_order')
             ->orderBy('at.account_code')
             ->get()
-            ->map(function ($row): object {
+            ->map(function ($row) use ($closingAdjustments): object {
                 $debitTotal = round((float) $row->debit_total, 2);
                 $creditTotal = round((float) $row->credit_total, 2);
 
@@ -131,6 +134,10 @@ class BlueReturnStatementPreviewController extends Controller
                     $row->real_estate_statement_category
                 );
 
+                $closingAdjustment = $closingAdjustments->get((int) $row->account_title_id);
+                $adjustmentAmount = round((float) ($closingAdjustment?->adjustment_amount ?? 0), 2);
+                $filingAmount = $statementCategory === 'none' ? 0.0 : round($amount + $adjustmentAmount, 2);
+
                 return (object) [
                     'account_title_id' => (int) $row->account_title_id,
                     'account_code' => $row->account_code,
@@ -139,9 +146,11 @@ class BlueReturnStatementPreviewController extends Controller
                     'normal_balance' => $row->normal_balance,
                     'statement_category' => $statementCategory,
                     'statement_category_label' => AccountTitle::REAL_ESTATE_STATEMENT_CATEGORIES[$statementCategory] ?? $statementCategory,
+                    'accounting_amount' => $amount,
+                    'adjustment_amount' => $adjustmentAmount,
                     'debit_total' => $debitTotal,
                     'credit_total' => $creditTotal,
-                    'amount' => $amount,
+                    'amount' => $filingAmount,
                     'sort_order' => (int) $row->sort_order,
                 ];
             });
@@ -385,6 +394,24 @@ class BlueReturnStatementPreviewController extends Controller
         }
 
         return false;
+    }
+
+    private function getClosingAdjustments(int $bookId, ?string $dateFrom, ?string $dateTo): Collection
+    {
+        $query = RealEstateClosingAdjustment::query()
+            ->where('book_id', $bookId);
+
+        empty($dateFrom)
+            ? $query->whereNull('date_from')
+            : $query->whereDate('date_from', $dateFrom);
+
+        empty($dateTo)
+            ? $query->whereNull('date_to')
+            : $query->whereDate('date_to', $dateTo);
+
+        return $query
+            ->get()
+            ->keyBy('account_title_id');
     }
 
     private function getSelectableBooks(?int $selectedBookId = null): Collection

@@ -181,6 +181,11 @@ class DataHealthCheckCommand extends Command
                 'callback' => fn () => $this->checkRealEstateStatementCategoryConsistency($bookId),
             ],
             [
+                'name' => 'real_estate_closing_adjustments',
+                'label' => '不動産所得決算書補正額',
+                'callback' => fn () => $this->checkRealEstateClosingAdjustments($bookId),
+            ],
+            [
                 'name' => 'payment_deposit_balance',
                 'label' => '預り金残高の過充当',
                 'callback' => fn () => $this->checkPaymentDepositBalance($bookId),
@@ -888,5 +893,46 @@ class DataHealthCheckCommand extends Command
             'count' => 0,
             'message' => $message,
         ];
+    }
+
+    private function checkRealEstateClosingAdjustments(?int $bookId): array
+    {
+        if (! Schema::hasTable('real_estate_closing_adjustments')) {
+            return $this->skipped('real_estate_closing_adjustments テーブルがありません。');
+        }
+
+        $query = DB::table('real_estate_closing_adjustments as reca')
+            ->leftJoin('account_titles as at', 'at.id', '=', 'reca.account_title_id')
+            ->where(function ($query): void {
+                $query
+                    ->whereNull('at.id')
+                    ->orWhereColumn('at.book_id', '<>', 'reca.book_id')
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereIn('at.category', ['revenue', 'expense'])
+                            ->where('reca.adjustment_amount', '<>', 0)
+                            ->where(function ($query): void {
+                                $query
+                                    ->where(function ($query): void {
+                                        $query->where('at.category', 'revenue')->where('reca.statement_category', 'like', 'expense\_%');
+                                    })
+                                    ->orWhere(function ($query): void {
+                                        $query->where('at.category', 'expense')->where('reca.statement_category', 'like', 'revenue\_%');
+                                    });
+                            });
+                    });
+            });
+
+        $this->applyBookFilter($query, 'reca.book_id', $bookId);
+
+        $count = $query->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'ERROR',
+            $count,
+            $count === 0
+                ? '不動産所得決算書の補正額に明らかな参照不整合はありません。'
+                : '不動産所得決算書の補正額に、勘定科目参照切れまたは区分不整合があります。'
+        );
     }
 }
