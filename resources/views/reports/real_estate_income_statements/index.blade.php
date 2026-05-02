@@ -98,6 +98,12 @@
                 >
                     消費税集計へ
                 </a>
+                <a
+                    href="{{ route('reports.blue-return-statement-previews.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button"
+                >
+                    青色申告決算書プレビューへ
+                </a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
