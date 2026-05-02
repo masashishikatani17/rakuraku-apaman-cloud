@@ -161,6 +161,16 @@ class DataHealthCheckCommand extends Command
                 'callback' => fn () => $this->checkConfirmedMoveOutSettlementsWithoutJournal($bookId),
             ],
             [
+                'name' => 'payment_reconciliation_action_links',
+                'label' => '入金差額処理の参照整合性',
+                'callback' => fn () => $this->checkPaymentReconciliationActionLinks($bookId),
+            ],
+            [
+                'name' => 'cancelled_payment_reconciliation_action_links',
+                'label' => '取消済み差額処理の残存リンク',
+                'callback' => fn () => $this->checkCancelledPaymentReconciliationActionLinks($bookId),
+            ],
+            [
                 'name' => 'opening_entries',
                 'label' => '開始残高仕訳の件数',
                 'callback' => fn () => $this->checkOpeningEntries($bookId),
@@ -421,6 +431,107 @@ class DataHealthCheckCommand extends Command
             $count === 0 ? 'OK' : 'WARNING',
             $count,
             $count === 0 ? '確定済み退去精算は仕訳作成済みです。' : '確定済みで仕訳未作成の退去精算があります。'
+        );
+    }
+
+    private function checkPaymentReconciliationActionLinks(?int $bookId): array
+    {
+        if (! Schema::hasTable('payment_reconciliation_actions')) {
+            return $this->skipped('payment_reconciliation_actions テーブルがありません。');
+        }
+
+        if (! Schema::hasColumn('payment_reconciliation_actions', 'journal_entry_id')) {
+            return $this->skipped('payment_reconciliation_actions.journal_entry_id がありません。');
+        }
+
+        $query = DB::table('payment_reconciliation_actions as pra')
+            ->leftJoin('payment_schedules as cps', 'cps.id', '=', 'pra.created_payment_schedule_id')
+            ->leftJoin('payment_receipts as pr', 'pr.id', '=', 'pra.payment_receipt_id')
+            ->leftJoin('journal_entries as je', 'je.id', '=', 'pra.journal_entry_id')
+            ->where('pra.status', 'posted')
+            ->where(function ($query): void {
+                $query
+                    ->where(function ($query): void {
+                        $query
+                            ->where('pra.action_type', 'shortage_carryover')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('pra.created_payment_schedule_id')
+                                    ->orWhereNull('cps.id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where('pra.action_type', 'overpayment_application')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('pra.payment_receipt_id')
+                                    ->orWhereNull('pr.id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where('pra.action_type', 'overpayment_deposit')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('pra.journal_entry_id')
+                                    ->orWhereNull('je.id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where('pra.action_type', 'deposit_application')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('pra.payment_receipt_id')
+                                    ->orWhereNull('pr.id')
+                                    ->orWhereNull('pra.journal_entry_id')
+                                    ->orWhereNull('je.id');
+                            });
+                    });
+            });
+
+        $this->applyBookFilter($query, 'pra.book_id', $bookId);
+
+        $count = $query->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'ERROR',
+            $count,
+            $count === 0 ? '処理済みの入金差額処理は必要な参照先を持っています。' : '処理済みの入金差額処理に、必要な入金予定・入金実績・仕訳の参照切れがあります。'
+        );
+    }
+
+    private function checkCancelledPaymentReconciliationActionLinks(?int $bookId): array
+    {
+        if (! Schema::hasTable('payment_reconciliation_actions')) {
+            return $this->skipped('payment_reconciliation_actions テーブルがありません。');
+        }
+
+        if (! Schema::hasColumn('payment_reconciliation_actions', 'journal_entry_id')) {
+            return $this->skipped('payment_reconciliation_actions.journal_entry_id がありません。');
+        }
+
+        $query = DB::table('payment_reconciliation_actions as pra')
+            ->leftJoin('payment_schedules as cps', 'cps.id', '=', 'pra.created_payment_schedule_id')
+            ->leftJoin('payment_receipts as pr', 'pr.id', '=', 'pra.payment_receipt_id')
+            ->leftJoin('journal_entries as je', 'je.id', '=', 'pra.journal_entry_id')
+            ->where('pra.status', 'cancelled')
+            ->where(function ($query): void {
+                $query
+                    ->whereNotNull('cps.id')
+                    ->orWhereNotNull('pr.id')
+                    ->orWhereNotNull('je.id');
+            });
+
+        $this->applyBookFilter($query, 'pra.book_id', $bookId);
+
+        $count = $query->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'WARNING',
+            $count,
+            $count === 0 ? '取消済み差額処理に残存する入金予定・入金実績・仕訳はありません。' : '取消済み差額処理に、まだ残っている入金予定・入金実績・仕訳があります。取消処理の確認が必要です。'
         );
     }
 
