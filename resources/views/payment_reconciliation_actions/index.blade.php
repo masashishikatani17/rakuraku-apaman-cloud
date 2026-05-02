@@ -17,6 +17,8 @@
                 <a href="{{ route('payment-reconciliation-checks.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button button-secondary">入金差額チェックへ</a>
                 <a href="{{ route('payment-schedules.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">入金予定一覧へ</a>
                 <a href="{{ route('payment-receipts.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">入金一覧へ</a>
+                <a href="{{ route('payment-overpayment-deposits.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button">過入金預り仕訳へ</a>
+                <a href="{{ route('payment-overpayment-deposit-applications.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button button-secondary">預り金充当仕訳へ</a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>

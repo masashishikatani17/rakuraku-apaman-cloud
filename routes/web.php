@@ -31,8 +31,10 @@ use App\Http\Controllers\PdfExportController;
 use App\Http\Controllers\PaymentAccountController;
 use App\Http\Controllers\PaymentItemController;
 use App\Http\Controllers\PaymentReceiptController;
- use App\Http\Controllers\PaymentReconciliationActionController;
+use App\Http\Controllers\PaymentReconciliationActionController;
 use App\Http\Controllers\PaymentReconciliationCheckController;
+use App\Http\Controllers\PaymentOverpaymentDepositController;
+use App\Http\Controllers\PaymentOverpaymentDepositApplicationController;
 use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\RentalPaymentJournalController;
 use App\Http\Controllers\RentalContractMoveOutController;
@@ -282,7 +284,6 @@ Route::delete('/rental-move-out-settlements/{rentalMoveOutSettlement}/journal-en
 Route::get('/rental-move-out-settlements/{rentalMoveOutSettlement}', [RentalMoveOutSettlementController::class, 'show'])
     ->name('rental-move-out-settlements.show');
 
-
 Route::get('/rental-move-out-settlements/{rentalMoveOutSettlement}/edit', [RentalMoveOutSettlementController::class, 'edit'])
     ->name('rental-move-out-settlements.edit');
 
@@ -342,6 +343,24 @@ Route::post('/payment-reconciliation-actions/overpayment-apply', [PaymentReconci
  
 Route::delete('/payment-reconciliation-actions/{paymentReconciliationAction}', [PaymentReconciliationActionController::class, 'destroy'])
     ->name('payment-reconciliation-actions.destroy');
+
+Route::get('/payment-overpayment-deposits', [PaymentOverpaymentDepositController::class, 'index'])
+    ->name('payment-overpayment-deposits.index');
+
+Route::post('/payment-overpayment-deposits', [PaymentOverpaymentDepositController::class, 'store'])
+    ->name('payment-overpayment-deposits.store');
+
+Route::delete('/payment-overpayment-deposits/{paymentReconciliationAction}', [PaymentOverpaymentDepositController::class, 'destroy'])
+    ->name('payment-overpayment-deposits.destroy');
+
+Route::get('/payment-overpayment-deposit-applications', [PaymentOverpaymentDepositApplicationController::class, 'index'])
+    ->name('payment-overpayment-deposit-applications.index');
+
+Route::post('/payment-overpayment-deposit-applications', [PaymentOverpaymentDepositApplicationController::class, 'store'])
+    ->name('payment-overpayment-deposit-applications.store');
+
+Route::delete('/payment-overpayment-deposit-applications/{paymentReconciliationAction}', [PaymentOverpaymentDepositApplicationController::class, 'destroy'])
+    ->name('payment-overpayment-deposit-applications.destroy');
 
 Route::get('/rental-payment-journals', [RentalPaymentJournalController::class, 'index'])
     ->name('rental-payment-journals.index');

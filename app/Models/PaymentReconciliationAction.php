@@ -14,6 +14,7 @@ class PaymentReconciliationAction extends Model
         'shortage_carryover' => '不足額繰越',
         'overpayment_application' => '過入金充当',
         'overpayment_deposit' => '過入金預り',
+        'deposit_application' => '預り金充当',
     ];
 
     public const STATUSES = [
@@ -28,6 +29,7 @@ class PaymentReconciliationAction extends Model
         'target_payment_schedule_id',
         'created_payment_schedule_id',
         'payment_receipt_id',
+        'journal_entry_id',
         'action_on',
         'amount',
         'status',
@@ -40,6 +42,7 @@ class PaymentReconciliationAction extends Model
         'target_payment_schedule_id' => 'integer',
         'created_payment_schedule_id' => 'integer',
         'payment_receipt_id' => 'integer',
+        'journal_entry_id' => 'integer',
         'action_on' => 'date',
         'amount' => 'decimal:2',
     ];
@@ -67,6 +70,11 @@ class PaymentReconciliationAction extends Model
     public function paymentReceipt(): BelongsTo
     {
         return $this->belongsTo(PaymentReceipt::class);
+    }
+
+    public function journalEntry(): BelongsTo
+    {
+        return $this->belongsTo(JournalEntry::class);
     }
 
     public function actionTypeLabel(): string

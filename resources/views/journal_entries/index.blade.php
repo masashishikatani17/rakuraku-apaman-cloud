@@ -12,6 +12,8 @@
             'depreciation' => '減価償却',
             'loan_repayment' => '借入返済',
             'move_out_settlement' => '退去精算',
+            'overpayment_deposit' => '過入金預り',
+            'overpayment_deposit_application' => '預り金充当',
         ];
     @endphp
 
