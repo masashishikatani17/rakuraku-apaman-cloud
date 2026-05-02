@@ -584,6 +584,9 @@ Route::get('/reports/real-estate-income-statements', [RealEstateIncomeStatementR
 Route::get('/reports/real-estate-closing-details', [RealEstateClosingDetailReportController::class, 'index'])
     ->name('reports.real-estate-closing-details.index');
 
+Route::post('/reports/real-estate-closing-details/adjustments', [RealEstateClosingDetailReportController::class, 'updateAdjustments'])
+    ->name('reports.real-estate-closing-details.adjustments.update');
+
 Route::get('/reports/blue-return-statement-previews', [BlueReturnStatementPreviewController::class, 'index'])
     ->name('reports.blue-return-statement-previews.index');
 

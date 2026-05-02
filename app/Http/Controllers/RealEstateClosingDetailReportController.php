@@ -5,11 +5,14 @@ namespace App\Http\Controllers;
 use App\Models\AccountTitle;
 use App\Models\Book;
 use App\Models\DepreciableAsset;
+use App\Models\RealEstateClosingAdjustment;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class RealEstateClosingDetailReportController extends Controller
 {
@@ -76,8 +79,75 @@ class RealEstateClosingDetailReportController extends Controller
         ]);
     }
 
+    public function updateAdjustments(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'book_id' => ['required', 'integer', 'exists:books,id'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
+            'display' => ['nullable', 'in:non_zero,all'],
+            'adjustments' => ['nullable', 'array'],
+            'adjustments.*.account_title_id' => [
+                'required',
+                'integer',
+                Rule::exists('account_titles', 'id')->where(
+                    fn ($query) => $query->where('book_id', (int) $request->input('book_id'))
+                ),
+            ],
+            'adjustments.*.statement_category' => ['nullable', 'string', 'max:80'],
+            'adjustments.*.adjustment_amount' => ['nullable', 'numeric'],
+            'adjustments.*.reason' => ['nullable', 'string', 'max:255'],
+            'adjustments.*.note' => ['nullable', 'string'],
+        ]);
+
+        $bookId = (int) $validated['book_id'];
+        $dateFrom = $validated['date_from'] ?? null;
+        $dateTo = $validated['date_to'] ?? null;
+
+        foreach (($validated['adjustments'] ?? []) as $adjustmentRow) {
+            $accountTitleId = (int) $adjustmentRow['account_title_id'];
+            $adjustmentAmount = round((float) ($adjustmentRow['adjustment_amount'] ?? 0), 2);
+            $reason = trim((string) ($adjustmentRow['reason'] ?? '')) ?: null;
+            $note = trim((string) ($adjustmentRow['note'] ?? '')) ?: null;
+            $statementCategory = $adjustmentRow['statement_category'] ?? 'auto';
+
+            $keys = [
+                'book_id' => $bookId,
+                'account_title_id' => $accountTitleId,
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+            ];
+
+            if (abs($adjustmentAmount) < 0.005 && $reason === null && $note === null) {
+                RealEstateClosingAdjustment::query()
+                    ->where($keys)
+                    ->delete();
+
+                continue;
+            }
+
+            RealEstateClosingAdjustment::query()->updateOrCreate($keys, [
+                'statement_category' => $statementCategory,
+                'adjustment_amount' => $adjustmentAmount,
+                'reason' => $reason,
+                'note' => $note,
+            ]);
+        }
+
+        return redirect()
+            ->route('reports.real-estate-closing-details.index', [
+                'book_id' => $bookId,
+                'date_from' => $dateFrom,
+                'date_to' => $dateTo,
+                'display' => $validated['display'] ?? 'non_zero',
+            ])
+            ->with('status', '決算書補正額を保存しました。');
+    }
+
     private function buildAccountRows(int $bookId, ?string $dateFrom, ?string $dateTo, string $display): Collection
     {
+        $closingAdjustments = $this->getClosingAdjustments($bookId, $dateFrom, $dateTo);
+        
         $rows = DB::table('account_titles as at')
             ->leftJoin('journal_entry_lines as jel', 'jel.account_title_id', '=', 'at.id')
             ->leftJoin('journal_entries as je', function ($join) use ($bookId, $dateFrom, $dateTo): void {
@@ -118,7 +188,7 @@ class RealEstateClosingDetailReportController extends Controller
             ->orderBy('at.sort_order')
             ->orderBy('at.account_code')
             ->get()
-            ->map(function ($row): object {
+            ->map(function ($row) use ($closingAdjustments): object {
                 $debitTotal = round((float) $row->debit_total, 2);
                 $creditTotal = round((float) $row->credit_total, 2);
                 $accountingAmount = $row->normal_balance === 'debit'
@@ -130,6 +200,10 @@ class RealEstateClosingDetailReportController extends Controller
                     (string) $row->account_name,
                     $row->real_estate_statement_category
                 );
+
+                $closingAdjustment = $closingAdjustments->get((int) $row->account_title_id);
+                $adjustmentAmount = round((float) ($closingAdjustment?->adjustment_amount ?? 0), 2);
+                $filingAmount = $statementCategory === 'none' ? 0.0 : round($accountingAmount + $adjustmentAmount, 2);
 
                 return (object) [
                     'account_title_id' => (int) $row->account_title_id,
@@ -143,9 +217,13 @@ class RealEstateClosingDetailReportController extends Controller
                     'debit_total' => $debitTotal,
                     'credit_total' => $creditTotal,
                     'accounting_amount' => $accountingAmount,
-                    'adjustment_amount' => 0.0,
-                    'filing_amount' => $statementCategory === 'none' ? 0.0 : $accountingAmount,
+                    'adjustment_id' => $closingAdjustment?->id,
+                    'adjustment_amount' => $adjustmentAmount,
+                    'adjustment_reason' => $closingAdjustment?->reason,
+                    'adjustment_note' => $closingAdjustment?->note,
+                    'filing_amount' => $filingAmount,
                     'needs_review' => $statementCategory === 'none' && abs($accountingAmount) >= 0.005,
+                    'has_adjustment' => abs($adjustmentAmount) >= 0.005 || !empty($closingAdjustment?->reason) || !empty($closingAdjustment?->note),
                     'sort_order' => (int) $row->sort_order,
                 ];
             });
@@ -520,6 +598,24 @@ class RealEstateClosingDetailReportController extends Controller
         }
 
         return false;
+    }
+
+    private function getClosingAdjustments(int $bookId, ?string $dateFrom, ?string $dateTo): Collection
+    {
+        $query = RealEstateClosingAdjustment::query()
+            ->where('book_id', $bookId);
+
+        empty($dateFrom)
+            ? $query->whereNull('date_from')
+            : $query->whereDate('date_from', $dateFrom);
+
+        empty($dateTo)
+            ? $query->whereNull('date_to')
+            : $query->whereDate('date_to', $dateTo);
+
+        return $query
+            ->get()
+            ->keyBy('account_title_id');
     }
 
     private function getSelectableBooks(?int $selectedBookId = null): Collection

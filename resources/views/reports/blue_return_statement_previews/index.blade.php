@@ -247,6 +247,7 @@
                     <th>区分</th>
                     <th>借方合計</th>
                     <th>貸方合計</th>
+                    <th>補正額</th>
                     <th>金額</th>
                     <th>元帳</th>
                 </tr>
@@ -260,6 +261,7 @@
                         <td>{{ $row->category === 'revenue' ? '収入' : '必要経費' }}</td>
                         <td style="text-align: right;">{{ number_format((float) $row->debit_total, 2) }}</td>
                         <td style="text-align: right;">{{ number_format((float) $row->credit_total, 2) }}</td>
+                        <td style="text-align: right;">{{ number_format((float) ($row->adjustment_amount ?? 0), 2) }}</td>
                         <td style="text-align: right;">{{ number_format((float) $row->amount, 2) }}</td>
                         <td>
                             <a
@@ -272,7 +274,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="8">PL科目別明細がありません。</td>
+                        <td colspan="9">PL科目別明細がありません。</td>
                     </tr>
                 @endforelse
             </tbody>
