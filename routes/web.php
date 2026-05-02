@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountTitleController;
 use App\Http\Controllers\BalanceSheetReportController;
+use App\Http\Controllers\BlueReturnStatementPreviewController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\BorrowingLoanController;
 use App\Http\Controllers\BusinessOwnerController;
@@ -578,6 +579,9 @@ Route::get('/reports/balance-sheets', [BalanceSheetReportController::class, 'ind
 
 Route::get('/reports/real-estate-income-statements', [RealEstateIncomeStatementReportController::class, 'index'])
     ->name('reports.real-estate-income-statements.index');
+
+Route::get('/reports/blue-return-statement-previews', [BlueReturnStatementPreviewController::class, 'index'])
+    ->name('reports.blue-return-statement-previews.index');
 
 Route::get('/reports/consumption-tax', [ConsumptionTaxReportController::class, 'index'])
     ->name('reports.consumption-tax.index');
