@@ -53,6 +53,7 @@ use App\Http\Controllers\PropertyOwnerController;
 use App\Http\Controllers\PropertyOwnerProfitLossReportController;
 use App\Http\Controllers\PropertyProfitLossCheckController;
 use App\Http\Controllers\PropertyUnitController;
+use App\Http\Controllers\RealEstateClosingDetailReportController;
 use App\Http\Controllers\RealEstateIncomeStatementReportController;
 use App\Http\Controllers\SubAccountTitleController;
 use App\Http\Controllers\SubAccountReportController;
@@ -579,6 +580,9 @@ Route::get('/reports/balance-sheets', [BalanceSheetReportController::class, 'ind
 
 Route::get('/reports/real-estate-income-statements', [RealEstateIncomeStatementReportController::class, 'index'])
     ->name('reports.real-estate-income-statements.index');
+
+Route::get('/reports/real-estate-closing-details', [RealEstateClosingDetailReportController::class, 'index'])
+    ->name('reports.real-estate-closing-details.index');
 
 Route::get('/reports/blue-return-statement-previews', [BlueReturnStatementPreviewController::class, 'index'])
     ->name('reports.blue-return-statement-previews.index');
