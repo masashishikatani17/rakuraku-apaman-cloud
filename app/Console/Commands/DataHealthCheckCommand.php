@@ -171,6 +171,16 @@ class DataHealthCheckCommand extends Command
                 'callback' => fn () => $this->checkCancelledPaymentReconciliationActionLinks($bookId),
             ],
             [
+                'name' => 'payment_deposit_balance',
+                'label' => '預り金残高の過充当',
+                'callback' => fn () => $this->checkPaymentDepositBalance($bookId),
+            ],
+            [
+                'name' => 'payment_reconciliation_journal_entry_type',
+                'label' => '差額処理仕訳区分',
+                'callback' => fn () => $this->checkPaymentReconciliationJournalEntryTypes($bookId),
+            ],
+            [
                 'name' => 'opening_entries',
                 'label' => '開始残高仕訳の件数',
                 'callback' => fn () => $this->checkOpeningEntries($bookId),
@@ -532,6 +542,71 @@ class DataHealthCheckCommand extends Command
             $count === 0 ? 'OK' : 'WARNING',
             $count,
             $count === 0 ? '取消済み差額処理に残存する入金予定・入金実績・仕訳はありません。' : '取消済み差額処理に、まだ残っている入金予定・入金実績・仕訳があります。取消処理の確認が必要です。'
+        );
+    }
+
+    private function checkPaymentDepositBalance(?int $bookId): array
+    {
+        if (! Schema::hasTable('payment_reconciliation_actions')) {
+            return $this->skipped('payment_reconciliation_actions テーブルがありません。');
+        }
+
+        $subQuery = DB::table('payment_reconciliation_actions')
+            ->select('source_payment_schedule_id')
+            ->selectRaw("COALESCE(SUM(CASE WHEN status = 'posted' AND action_type = 'overpayment_deposit' THEN amount ELSE 0 END), 0) as deposited_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN status = 'posted' AND action_type = 'deposit_application' THEN amount ELSE 0 END), 0) as applied_total")
+            ->whereIn('action_type', ['overpayment_deposit', 'deposit_application'])
+            ->groupBy('source_payment_schedule_id');
+
+        $this->applyBookFilter($subQuery, 'book_id', $bookId);
+
+        $count = DB::query()
+            ->fromSub($subQuery, 'deposit_balances')
+            ->whereRaw('applied_total - deposited_total > 0.005')
+            ->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'ERROR',
+            $count,
+            $count === 0 ? '預り金の過充当はありません。' : '預り金化済額を超えて充当されている入金予定があります。'
+        );
+    }
+
+    private function checkPaymentReconciliationJournalEntryTypes(?int $bookId): array
+    {
+        if (! Schema::hasTable('payment_reconciliation_actions')) {
+            return $this->skipped('payment_reconciliation_actions テーブルがありません。');
+        }
+
+        if (! Schema::hasColumn('payment_reconciliation_actions', 'journal_entry_id')) {
+            return $this->skipped('payment_reconciliation_actions.journal_entry_id がありません。');
+        }
+
+        $query = DB::table('payment_reconciliation_actions as pra')
+            ->join('journal_entries as je', 'je.id', '=', 'pra.journal_entry_id')
+            ->where('pra.status', 'posted')
+            ->where(function ($query): void {
+                $query
+                    ->where(function ($query): void {
+                        $query
+                            ->where('pra.action_type', 'overpayment_deposit')
+                            ->where('je.entry_type', '<>', 'overpayment_deposit');
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where('pra.action_type', 'deposit_application')
+                            ->where('je.entry_type', '<>', 'overpayment_deposit_application');
+                    });
+            });
+
+        $this->applyBookFilter($query, 'pra.book_id', $bookId);
+
+        $count = $query->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'ERROR',
+            $count,
+            $count === 0 ? '差額処理に紐づく仕訳区分は整合しています。' : '差額処理に紐づく仕訳のentry_typeが想定と異なります。'
         );
     }
 
