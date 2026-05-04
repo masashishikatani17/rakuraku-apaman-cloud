@@ -9,6 +9,9 @@ use App\Http\Controllers\BusinessOwnerController;
 use App\Http\Controllers\CashBankLedgerController;
 use App\Http\Controllers\ComplexJournalEntryController;
 use App\Http\Controllers\ClosingAdjustmentJournalController;
+use App\Http\Controllers\ClosingNextYearRolloverController;
+use App\Http\Controllers\ClosingNextYearRolloverCreationController;
+use App\Http\Controllers\ClosingNextYearRentalCarryoverController;
 use App\Http\Controllers\ConsumptionTaxReportController;
 use App\Http\Controllers\ContractTenantController;
 use App\Http\Controllers\ContractTenantAnnualIncomeReportController;
@@ -95,6 +98,21 @@ Route::get('/opening-balances', [OpeningBalanceController::class, 'index'])
 
 Route::post('/opening-balances', [OpeningBalanceController::class, 'store'])
     ->name('opening-balances.store');
+
+Route::get('/closing/next-year-rollovers', [ClosingNextYearRolloverController::class, 'index'])
+    ->name('closing.next-year-rollovers.index');
+
+Route::get('/closing/next-year-rollover-creations', [ClosingNextYearRolloverCreationController::class, 'index'])
+    ->name('closing.next-year-rollover-creations.index');
+
+Route::post('/closing/next-year-rollover-creations', [ClosingNextYearRolloverCreationController::class, 'store'])
+    ->name('closing.next-year-rollover-creations.store');
+
+Route::get('/closing/next-year-rental-carryovers', [ClosingNextYearRentalCarryoverController::class, 'index'])
+    ->name('closing.next-year-rental-carryovers.index');
+
+Route::post('/closing/next-year-rental-carryovers', [ClosingNextYearRentalCarryoverController::class, 'store'])
+    ->name('closing.next-year-rental-carryovers.store');
 
 Route::get('/borrowing-loans', [BorrowingLoanController::class, 'index'])
     ->name('borrowing-loans.index');

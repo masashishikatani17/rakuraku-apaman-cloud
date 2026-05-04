@@ -41,6 +41,12 @@
                 >
                     仕訳日記帳へ
                 </a>
+                <a
+                    href="{{ route('closing.next-year-rollovers.index', ['book_id' => $selectedBookId]) }}"
+                    class="button button-secondary"
+                >
+                    年度繰越プレビューへ
+                </a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
