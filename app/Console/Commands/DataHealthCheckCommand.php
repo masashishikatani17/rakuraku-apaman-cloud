@@ -146,6 +146,16 @@ class DataHealthCheckCommand extends Command
                 'callback' => fn () => $this->checkRentalContractStatus($bookId),
             ],
             [
+                'name' => 'next_year_rental_master_references',
+                'label' => '翌期賃貸マスタの参照整合性',
+                'callback' => fn () => $this->checkNextYearRentalMasterReferences($bookId),
+            ],
+            [
+                'name' => 'next_year_payment_master_account_links',
+                'label' => '翌期入金マスタの会計科目紐づき',
+                'callback' => fn () => $this->checkNextYearPaymentMasterAccountLinks($bookId),
+            ],
+            [
                 'name' => 'property_linked_pl_lines',
                 'label' => '物件未配賦のPL仕訳',
                 'callback' => fn () => $this->checkUnassignedPropertyProfitLossLines($bookId),
@@ -394,6 +404,200 @@ class DataHealthCheckCommand extends Command
             $count === 0 ? 'OK' : 'WARNING',
             $count,
             $count === 0 ? '賃貸条件の状態は概ね整合しています。' : '契約状態と有効フラグ・終了日の整合性を確認してください。'
+        );
+    }
+
+    private function checkNextYearRentalMasterReferences(?int $bookId): array
+    {
+        foreach (['properties', 'property_categories', 'property_owners', 'property_units', 'contract_tenants', 'rental_contracts'] as $table) {
+            if (! Schema::hasTable($table)) {
+                return $this->skipped($table . ' テーブルがありません。');
+            }
+        }
+
+        $propertiesQuery = DB::table('properties as p')
+            ->leftJoin('property_categories as pc', 'pc.id', '=', 'p.property_category_id')
+            ->leftJoin('property_owners as primary_owner', 'primary_owner.id', '=', 'p.primary_owner_id')
+            ->leftJoin('property_owners as representative_owner', 'representative_owner.id', '=', 'p.representative_owner_id')
+            ->where(function ($query): void {
+                $query
+                    ->where(function ($query): void {
+                        $query
+                            ->whereNotNull('p.property_category_id')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('pc.id')
+                                    ->orWhereColumn('pc.book_id', '<>', 'p.book_id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNotNull('p.primary_owner_id')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('primary_owner.id')
+                                    ->orWhereColumn('primary_owner.book_id', '<>', 'p.book_id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNotNull('p.representative_owner_id')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('representative_owner.id')
+                                    ->orWhereColumn('representative_owner.book_id', '<>', 'p.book_id');
+                            });
+                    });
+            });
+
+        $this->applyBookFilter($propertiesQuery, 'p.book_id', $bookId);
+
+        $propertiesCount = $propertiesQuery->count();
+
+        $unitsQuery = DB::table('property_units as pu')
+            ->leftJoin('properties as p', 'p.id', '=', 'pu.property_id')
+            ->whereNull('p.id');
+
+        if ($bookId !== null) {
+            $unitsQuery->where('p.book_id', $bookId);
+        }
+
+        $unitsCount = $unitsQuery->count();
+
+        $contractsQuery = DB::table('rental_contracts as rc')
+            ->leftJoin('contract_tenants as ct', 'ct.id', '=', 'rc.contract_tenant_id')
+            ->leftJoin('properties as p', 'p.id', '=', 'rc.property_id')
+            ->leftJoin('property_units as pu', 'pu.id', '=', 'rc.property_unit_id')
+            ->where(function ($query): void {
+                $query
+                    ->where(function ($query): void {
+                        $query
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('ct.id')
+                                    ->orWhereColumn('ct.book_id', '<>', 'rc.book_id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('p.id')
+                                    ->orWhereColumn('p.book_id', '<>', 'rc.book_id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNotNull('rc.property_unit_id')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('pu.id')
+                                    ->orWhereColumn('pu.property_id', '<>', 'rc.property_id');
+                            });
+                    });
+            });
+
+        $this->applyBookFilter($contractsQuery, 'rc.book_id', $bookId);
+
+        $contractsCount = $contractsQuery->count();
+        $count = $propertiesCount + $unitsCount + $contractsCount;
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'ERROR',
+            $count,
+            $count === 0
+                ? '賃貸マスタの物件・所有者・部屋・契約者・賃貸条件の参照は整合しています。'
+                : '賃貸マスタに、別帳簿参照または参照切れがあります。年度繰越の賃貸データ引継ぎ後の紐づきを確認してください。'
+        );
+    }
+
+    private function checkNextYearPaymentMasterAccountLinks(?int $bookId): array
+    {
+        foreach (['payment_items', 'payment_accounts', 'account_titles', 'sub_account_titles'] as $table) {
+            if (! Schema::hasTable($table)) {
+                return $this->skipped($table . ' テーブルがありません。');
+            }
+        }
+
+        $paymentItemsQuery = DB::table('payment_items as pi')
+            ->leftJoin('account_titles as at', 'at.id', '=', 'pi.account_title_id')
+            ->leftJoin('sub_account_titles as sat', 'sat.id', '=', 'pi.sub_account_title_id')
+            ->leftJoin('account_titles as sat_parent', 'sat_parent.id', '=', 'sat.account_title_id')
+            ->where(function ($query): void {
+                $query
+                    ->where(function ($query): void {
+                        $query
+                            ->whereNotNull('pi.account_title_id')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('at.id')
+                                    ->orWhereColumn('at.book_id', '<>', 'pi.book_id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNotNull('pi.sub_account_title_id')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('sat.id')
+                                    ->orWhereNull('sat_parent.id')
+                                    ->orWhereColumn('sat_parent.book_id', '<>', 'pi.book_id')
+                                    ->orWhere(function ($query): void {
+                                        $query
+                                            ->whereNotNull('pi.account_title_id')
+                                            ->whereColumn('sat.account_title_id', '<>', 'pi.account_title_id');
+                                    });
+                            });
+                    });
+            });
+
+        $this->applyBookFilter($paymentItemsQuery, 'pi.book_id', $bookId);
+
+        $paymentItemsCount = $paymentItemsQuery->count();
+
+        $paymentAccountsQuery = DB::table('payment_accounts as pa')
+            ->leftJoin('account_titles as at', 'at.id', '=', 'pa.account_title_id')
+            ->leftJoin('sub_account_titles as sat', 'sat.id', '=', 'pa.sub_account_title_id')
+            ->leftJoin('account_titles as sat_parent', 'sat_parent.id', '=', 'sat.account_title_id')
+            ->where(function ($query): void {
+                $query
+                    ->where(function ($query): void {
+                        $query
+                            ->whereNotNull('pa.account_title_id')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('at.id')
+                                    ->orWhereColumn('at.book_id', '<>', 'pa.book_id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNotNull('pa.sub_account_title_id')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('sat.id')
+                                    ->orWhereNull('sat_parent.id')
+                                    ->orWhereColumn('sat_parent.book_id', '<>', 'pa.book_id')
+                                    ->orWhere(function ($query): void {
+                                        $query
+                                            ->whereNotNull('pa.account_title_id')
+                                            ->whereColumn('sat.account_title_id', '<>', 'pa.account_title_id');
+                                    });
+                            });
+                    });
+            });
+
+        $this->applyBookFilter($paymentAccountsQuery, 'pa.book_id', $bookId);
+
+        $paymentAccountsCount = $paymentAccountsQuery->count();
+        $count = $paymentItemsCount + $paymentAccountsCount;
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'ERROR',
+            $count,
+            $count === 0
+                ? '入金項目・入金口座の会計科目と補助科目の紐づきは整合しています。'
+                : '入金項目または入金口座に、別帳簿の勘定科目・補助科目、または親科目不一致の補助科目があります。'
         );
     }
 
