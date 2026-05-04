@@ -32,6 +32,7 @@
                 <a href="{{ route('reports.real-estate-closing-details.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button button-secondary">決算書内訳確認へ</a>
                 <a href="{{ route('opening-balances.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">開始残高へ</a>
                 <a href="{{ route('closing.next-year-rollover-creations.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'balancing_account_title_id' => $selectedBalancingAccountTitleId]) }}" class="button">翌期帳簿作成へ</a>
+                <a href="{{ route('closing.next-year-rental-carryovers.index', ['source_book_id' => $selectedBookId]) }}" class="button button-secondary">賃貸データ引継ぎへ</a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
