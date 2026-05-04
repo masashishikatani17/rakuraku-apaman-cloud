@@ -47,6 +47,12 @@
                     青色申告決算書プレビューへ
                 </a>
                 <a
+                    href="{{ route('reports.white-return-statement-previews.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
+                    class="button button-secondary"
+                >
+                    白色収支内訳書プレビューへ
+                </a>
+                <a
                     href="{{ route('depreciable-assets.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
                     class="button button-secondary"
                 >
