@@ -59,6 +59,7 @@ use App\Http\Controllers\SubAccountTitleController;
 use App\Http\Controllers\SubAccountReportController;
 use App\Http\Controllers\SubAccountLedgerController;
 use App\Http\Controllers\TrialBalanceController;
+use App\Http\Controllers\WhiteReturnStatementPreviewController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -589,6 +590,9 @@ Route::post('/reports/real-estate-closing-details/adjustments', [RealEstateClosi
 
 Route::get('/reports/blue-return-statement-previews', [BlueReturnStatementPreviewController::class, 'index'])
     ->name('reports.blue-return-statement-previews.index');
+
+Route::get('/reports/white-return-statement-previews', [WhiteReturnStatementPreviewController::class, 'index'])
+    ->name('reports.white-return-statement-previews.index');
 
 Route::get('/reports/consumption-tax', [ConsumptionTaxReportController::class, 'index'])
     ->name('reports.consumption-tax.index');
