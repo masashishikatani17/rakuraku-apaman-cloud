@@ -186,6 +186,16 @@ class DataHealthCheckCommand extends Command
                 'callback' => fn () => $this->checkRealEstateClosingAdjustments($bookId),
             ],
             [
+                'name' => 'white_return_excluded_non_zero_accounts',
+                'label' => '白色収支内訳書の対象外科目',
+                'callback' => fn () => $this->checkWhiteReturnExcludedNonZeroAccounts($bookId),
+            ],
+            [
+                'name' => 'white_return_adjustment_reasons',
+                'label' => '白色収支内訳書の補正理由',
+                'callback' => fn () => $this->checkWhiteReturnAdjustmentReasons($bookId),
+            ],
+            [
                 'name' => 'payment_deposit_balance',
                 'label' => '預り金残高の過充当',
                 'callback' => fn () => $this->checkPaymentDepositBalance($bookId),
@@ -784,6 +794,84 @@ class DataHealthCheckCommand extends Command
         return $side === 'credit' ? $amount : -$amount;
     }
 
+    private function checkWhiteReturnExcludedNonZeroAccounts(?int $bookId): array
+    {
+        if (! Schema::hasTable('books') || ! Schema::hasTable('account_titles') || ! Schema::hasTable('journal_entries') || ! Schema::hasTable('journal_entry_lines')) {
+            return $this->skipped('白色収支内訳書チェックに必要なテーブルがありません。');
+        }
+
+        $balanceRows = DB::table('account_titles as at')
+            ->join('books as b', 'b.id', '=', 'at.book_id')
+            ->leftJoin('journal_entry_lines as jel', 'jel.account_title_id', '=', 'at.id')
+            ->leftJoin('journal_entries as je', function ($join): void {
+                $join->on('je.id', '=', 'jel.journal_entry_id')
+                    ->whereColumn('je.book_id', 'at.book_id')
+                    ->where('je.status', '=', 'posted')
+                    ->whereRaw('(b.period_start_date IS NULL OR je.entry_date >= b.period_start_date)')
+                    ->whereRaw('(b.period_end_date IS NULL OR je.entry_date <= b.period_end_date)');
+            })
+            ->where('b.is_active', true)
+            ->whereIn('at.category', ['revenue', 'expense'])
+            ->where('at.real_estate_statement_category', 'none')
+            ->select('at.id')
+            ->selectRaw("
+                COALESCE(SUM(
+                    CASE
+                        WHEN je.id IS NULL THEN 0
+                        WHEN at.normal_balance = 'debit' AND jel.side = 'debit' THEN jel.amount
+                        WHEN at.normal_balance = 'debit' AND jel.side = 'credit' THEN -jel.amount
+                        WHEN at.normal_balance = 'credit' AND jel.side = 'credit' THEN jel.amount
+                        WHEN at.normal_balance = 'credit' AND jel.side = 'debit' THEN -jel.amount
+                        ELSE 0
+                    END
+                ), 0) as balance_amount
+            ")
+            ->groupBy('at.id')
+            ->havingRaw('ABS(balance_amount) >= 0.005');
+
+        $this->applyBookFilter($balanceRows, 'at.book_id', $bookId);
+
+        $count = DB::query()
+            ->fromSub($balanceRows, 'excluded_accounts')
+            ->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'WARNING',
+            $count,
+            $count === 0
+                ? '白色収支内訳書の対象外区分に金額のある科目はありません。'
+                : '白色収支内訳書の対象外区分に金額のある科目があります。勘定科目の不動産所得決算書区分を確認してください。'
+        );
+    }
+
+    private function checkWhiteReturnAdjustmentReasons(?int $bookId): array
+    {
+        if (! Schema::hasTable('real_estate_closing_adjustments')) {
+            return $this->skipped('real_estate_closing_adjustments テーブルがありません。');
+        }
+
+        $query = DB::table('real_estate_closing_adjustments as reca')
+            ->join('account_titles as at', 'at.id', '=', 'reca.account_title_id')
+            ->whereIn('at.category', ['revenue', 'expense'])
+            ->whereRaw('ABS(reca.adjustment_amount) >= 0.005')
+            ->where(function ($query): void {
+                $query
+                    ->whereNull('reca.reason')
+                    ->orWhere('reca.reason', '=', '');
+            });
+
+        $this->applyBookFilter($query, 'reca.book_id', $bookId);
+
+        $count = $query->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'WARNING',
+            $count,
+            $count === 0
+                ? '補正額がある科目には補正理由が入力されています。'
+                : '補正額があるのに補正理由が空欄の科目があります。白色収支内訳書・青色申告決算書の確認用に理由を入力してください。'
+        );
+    }
 
     private function checkPaymentDepositBalance(?int $bookId): array
     {
