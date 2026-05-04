@@ -9,6 +9,7 @@ use App\Http\Controllers\BusinessOwnerController;
 use App\Http\Controllers\CashBankLedgerController;
 use App\Http\Controllers\ComplexJournalEntryController;
 use App\Http\Controllers\ClosingAdjustmentJournalController;
+use App\Http\Controllers\ClosingNextYearRolloverController;
 use App\Http\Controllers\ConsumptionTaxReportController;
 use App\Http\Controllers\ContractTenantController;
 use App\Http\Controllers\ContractTenantAnnualIncomeReportController;
@@ -95,6 +96,9 @@ Route::get('/opening-balances', [OpeningBalanceController::class, 'index'])
 
 Route::post('/opening-balances', [OpeningBalanceController::class, 'store'])
     ->name('opening-balances.store');
+
+Route::get('/closing/next-year-rollovers', [ClosingNextYearRolloverController::class, 'index'])
+    ->name('closing.next-year-rollovers.index');
 
 Route::get('/borrowing-loans', [BorrowingLoanController::class, 'index'])
     ->name('borrowing-loans.index');

@@ -41,6 +41,12 @@
                     損益計算書へ
                 </a>
                 <a
+                    href="{{ route('closing.next-year-rollovers.index', ['book_id' => $selectedBookId, 'date_to' => $dateTo]) }}"
+                    class="button"
+                >
+                    年度繰越プレビューへ
+                </a>
+                <a
                     href="{{ route('trial-balances.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"
                     class="button button-secondary"
                 >

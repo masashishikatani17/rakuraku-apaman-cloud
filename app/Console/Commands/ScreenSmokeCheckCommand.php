@@ -157,6 +157,7 @@ class ScreenSmokeCheckCommand extends Command
             ['label' => '補助元帳', 'name' => 'sub-account-ledgers.index', 'params' => $bookParams],
 
             ['label' => '開始残高', 'name' => 'opening-balances.index', 'params' => $bookParams],
+            ['label' => '年度繰越プレビュー', 'name' => 'closing.next-year-rollovers.index', 'params' => $bookParams],
             ['label' => '決算整理仕訳', 'name' => 'closing-adjustment-journals.index', 'params' => $bookParams],
             ['label' => '減価償却', 'name' => 'depreciable-assets.index', 'params' => $bookParams],
             ['label' => '借入金台帳', 'name' => 'borrowing-loans.index', 'params' => $bookParams],
