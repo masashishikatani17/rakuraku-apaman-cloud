@@ -14,6 +14,7 @@
             'move_out_settlement' => '退去精算',
             'overpayment_deposit' => '過入金預り',
             'overpayment_deposit_application' => '預り金充当',
+            'consumption_tax_settlement' => '消費税精算',
         ];
     @endphp
 
