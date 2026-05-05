@@ -22,6 +22,7 @@ class VerifyReportTotalsCommand extends Command
         'contract_tenant_annual_income',
         'trial_balance',
         'cash_ledger',
+        'bank_ledger',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -163,6 +164,10 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'cash_ledger') {
             return $this->verifyCashLedgerCase($case, $failOnExtra);
+        }
+
+        if ($report === 'bank_ledger') {
+            return $this->verifyBankLedgerCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -1148,6 +1153,219 @@ class VerifyReportTotalsCommand extends Command
         }
 
         return $accountCode;
+    }
+
+
+
+    private function verifyBankLedgerCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('許容差額: ' . $this->formatAmount($tolerance));
+
+        $actualRows = $this->buildBankLedgerActualRows($bookId, $periodFrom, $periodTo, $case['expected']);
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedKeys = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $accountCode = (string) ($expectedRow['account_code'] ?? '');
+
+            if ($accountCode === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'account_code が未指定です。'];
+                continue;
+            }
+
+            $subAccountCode = $expectedRow['sub_account_code'] ?? null;
+            $key = $this->ledgerKey($accountCode, $subAccountCode !== null ? (string) $subAccountCode : null);
+            $expectedKeys[] = $key;
+            $actualRow = $actualRows[$key] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $key, '行存在', 'あり', 'なし', '-', 'クラウド側に対象預金科目の集計行がありません。'];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $key, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $key,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraKeys = array_values(array_diff(array_keys($actualRows), $expectedKeys));
+
+            foreach ($extraKeys as $extraKey) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraKey,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    '期待値にないクラウド側の預金科目集計行があります。',
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
+        ];
+    }
+
+    private function buildBankLedgerActualRows(int $bookId, string $periodFrom, string $periodTo, array $expectedRows): array
+    {
+        $expectedAccountCodes = collect($expectedRows)
+            ->filter(fn ($row): bool => is_array($row) && ! empty($row['account_code']))
+            ->pluck('account_code')
+            ->map(fn ($value): string => (string) $value)
+            ->unique()
+            ->values();
+
+        $accountQuery = DB::table('account_titles')
+            ->where('book_id', $bookId)
+            ->where('category', 'asset')
+            ->where(function ($query) use ($expectedAccountCodes): void {
+                $query
+                    ->where('name', 'like', '%預金%')
+                    ->orWhere('name', 'like', '%普通%')
+                    ->orWhere('name', 'like', '%当座%')
+                    ->orWhere('name', 'like', '%銀行%');
+
+                if ($expectedAccountCodes->isNotEmpty()) {
+                    $query->orWhereIn('account_code', $expectedAccountCodes->all());
+                }
+            })
+            ->orderBy('sort_order')
+            ->orderBy('account_code')
+            ->orderBy('id');
+
+        $accountTitles = $accountQuery->get();
+        $actualRows = [];
+
+        foreach ($accountTitles as $accountTitle) {
+            $matchingExpectedRows = collect($expectedRows)
+                ->filter(function ($row) use ($accountTitle): bool {
+                    return is_array($row)
+                        && (string) ($row['account_code'] ?? '') === (string) $accountTitle->account_code;
+                })
+                ->values();
+
+            $subAccountCodes = $matchingExpectedRows
+                ->filter(fn ($row): bool => isset($row['sub_account_code']) && (string) $row['sub_account_code'] !== '')
+                ->pluck('sub_account_code')
+                ->map(fn ($value): string => (string) $value)
+                ->unique()
+                ->values();
+
+            if ($subAccountCodes->isEmpty()) {
+                $actualRow = $this->buildCashLedgerActualRow(
+                    $bookId,
+                    (int) $accountTitle->id,
+                    (string) $accountTitle->account_code,
+                    (string) $accountTitle->name,
+                    (string) $accountTitle->normal_balance,
+                    null,
+                    null,
+                    $periodFrom,
+                    $periodTo
+                );
+
+                $actualRows[$this->ledgerKey((string) $accountTitle->account_code, null)] = $actualRow;
+                continue;
+            }
+
+            foreach ($subAccountCodes as $subAccountCode) {
+                $subAccount = DB::table('sub_account_titles')
+                    ->where('account_title_id', (int) $accountTitle->id)
+                    ->where('sub_account_code', $subAccountCode)
+                    ->first();
+
+                if ($subAccount === null) {
+                    continue;
+                }
+
+                $actualRow = $this->buildCashLedgerActualRow(
+                    $bookId,
+                    (int) $accountTitle->id,
+                    (string) $accountTitle->account_code,
+                    (string) $accountTitle->name,
+                    (string) $accountTitle->normal_balance,
+                    (int) $subAccount->id,
+                    (string) $subAccount->sub_account_code,
+                    $periodFrom,
+                    $periodTo,
+                    (string) $subAccount->name
+                );
+
+                $actualRows[$this->ledgerKey((string) $accountTitle->account_code, (string) $subAccount->sub_account_code)] = $actualRow;
+            }
+        }
+
+        return $actualRows;
     }
 
 

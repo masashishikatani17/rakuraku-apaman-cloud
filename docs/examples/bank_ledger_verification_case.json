@@ -1,0 +1,25 @@
+{
+  "case_id": "bank_ledger_001",
+  "title": "預金出納帳 基本ケース",
+  "report": "bank_ledger",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "tolerance": 0,
+  "expected": [
+    {
+      "account_code": "102",
+      "account_name": "普通預金",
+      "sub_account_code": "普通001",
+      "sub_account_name": "普通預金サンプル",
+      "opening_balance": 1000000,
+      "period_debit_total": 1380000,
+      "period_credit_total": 500000,
+      "total_increase": 1380000,
+      "total_decrease": 500000,
+      "ending_balance": 1880000,
+      "ending_debit": 1880000,
+      "ending_credit": 0
+    }
+  ]
+}
