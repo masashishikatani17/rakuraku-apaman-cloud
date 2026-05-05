@@ -19,11 +19,17 @@ class VerifyReportTotalsCommand extends Command
 
     private const SUPPORTED_REPORTS = [
         'property_annual_income',
+        'trial_balance',
     ];
 
     private const IDENTITY_FIELDS = [
         'property_code',
         'property_name',
+        'account_code',
+        'account_name',
+        'category',
+        'normal_balance',
+        'ending_balance_side',
         'note',
         'memo',
         'tolerance',
@@ -135,6 +141,10 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'property_annual_income') {
             return $this->verifyPropertyAnnualIncomeCase($case, $failOnExtra);
+        }
+
+        if ($report === 'trial_balance') {
+            return $this->verifyTrialBalanceCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -360,6 +370,214 @@ class VerifyReportTotalsCommand extends Command
 
         return $rows;
     }
+
+
+    private function verifyTrialBalanceCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('許容差額: ' . $this->formatAmount($tolerance));
+
+        $actualRows = $this->buildTrialBalanceActualRows($bookId, $periodFrom, $periodTo);
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedAccountCodes = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $accountCode = (string) ($expectedRow['account_code'] ?? '');
+
+            if ($accountCode === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'account_code が未指定です。'];
+                continue;
+            }
+
+            $expectedAccountCodes[] = $accountCode;
+            $actualRow = $actualRows[$accountCode] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $accountCode, '行存在', 'あり', 'なし', '-', 'クラウド側に対象勘定科目の集計行がありません。'];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $accountCode, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $accountCode,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraAccountCodes = array_values(array_diff(array_keys($actualRows), $expectedAccountCodes));
+
+            foreach ($extraAccountCodes as $extraAccountCode) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraAccountCode,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    '期待値にないクラウド側の集計行があります。',
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
+        ];
+    }
+
+    private function buildTrialBalanceActualRows(int $bookId, string $periodFrom, string $periodTo): array
+    {
+        $rows = DB::table('account_titles as at')
+            ->leftJoin('journal_entry_lines as jel', 'jel.account_title_id', '=', 'at.id')
+            ->leftJoin('journal_entries as je', function ($join) use ($bookId, $periodFrom, $periodTo): void {
+                $join->on('je.id', '=', 'jel.journal_entry_id')
+                    ->where('je.book_id', '=', $bookId)
+                    ->where('je.status', '=', 'posted')
+                    ->whereDate('je.entry_date', '>=', $periodFrom)
+                    ->whereDate('je.entry_date', '<=', $periodTo);
+            })
+            ->where('at.book_id', $bookId)
+            ->select([
+                'at.id as account_title_id',
+                'at.account_code',
+                'at.name as account_name',
+                'at.category',
+                'at.normal_balance',
+                'at.is_active',
+                'at.sort_order',
+            ])
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total"
+            )
+            ->selectRaw(
+                "COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'credit' THEN jel.amount ELSE 0 END), 0) as credit_total"
+            )
+            ->groupBy(
+                'at.id',
+                'at.account_code',
+                'at.name',
+                'at.category',
+                'at.normal_balance',
+                'at.is_active',
+                'at.sort_order'
+            )
+            ->orderBy('at.sort_order')
+            ->orderBy('at.account_code')
+            ->get();
+
+        $actualRows = [];
+
+        foreach ($rows as $row) {
+            $accountCode = (string) ($row->account_code ?? '');
+
+            if ($accountCode === '') {
+                $accountCode = '__NO_ACCOUNT_CODE__';
+            }
+
+            $debitTotal = round((float) $row->debit_total, 2);
+            $creditTotal = round((float) $row->credit_total, 2);
+            $normalBalance = (string) $row->normal_balance;
+
+            $rawEndingBalance = $normalBalance === 'debit'
+                ? $debitTotal - $creditTotal
+                : $creditTotal - $debitTotal;
+
+            $endingBalance = round(abs($rawEndingBalance), 2);
+            $endingBalanceSide = null;
+
+            if ($endingBalance > 0) {
+                if ($rawEndingBalance > 0) {
+                    $endingBalanceSide = $normalBalance;
+                } else {
+                    $endingBalanceSide = $normalBalance === 'debit'
+                        ? 'credit'
+                        : 'debit';
+                }
+            }
+
+            $actualRows[$accountCode] = [
+                'account_code' => $accountCode,
+                'account_name' => (string) $row->account_name,
+                'category' => (string) $row->category,
+                'normal_balance' => $normalBalance,
+                'debit_total' => $debitTotal,
+                'credit_total' => $creditTotal,
+                'debit_amount' => $debitTotal,
+                'credit_amount' => $creditTotal,
+                'ending_balance' => $endingBalance,
+                'ending_balance_side' => $endingBalanceSide,
+                'ending_debit' => $endingBalanceSide === 'debit' ? $endingBalance : 0.0,
+                'ending_credit' => $endingBalanceSide === 'credit' ? $endingBalance : 0.0,
+            ];
+        }
+
+        return $actualRows;
+    }
+
 
     private function isComparableAmount(mixed $value): bool
     {
