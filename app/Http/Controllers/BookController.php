@@ -50,7 +50,7 @@ class BookController extends Controller
 
         $books = $booksQuery->get();
 
-        return view('books.index', [
+        return view('books.index_compact', [
             'businessOwners' => $businessOwners,
             'books' => $books,
             'selectedBusinessOwnerId' => $selectedBusinessOwnerId,
