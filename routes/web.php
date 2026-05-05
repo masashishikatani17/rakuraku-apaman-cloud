@@ -40,6 +40,7 @@ use App\Http\Controllers\MonthlyPaymentScheduleController;
 use App\Http\Controllers\MonthlyTrendReportController;
 use App\Http\Controllers\OccupancyStatusReportController;
 use App\Http\Controllers\OpeningBalanceController;
+use App\Http\Controllers\OutputMenuController;
 use App\Http\Controllers\PdfExportController;
 use App\Http\Controllers\PaymentAccountController;
 use App\Http\Controllers\PaymentDepositBalanceReportController;
@@ -49,12 +50,14 @@ use App\Http\Controllers\PaymentReconciliationActionController;
 use App\Http\Controllers\PaymentReconciliationCheckController;
 use App\Http\Controllers\PaymentOverpaymentDepositController;
 use App\Http\Controllers\PaymentOverpaymentDepositApplicationController;
+use App\Http\Controllers\PaymentMenuController;
 use App\Http\Controllers\PaymentScheduleController;
 use App\Http\Controllers\RentalPaymentJournalController;
 use App\Http\Controllers\RentalContractMoveOutController;
 use App\Http\Controllers\RentalMoveOutSettlementController;
 use App\Http\Controllers\RentalContractReportController;
 use App\Http\Controllers\RentalContractTermController;
+use App\Http\Controllers\RentalMenuController;
 use App\Http\Controllers\PropertyPaymentReportController;
 use App\Http\Controllers\PropertyAnnualIncomeReportController;
 use App\Http\Controllers\PropertyCategoryController;
@@ -70,6 +73,7 @@ use App\Http\Controllers\RealEstateIncomeStatementReportController;
 use App\Http\Controllers\SubAccountTitleController;
 use App\Http\Controllers\SubAccountReportController;
 use App\Http\Controllers\SubAccountLedgerController;
+use App\Http\Controllers\TaxMenuController;
 use App\Http\Controllers\TrialBalanceController;
 use App\Http\Controllers\WhiteReturnStatementPreviewController;
 use App\Http\Controllers\WorkMenuController;
@@ -94,6 +98,18 @@ Route::get('/master-menu', [MasterMenuController::class, 'index'])
 
 Route::get('/utility-menu', [UtilityMenuController::class, 'index'])
     ->name('utility-menu.index');
+
+Route::get('/rental-menu', [RentalMenuController::class, 'index'])
+    ->name('rental-menu.index');
+
+Route::get('/payment-menu', [PaymentMenuController::class, 'index'])
+    ->name('payment-menu.index');
+
+Route::get('/tax-menu', [TaxMenuController::class, 'index'])
+    ->name('tax-menu.index');
+
+Route::get('/output-menu', [OutputMenuController::class, 'index'])
+    ->name('output-menu.index');
 
 Route::get('/business-owners', [BusinessOwnerController::class, 'index'])
     ->name('business-owners.index');

@@ -141,6 +141,10 @@ class ScreenSmokeCheckCommand extends Command
             ['label' => 'データメニュー', 'name' => 'data-menu.index', 'params' => $bookParams],
             ['label' => 'マスタメニュー', 'name' => 'master-menu.index', 'params' => $bookParams],
             ['label' => 'ユーティリティメニュー', 'name' => 'utility-menu.index', 'params' => $bookParams],
+            ['label' => '賃貸管理メニュー', 'name' => 'rental-menu.index', 'params' => $bookParams],
+            ['label' => '入金管理メニュー', 'name' => 'payment-menu.index', 'params' => $bookParams],
+            ['label' => '決算・申告メニュー', 'name' => 'tax-menu.index', 'params' => $bookParams],
+            ['label' => '帳票・出力メニュー', 'name' => 'output-menu.index', 'params' => $bookParams],
 
             ['label' => '勘定科目', 'name' => 'account-titles.index', 'params' => $bookParams],
             ['label' => '補助科目', 'name' => 'sub-account-titles.index', 'params' => $bookParams],
