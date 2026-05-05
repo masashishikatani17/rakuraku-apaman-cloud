@@ -69,11 +69,15 @@ use App\Http\Controllers\SubAccountReportController;
 use App\Http\Controllers\SubAccountLedgerController;
 use App\Http\Controllers\TrialBalanceController;
 use App\Http\Controllers\WhiteReturnStatementPreviewController;
+use App\Http\Controllers\WorkMenuController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return redirect()->route('business-owners.index');
+    return redirect()->route('work-menu.index');
 });
+
+Route::get('/work-menu', [WorkMenuController::class, 'index'])
+    ->name('work-menu.index');
 
 Route::get('/business-owners', [BusinessOwnerController::class, 'index'])
     ->name('business-owners.index');
