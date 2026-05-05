@@ -1,0 +1,21 @@
+{
+  "case_id": "expense_ledger_001",
+  "title": "経費帳 基本ケース",
+  "report": "expense_ledger",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "tolerance": 0,
+  "expected": [
+    {
+      "account_code": "501",
+      "account_name": "修繕費",
+      "expense_total": 300000,
+      "reversal_total": 0,
+      "net_expense_total": 300000,
+      "debit_total": 300000,
+      "credit_total": 0,
+      "total_amount": 300000
+    }
+  ]
+}
