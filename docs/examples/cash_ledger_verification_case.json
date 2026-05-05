@@ -1,0 +1,23 @@
+{
+  "case_id": "cash_ledger_001",
+  "title": "現金出納帳 基本ケース",
+  "report": "cash_ledger",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "tolerance": 0,
+  "expected": [
+    {
+      "account_code": "101",
+      "account_name": "現金",
+      "opening_balance": 100000,
+      "period_debit_total": 500000,
+      "period_credit_total": 200000,
+      "total_increase": 500000,
+      "total_decrease": 200000,
+      "ending_balance": 400000,
+      "ending_debit": 400000,
+      "ending_credit": 0
+    }
+  ]
+}
