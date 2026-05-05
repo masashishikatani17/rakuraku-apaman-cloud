@@ -12,6 +12,7 @@ use App\Http\Controllers\ClosingAdjustmentJournalController;
 use App\Http\Controllers\ClosingNextYearRolloverController;
 use App\Http\Controllers\ClosingNextYearRolloverCreationController;
 use App\Http\Controllers\ClosingNextYearRentalCarryoverController;
+use App\Http\Controllers\ClosingNextYearPaymentScheduleBuildController;
 use App\Http\Controllers\ConsumptionTaxReportController;
 use App\Http\Controllers\ContractTenantController;
 use App\Http\Controllers\ContractTenantAnnualIncomeReportController;
@@ -113,6 +114,12 @@ Route::get('/closing/next-year-rental-carryovers', [ClosingNextYearRentalCarryov
 
 Route::post('/closing/next-year-rental-carryovers', [ClosingNextYearRentalCarryoverController::class, 'store'])
     ->name('closing.next-year-rental-carryovers.store');
+
+Route::get('/closing/next-year-payment-schedule-builds', [ClosingNextYearPaymentScheduleBuildController::class, 'index'])
+    ->name('closing.next-year-payment-schedule-builds.index');
+
+Route::post('/closing/next-year-payment-schedule-builds', [ClosingNextYearPaymentScheduleBuildController::class, 'store'])
+    ->name('closing.next-year-payment-schedule-builds.store');
 
 Route::get('/borrowing-loans', [BorrowingLoanController::class, 'index'])
     ->name('borrowing-loans.index');
