@@ -15,6 +15,7 @@ use App\Http\Controllers\ClosingNextYearRolloverCreationController;
 use App\Http\Controllers\ClosingNextYearRentalCarryoverController;
 use App\Http\Controllers\ClosingNextYearPaymentScheduleBuildController;
 use App\Http\Controllers\ClosingNextYearAssetLoanCarryoverController;
+use App\Http\Controllers\ConsumptionTaxCategoryReviewController;
 use App\Http\Controllers\ConsumptionTaxFilingReportController;
 use App\Http\Controllers\ConsumptionTaxReportController;
 use App\Http\Controllers\ConsumptionTaxSettlementJournalController;
@@ -643,6 +644,12 @@ Route::get('/reports/consumption-tax', [ConsumptionTaxReportController::class, '
 
 Route::get('/reports/consumption-tax-filing', [ConsumptionTaxFilingReportController::class, 'index'])
     ->name('reports.consumption-tax-filing.index');
+
+Route::get('/consumption-tax-category-reviews', [ConsumptionTaxCategoryReviewController::class, 'index'])
+    ->name('consumption-tax-category-reviews.index');
+
+Route::post('/consumption-tax-category-reviews', [ConsumptionTaxCategoryReviewController::class, 'update'])
+    ->name('consumption-tax-category-reviews.update');
 
 Route::get('/consumption-tax-settlement-journals', [ConsumptionTaxSettlementJournalController::class, 'index'])
     ->name('consumption-tax-settlement-journals.index');

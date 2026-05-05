@@ -30,6 +30,7 @@
             @if ($selectedBookId)
                 <a href="{{ route('reports.consumption-tax.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'tax_rate' => $defaultTaxRate, 'amount_mode' => $amountMode]) }}" class="button button-secondary">消費税集計へ</a>
                 <a href="{{ route('consumption-tax-settlement-journals.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'tax_rate' => $defaultTaxRate, 'amount_mode' => $amountMode]) }}" class="button button-secondary">消費税精算仕訳へ</a>
+                <a href="{{ route('consumption-tax-category-reviews.index', ['book_id' => $selectedBookId, 'default_tax_rate' => $defaultTaxRate]) }}" class="button">消費税区分レビューへ</a>
                 <a href="{{ route('account-titles.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">勘定科目設定へ</a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
