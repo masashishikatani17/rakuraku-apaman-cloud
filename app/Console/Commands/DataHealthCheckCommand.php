@@ -171,6 +171,21 @@ class DataHealthCheckCommand extends Command
                 'callback' => fn () => $this->checkNextYearPaymentMasterAccountLinks($bookId),
             ],
             [
+                'name' => 'next_year_depreciable_asset_links',
+                'label' => '翌期固定資産台帳の参照整合性',
+                'callback' => fn () => $this->checkNextYearDepreciableAssetLinks($bookId),
+            ],
+            [
+                'name' => 'next_year_borrowing_loan_links',
+                'label' => '翌期借入金台帳の参照整合性',
+                'callback' => fn () => $this->checkNextYearBorrowingLoanLinks($bookId),
+            ],
+            [
+                'name' => 'next_year_borrowing_repayment_links',
+                'label' => '翌期借入返済予定の参照整合性',
+                'callback' => fn () => $this->checkNextYearBorrowingRepaymentLinks($bookId),
+            ],
+            [
                 'name' => 'property_linked_pl_lines',
                 'label' => '物件未配賦のPL仕訳',
                 'callback' => fn () => $this->checkUnassignedPropertyProfitLossLines($bookId),
@@ -762,6 +777,199 @@ class DataHealthCheckCommand extends Command
             $count === 0
                 ? '入金項目・入金口座の会計科目と補助科目の紐づきは整合しています。'
                 : '入金項目または入金口座に、別帳簿の勘定科目・補助科目、または親科目不一致の補助科目があります。'
+        );
+    }
+
+    private function checkNextYearDepreciableAssetLinks(?int $bookId): array
+    {
+        foreach (['depreciable_assets', 'properties', 'departments', 'account_titles'] as $table) {
+            if (! Schema::hasTable($table)) {
+                return $this->skipped($table . ' テーブルがありません。');
+            }
+        }
+
+        $query = DB::table('depreciable_assets as da')
+            ->leftJoin('properties as p', 'p.id', '=', 'da.property_id')
+            ->leftJoin('departments as d', 'd.id', '=', 'da.department_id')
+            ->leftJoin('account_titles as asset_at', 'asset_at.id', '=', 'da.asset_account_title_id')
+            ->leftJoin('account_titles as acc_at', 'acc_at.id', '=', 'da.accumulated_depreciation_account_title_id')
+            ->leftJoin('account_titles as exp_at', 'exp_at.id', '=', 'da.depreciation_expense_account_title_id')
+            ->where(function ($query): void {
+                $query
+                    ->where(function ($query): void {
+                        $query
+                            ->whereNotNull('da.property_id')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('p.id')
+                                    ->orWhereColumn('p.book_id', '<>', 'da.book_id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNotNull('da.department_id')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('d.id')
+                                    ->orWhereColumn('d.book_id', '<>', 'da.book_id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('asset_at.id')
+                                    ->orWhereColumn('asset_at.book_id', '<>', 'da.book_id')
+                                    ->orWhere('asset_at.category', '<>', 'asset');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNotNull('da.accumulated_depreciation_account_title_id')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('acc_at.id')
+                                    ->orWhereColumn('acc_at.book_id', '<>', 'da.book_id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('exp_at.id')
+                                    ->orWhereColumn('exp_at.book_id', '<>', 'da.book_id')
+                                    ->orWhere('exp_at.category', '<>', 'expense');
+                            });
+                    });
+            });
+
+        $this->applyBookFilter($query, 'da.book_id', $bookId);
+
+        $count = $query->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'ERROR',
+            $count,
+            $count === 0
+                ? '固定資産台帳の物件・部門・会計科目の参照は整合しています。'
+                : '固定資産台帳に、別帳簿参照、参照切れ、または科目区分不一致があります。翌期固定資産引継ぎ後の紐づきを確認してください。'
+        );
+    }
+
+    private function checkNextYearBorrowingLoanLinks(?int $bookId): array
+    {
+        foreach (['borrowing_loans', 'properties', 'departments', 'account_titles'] as $table) {
+            if (! Schema::hasTable($table)) {
+                return $this->skipped($table . ' テーブルがありません。');
+            }
+        }
+
+        $query = DB::table('borrowing_loans as bl')
+            ->leftJoin('properties as p', 'p.id', '=', 'bl.property_id')
+            ->leftJoin('departments as d', 'd.id', '=', 'bl.department_id')
+            ->leftJoin('account_titles as principal_at', 'principal_at.id', '=', 'bl.principal_account_title_id')
+            ->leftJoin('account_titles as interest_at', 'interest_at.id', '=', 'bl.interest_expense_account_title_id')
+            ->leftJoin('account_titles as payment_at', 'payment_at.id', '=', 'bl.payment_account_title_id')
+            ->where(function ($query): void {
+                $query
+                    ->where(function ($query): void {
+                        $query
+                            ->whereNotNull('bl.property_id')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('p.id')
+                                    ->orWhereColumn('p.book_id', '<>', 'bl.book_id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNotNull('bl.department_id')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('d.id')
+                                    ->orWhereColumn('d.book_id', '<>', 'bl.book_id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('principal_at.id')
+                                    ->orWhereColumn('principal_at.book_id', '<>', 'bl.book_id')
+                                    ->orWhere('principal_at.category', '<>', 'liability');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('interest_at.id')
+                                    ->orWhereColumn('interest_at.book_id', '<>', 'bl.book_id')
+                                    ->orWhere('interest_at.category', '<>', 'expense');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('payment_at.id')
+                                    ->orWhereColumn('payment_at.book_id', '<>', 'bl.book_id')
+                                    ->orWhere('payment_at.category', '<>', 'asset');
+                            });
+                    });
+            });
+
+        $this->applyBookFilter($query, 'bl.book_id', $bookId);
+
+        $count = $query->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'ERROR',
+            $count,
+            $count === 0
+                ? '借入金台帳の物件・部門・会計科目の参照は整合しています。'
+                : '借入金台帳に、別帳簿参照、参照切れ、または科目区分不一致があります。翌期借入金引継ぎ後の紐づきを確認してください。'
+        );
+    }
+
+    private function checkNextYearBorrowingRepaymentLinks(?int $bookId): array
+    {
+        foreach (['borrowing_repayments', 'borrowing_loans', 'journal_entries'] as $table) {
+            if (! Schema::hasTable($table)) {
+                return $this->skipped($table . ' テーブルがありません。');
+            }
+        }
+
+        $query = DB::table('borrowing_repayments as br')
+            ->leftJoin('borrowing_loans as bl', 'bl.id', '=', 'br.borrowing_loan_id')
+            ->leftJoin('journal_entries as je', 'je.id', '=', 'br.journal_entry_id')
+            ->where(function ($query): void {
+                $query
+                    ->whereNull('bl.id')
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNotNull('br.journal_entry_id')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('je.id')
+                                    ->orWhereColumn('je.book_id', '<>', 'bl.book_id')
+                                    ->orWhere('je.entry_type', '<>', 'loan_repayment');
+                            });
+                    });
+            });
+
+        if ($bookId !== null) {
+            $query->where('bl.book_id', $bookId);
+        }
+
+        $count = $query->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'ERROR',
+            $count,
+            $count === 0
+                ? '借入返済予定の借入金・返済仕訳の参照は整合しています。'
+                : '借入返済予定に、借入金参照切れ、別帳簿仕訳、または仕訳区分不一致があります。'
         );
     }
 
