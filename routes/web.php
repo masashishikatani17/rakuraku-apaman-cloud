@@ -23,6 +23,7 @@ use App\Http\Controllers\ConsumptionTaxSettlementJournalController;
 use App\Http\Controllers\ContractTenantController;
 use App\Http\Controllers\ContractTenantAnnualIncomeReportController;
 use App\Http\Controllers\CsvExportController;
+use App\Http\Controllers\DataMenuController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DepartmentTrialBalanceController;
 use App\Http\Controllers\DepreciableAssetController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\JournalDiaryController;
 use App\Http\Controllers\JournalEntryController;
 use App\Http\Controllers\JournalEntryTemplateController;
 use App\Http\Controllers\JournalPropertyLinkController;
+use App\Http\Controllers\MasterMenuController;
 use App\Http\Controllers\MonthlyPaymentScheduleController;
 use App\Http\Controllers\MonthlyTrendReportController;
 use App\Http\Controllers\OccupancyStatusReportController;
@@ -71,6 +73,7 @@ use App\Http\Controllers\SubAccountLedgerController;
 use App\Http\Controllers\TrialBalanceController;
 use App\Http\Controllers\WhiteReturnStatementPreviewController;
 use App\Http\Controllers\WorkMenuController;
+use App\Http\Controllers\UtilityMenuController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -82,6 +85,15 @@ Route::get('/work-menu', [WorkMenuController::class, 'index'])
 
 Route::get('/accounting-menu', [AccountingMenuController::class, 'index'])
     ->name('accounting-menu.index');
+
+Route::get('/data-menu', [DataMenuController::class, 'index'])
+    ->name('data-menu.index');
+
+Route::get('/master-menu', [MasterMenuController::class, 'index'])
+    ->name('master-menu.index');
+
+Route::get('/utility-menu', [UtilityMenuController::class, 'index'])
+    ->name('utility-menu.index');
 
 Route::get('/business-owners', [BusinessOwnerController::class, 'index'])
     ->name('business-owners.index');
