@@ -50,10 +50,7 @@ class WorkMenuController extends Controller
                 'title' => 'データ選択・帳簿',
                 'description' => 'Access版のデータ選択・データ変更に相当する入口です。',
                 'items' => [
-                    $this->menuItem('事業主一覧', 'business-owners.index'),
-                    $this->menuItem('帳簿一覧', 'books.index'),
-                    $this->menuItem('帳簿を新規登録', 'books.create'),
-                    $this->menuItem('年度締め・帳簿ロック', 'closing.book-locks.index', $bookParams),
+                    $this->menuItem('データメニュー', 'data-menu.index', $bookParams),
                 ],
             ],
             [
@@ -121,16 +118,11 @@ class WorkMenuController extends Controller
                 ],
             ],
             [
-                'key' => 'rollover',
-                'title' => '年度繰越',
-                'description' => 'Access版のデータ年度繰越・ユーティリティ系に相当する入口です。',
+                'key' => 'utility',
+                'title' => 'ユーティリティ',
+                'description' => 'Access版のユーティリティに相当します。',
                 'items' => [
-                    $this->menuItem('年度繰越プレビュー', 'closing.next-year-rollovers.index', $bookParams),
-                    $this->menuItem('翌期帳簿作成', 'closing.next-year-rollover-creations.index', $bookParams),
-                    $this->menuItem('翌期賃貸データ引継ぎ', 'closing.next-year-rental-carryovers.index', ['source_book_id' => $bookId]),
-                    $this->menuItem('翌期入金予定生成', 'closing.next-year-payment-schedule-builds.index', $bookParams),
-                    $this->menuItem('翌期固定資産・借入金引継ぎ', 'closing.next-year-asset-loan-carryovers.index', ['source_book_id' => $bookId]),
-                    $this->menuItem('年度締め・帳簿ロック', 'closing.book-locks.index', $bookParams),
+                    $this->menuItem('ユーティリティメニュー', 'utility-menu.index', $bookParams),
                 ],
             ],
             [
@@ -138,11 +130,7 @@ class WorkMenuController extends Controller
                 'title' => 'マスタ',
                 'description' => '勘定科目、補助科目、摘要、部門などの管理入口です。',
                 'items' => [
-                    $this->menuItem('勘定科目', 'account-titles.index', $bookParams),
-                    $this->menuItem('補助科目', 'sub-account-titles.index', $bookParams),
-                    $this->menuItem('摘要', 'journal-descriptions.index', $bookParams),
-                    $this->menuItem('部門', 'departments.index', $bookParams),
-                    $this->menuItem('補助科目一覧', 'reports.sub-accounts.index', $bookParams),
+                    $this->menuItem('マスタメニュー', 'master-menu.index', $bookParams),
                 ],
             ],
             [
