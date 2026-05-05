@@ -13,6 +13,7 @@ use App\Http\Controllers\ClosingNextYearRolloverController;
 use App\Http\Controllers\ClosingNextYearRolloverCreationController;
 use App\Http\Controllers\ClosingNextYearRentalCarryoverController;
 use App\Http\Controllers\ClosingNextYearPaymentScheduleBuildController;
+use App\Http\Controllers\ClosingNextYearAssetLoanCarryoverController;
 use App\Http\Controllers\ConsumptionTaxReportController;
 use App\Http\Controllers\ContractTenantController;
 use App\Http\Controllers\ContractTenantAnnualIncomeReportController;
@@ -120,6 +121,12 @@ Route::get('/closing/next-year-payment-schedule-builds', [ClosingNextYearPayment
 
 Route::post('/closing/next-year-payment-schedule-builds', [ClosingNextYearPaymentScheduleBuildController::class, 'store'])
     ->name('closing.next-year-payment-schedule-builds.store');
+
+Route::get('/closing/next-year-asset-loan-carryovers', [ClosingNextYearAssetLoanCarryoverController::class, 'index'])
+    ->name('closing.next-year-asset-loan-carryovers.index');
+
+Route::post('/closing/next-year-asset-loan-carryovers', [ClosingNextYearAssetLoanCarryoverController::class, 'store'])
+    ->name('closing.next-year-asset-loan-carryovers.store');
 
 Route::get('/borrowing-loans', [BorrowingLoanController::class, 'index'])
     ->name('borrowing-loans.index');
@@ -639,4 +646,3 @@ Route::get('/pdf-exports', [PdfExportController::class, 'index'])
 
 Route::get('/pdf-exports/preview', [PdfExportController::class, 'preview'])
     ->name('pdf-exports.preview');
-// 今日の夕飯何にしようか

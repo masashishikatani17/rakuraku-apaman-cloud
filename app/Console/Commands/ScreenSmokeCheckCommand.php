@@ -161,6 +161,7 @@ class ScreenSmokeCheckCommand extends Command
             ['label' => '翌期帳簿作成', 'name' => 'closing.next-year-rollover-creations.index', 'params' => $bookParams],
             ['label' => '翌期賃貸データ引継ぎ', 'name' => 'closing.next-year-rental-carryovers.index', 'params' => ['source_book_id' => $bookId]],
             ['label' => '翌期入金予定生成', 'name' => 'closing.next-year-payment-schedule-builds.index', 'params' => $bookParams],
+            ['label' => '翌期固定資産・借入金引継ぎ', 'name' => 'closing.next-year-asset-loan-carryovers.index', 'params' => ['source_book_id' => $bookId]],
             ['label' => '決算整理仕訳', 'name' => 'closing-adjustment-journals.index', 'params' => $bookParams],
             ['label' => '減価償却', 'name' => 'depreciable-assets.index', 'params' => $bookParams],
             ['label' => '借入金台帳', 'name' => 'borrowing-loans.index', 'params' => $bookParams],
