@@ -15,6 +15,7 @@ use App\Http\Controllers\ClosingNextYearRolloverCreationController;
 use App\Http\Controllers\ClosingNextYearRentalCarryoverController;
 use App\Http\Controllers\ClosingNextYearPaymentScheduleBuildController;
 use App\Http\Controllers\ClosingNextYearAssetLoanCarryoverController;
+use App\Http\Controllers\ConsumptionTaxFilingReportController;
 use App\Http\Controllers\ConsumptionTaxReportController;
 use App\Http\Controllers\ConsumptionTaxSettlementJournalController;
 use App\Http\Controllers\ContractTenantController;
@@ -639,6 +640,9 @@ Route::get('/reports/white-return-statement-previews', [WhiteReturnStatementPrev
 
 Route::get('/reports/consumption-tax', [ConsumptionTaxReportController::class, 'index'])
     ->name('reports.consumption-tax.index');
+
+Route::get('/reports/consumption-tax-filing', [ConsumptionTaxFilingReportController::class, 'index'])
+    ->name('reports.consumption-tax-filing.index');
 
 Route::get('/consumption-tax-settlement-journals', [ConsumptionTaxSettlementJournalController::class, 'index'])
     ->name('consumption-tax-settlement-journals.index');

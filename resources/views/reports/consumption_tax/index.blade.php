@@ -62,6 +62,12 @@
                 >
                     消費税精算仕訳へ
                 </a>
+                <a
+                    href="{{ route('reports.consumption-tax-filing.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'default_tax_rate' => $taxRate, 'amount_mode' => $amountMode]) }}"
+                    class="button"
+                >
+                    消費税申告用集計へ
+                </a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
