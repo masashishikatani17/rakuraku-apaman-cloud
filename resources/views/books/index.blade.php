@@ -6,7 +6,7 @@
     <div class="page-header">
         <div>
             <h2 class="page-title">帳簿一覧</h2>
-            <p class="page-description">事業主ごとの帳簿を一覧表示します。</p>
+            <p class="page-description">Access版のデータ選択に近い、帳簿を選ぶための入口です。</p>
         </div>
         <div class="actions">
             <a
@@ -17,7 +17,7 @@
             </a>
             <a
                 href="{{ $selectedBusinessOwnerId ? route('books.create', ['business_owner_id' => $selectedBusinessOwnerId]) : route('books.create') }}"
-                class="button"
+                class="button button-secondary"
             >
                 帳簿を新規登録
             </a>
@@ -29,6 +29,11 @@
             </a>
             <a href="{{ route('business-owners.index') }}" class="button button-secondary">事業主一覧へ戻る</a>
         </div>
+    </div>
+
+    <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
+        各業務画面へは「業務メニュー」から進みます。
+        この画面では、帳簿の選択、状態確認、新規作成、年度締めへの導線だけを残しています。
     </div>
 
     @if (session('status'))
@@ -70,25 +75,12 @@
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>事業主名</th>
-                    <th>帳簿コード</th>
-                    <th>帳簿名</th>
+                    <th>事業主</th>
+                    <th>帳簿</th>
                     <th>会計期間</th>
                     <th>状態</th>
                     <th>決算月</th>
-                    <th>所有者数</th>
-                    <th>物件区分数</th>
-                    <th>物件数</th>
-                    <th>契約者数</th>
-                    <th>契約数</th>
-                    <th>入金項目数</th>
-                    <th>入金口座数</th>
-                    <th>入金予定数</th>
-                    <th>入金数</th>
-                    <th>勘定科目数</th>
-                    <th>摘要数</th>
-                    <th>部門数</th>
-                    <th>仕訳数</th>
+                    <th>主要件数</th>
                     <th>使用中</th>
                     <th>操作</th>
                 </tr>
@@ -98,8 +90,10 @@
                     <tr>
                         <td>{{ $book->id }}</td>
                         <td>{{ $book->businessOwner?->name ?? '—' }}</td>
-                        <td>{{ $book->book_code ?: '—' }}</td>
-                        <td>{{ $book->name }}</td>
+                        <td>
+                            <div>{{ $book->book_code ?: '—' }}</div>
+                            <div class="muted">{{ $book->name }}</div>
+                        </td>
                         <td>
                             {{ $book->period_start_date?->format('Y-m-d') ?? '—' }}
                             〜
@@ -115,160 +109,14 @@
                             @endif
                         </td>
                         <td>{{ $book->setting?->closing_month ? $book->setting->closing_month . '月' : '—' }}</td>
-                        <td>{{ $book->property_owners_count }} 件</td>
-                        <td>{{ $book->property_categories_count }} 件</td>
-                        <td>{{ $book->properties_count }} 件</td>
-                        <td>{{ $book->contract_tenants_count }} 件</td>
-                        <td>{{ $book->rental_contracts_count }} 件</td>
-                        <td>{{ $book->payment_items_count }} 件</td>
-                        <td>{{ $book->payment_accounts_count }} 件</td>
-                        <td>{{ $book->payment_schedules_count }} 件</td>
-                        <td>{{ $book->payment_receipts_count }} 件</td>
-                        <td>{{ $book->account_titles_count }} 件</td>
-                        <td>{{ $book->journal_descriptions_count }} 件</td>
-                        <td>{{ $book->departments_count }} 件</td>
-                        <td>{{ $book->journal_entries_count }} 件</td>
+                        <td>
+                            <div>物件 {{ $book->properties_count }} 件 / 契約 {{ $book->rental_contracts_count }} 件</div>
+                            <div>入金予定 {{ $book->payment_schedules_count }} 件 / 入金 {{ $book->payment_receipts_count }} 件</div>
+                            <div>勘定科目 {{ $book->account_titles_count }} 件 / 仕訳 {{ $book->journal_entries_count }} 件</div>
+                        </td>
                         <td>{{ $book->is_active ? '有効' : '停止' }}</td>
                         <td>
                             <div class="actions">
-                                <a
-                                    href="{{ route('property-owners.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    所有者一覧
-                                </a>
-                                <a
-                                    href="{{ route('property-owners.create', ['book_id' => $book->id]) }}"
-                                    class="button"
-                                >
-                                    所有者登録
-                                </a>
-                                <a
-                                    href="{{ route('property-categories.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    物件区分一覧
-                                </a>
-                                <a
-                                    href="{{ route('property-categories.create', ['book_id' => $book->id]) }}"
-                                    class="button"
-                                >
-                                    物件区分登録
-                                </a>
-                                <a
-                                    href="{{ route('properties.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    物件一覧
-                                </a>
-                                <a
-                                    href="{{ route('reports.property-ledgers.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    物件台帳
-                                </a>
-                                <a
-                                    href="{{ route('properties.create', ['book_id' => $book->id]) }}"
-                                    class="button"
-                                >
-                                    物件登録
-                                </a>
-                                <a
-                                    href="{{ route('contract-tenants.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    契約者台帳
-                                </a>
-                                <a
-                                    href="{{ route('reports.rental-contracts.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    賃貸条件一覧
-                                </a>
-                                <a
-                                    href="{{ route('contract-tenants.create', ['book_id' => $book->id]) }}"
-                                    class="button"
-                                >
-                                    契約者登録
-                                </a>
-                                <a
-                                    href="{{ route('payment-items.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    入金項目一覧
-                                </a>
-                                <a
-                                    href="{{ route('payment-items.create', ['book_id' => $book->id]) }}"
-                                    class="button"
-                                >
-                                    入金項目登録
-                                </a>
-                                <a
-                                    href="{{ route('payment-accounts.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    入金口座一覧
-                                </a>
-                                <a
-                                    href="{{ route('payment-accounts.create', ['book_id' => $book->id]) }}"
-                                    class="button"
-                                >
-                                    入金口座登録
-                                </a>
-                                <a
-                                    href="{{ route('payment-schedules.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    入金予定一覧
-                                </a>
-                                <a
-                                    href="{{ route('payment-schedules.create', ['book_id' => $book->id]) }}"
-                                    class="button"
-                                >
-                                    入金予定登録
-                                </a>
-                                <a
-                                    href="{{ route('monthly-payment-schedules.create', ['book_id' => $book->id]) }}"
-                                    class="button"
-                                >
-                                    月次入金予定生成
-                                </a>
-                                <a
-                                    href="{{ route('payment-receipts.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    入金一覧
-                                </a>
-                                <a
-                                    href="{{ route('reports.property-payments.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    物件別入金一覧表
-                                </a>
-                                <a
-                                    href="{{ route('reports.property-annual-incomes.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    物件別年間収入台帳
-                                </a>
-                                <a
-                                    href="{{ route('reports.contract-tenant-annual-incomes.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    契約者別年間収入内訳表
-                                </a>
-                                <a
-                                    href="{{ route('payment-receipts.create', ['book_id' => $book->id]) }}"
-                                    class="button"
-                                >
-                                    入金登録
-                                </a>
-                                <a
-                                    href="{{ route('rental-payment-journals.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    賃貸仕訳処理
-                                </a>
                                 <a
                                     href="{{ route('work-menu.index', ['book_id' => $book->id]) }}"
                                     class="button"
@@ -276,131 +124,23 @@
                                     業務メニュー
                                 </a>
                                 <a
+                                    href="{{ route('opening-balances.index', ['book_id' => $book->id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    開始残高
+                                </a>
+                                <a
                                     href="{{ route('closing.book-locks.index', ['business_owner_id' => $book->business_owner_id]) }}"
                                     class="button button-secondary"
                                 >
                                     年度締め
-                                </a>
-                                <a
-                                    href="{{ route('account-titles.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    勘定科目一覧
-                                </a>
-                                <a
-                                    href="{{ route('account-titles.create', ['book_id' => $book->id]) }}"
-                                    class="button"
-                                >
-                                    勘定科目登録
-                                </a>
-                                <a
-                                    href="{{ route('sub-account-titles.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    補助科目一覧
-                                </a>
-                                <a
-                                    href="{{ route('sub-account-titles.create', ['book_id' => $book->id]) }}"
-                                    class="button"
-                                >
-                                    補助科目登録
-                                </a>
-                                <a
-                                    href="{{ route('reports.sub-accounts.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    補助科目一覧表
-                                </a>
-                                <a
-                                    href="{{ route('sub-account-ledgers.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    補助科目別元帳
-                                </a>
-                                <a
-                                    href="{{ route('journal-descriptions.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    摘要一覧
-                                </a>
-                                <a
-                                    href="{{ route('journal-descriptions.create', ['book_id' => $book->id]) }}"
-                                    class="button"
-                                >
-                                    摘要登録
-                                </a>
-                                <a
-                                    href="{{ route('departments.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    部門一覧
-                                </a>
-                                <a
-                                    href="{{ route('department-trial-balances.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    部門別試算表
-                                </a>
-                                <a
-                                    href="{{ route('departments.create', ['book_id' => $book->id]) }}"
-                                    class="button"
-                                >
-                                    部門登録
-                                </a>
-                                <a
-                                    href="{{ route('journal-entries.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    仕訳一覧
-                                </a>
-                                <a
-                                    href="{{ route('journal-diaries.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    仕訳日記帳
-                                </a>
-                                <a
-                                    href="{{ route('cash-ledgers.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    現金出納帳
-                                </a>
-                                <a
-                                    href="{{ route('bank-ledgers.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    預金出納帳
-                                </a>
-                                <a
-                                    href="{{ route('expense-ledgers.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    経費帳
-                                </a>
-                                <a
-                                    href="{{ route('journal-entries.create', ['book_id' => $book->id]) }}"
-                                    class="button"
-                                >
-                                    仕訳登録
-                                </a>
-                                <a
-                                    href="{{ route('trial-balances.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    残高試算表
-                                </a>
-                                <a
-                                    href="{{ route('general-ledgers.index', ['book_id' => $book->id]) }}"
-                                    class="button button-secondary"
-                                >
-                                    総勘定元帳
                                 </a>
                             </div>
                         </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="22">まだ帳簿が登録されていません。「帳簿を新規登録」から最初の1件を作成してください。</td>
+                        <td colspan="9">まだ帳簿が登録されていません。「帳簿を新規登録」から最初の1件を作成してください。</td>
                     </tr>
                 @endforelse
             </tbody>
