@@ -1,0 +1,29 @@
+{
+  "case_id": "trial_balance_001",
+  "title": "残高試算表 基本ケース",
+  "report": "trial_balance",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "tolerance": 0,
+  "expected": [
+    {
+      "account_code": "101",
+      "account_name": "現金",
+      "debit_total": 500000,
+      "credit_total": 200000,
+      "ending_debit": 300000,
+      "ending_credit": 0,
+      "ending_balance": 300000
+    },
+    {
+      "account_code": "401",
+      "account_name": "不動産収入",
+      "debit_total": 0,
+      "credit_total": 1380000,
+      "ending_debit": 0,
+      "ending_credit": 1380000,
+      "ending_balance": 1380000
+    }
+  ]
+}
