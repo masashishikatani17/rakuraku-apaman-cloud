@@ -16,6 +16,7 @@ use App\Http\Controllers\ClosingNextYearRentalCarryoverController;
 use App\Http\Controllers\ClosingNextYearPaymentScheduleBuildController;
 use App\Http\Controllers\ClosingNextYearAssetLoanCarryoverController;
 use App\Http\Controllers\ConsumptionTaxReportController;
+use App\Http\Controllers\ConsumptionTaxSettlementJournalController;
 use App\Http\Controllers\ContractTenantController;
 use App\Http\Controllers\ContractTenantAnnualIncomeReportController;
 use App\Http\Controllers\CsvExportController;
@@ -638,6 +639,15 @@ Route::get('/reports/white-return-statement-previews', [WhiteReturnStatementPrev
 
 Route::get('/reports/consumption-tax', [ConsumptionTaxReportController::class, 'index'])
     ->name('reports.consumption-tax.index');
+
+Route::get('/consumption-tax-settlement-journals', [ConsumptionTaxSettlementJournalController::class, 'index'])
+    ->name('consumption-tax-settlement-journals.index');
+
+Route::post('/consumption-tax-settlement-journals', [ConsumptionTaxSettlementJournalController::class, 'store'])
+    ->name('consumption-tax-settlement-journals.store');
+
+Route::delete('/consumption-tax-settlement-journals/{journalEntry}', [ConsumptionTaxSettlementJournalController::class, 'destroy'])
+    ->name('consumption-tax-settlement-journals.destroy');
 
 Route::get('/reports/property-owner-profit-losses', [PropertyOwnerProfitLossReportController::class, 'index'])
     ->name('reports.property-owner-profit-losses.index');

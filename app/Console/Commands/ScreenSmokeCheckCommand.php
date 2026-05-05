@@ -175,6 +175,7 @@ class ScreenSmokeCheckCommand extends Command
             ['label' => '青色申告決算書プレビュー', 'name' => 'reports.blue-return-statement-previews.index', 'params' => $bookParams],
             ['label' => '白色収支内訳書プレビュー', 'name' => 'reports.white-return-statement-previews.index', 'params' => $bookParams],
             ['label' => '消費税集計', 'name' => 'reports.consumption-tax.index', 'params' => $bookParams],
+            ['label' => '消費税精算仕訳', 'name' => 'consumption-tax-settlement-journals.index', 'params' => $bookParams],
 
             ['label' => '所有者', 'name' => 'property-owners.index', 'params' => $bookParams],
             ['label' => '物件区分', 'name' => 'property-categories.index', 'params' => $bookParams],

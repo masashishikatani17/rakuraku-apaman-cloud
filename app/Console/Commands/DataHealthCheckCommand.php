@@ -191,6 +191,11 @@ class DataHealthCheckCommand extends Command
                 'callback' => fn () => $this->checkNextYearBorrowingRepaymentLinks($bookId),
             ],
             [
+                'name' => 'consumption_tax_settlement_journal',
+                'label' => '消費税精算仕訳',
+                'callback' => fn () => $this->checkConsumptionTaxSettlementJournals($bookId),
+            ],
+            [
                 'name' => 'property_linked_pl_lines',
                 'label' => '物件未配賦のPL仕訳',
                 'callback' => fn () => $this->checkUnassignedPropertyProfitLossLines($bookId),
@@ -313,6 +318,7 @@ class DataHealthCheckCommand extends Command
             'move_out_settlement',
             'overpayment_deposit',
             'overpayment_deposit_application',
+            'consumption_tax_settlement',
         ];
 
         $query = DB::table('journal_entries')
@@ -1626,6 +1632,37 @@ class DataHealthCheckCommand extends Command
             $count === 0
                 ? '不動産所得決算書の補正額に明らかな参照不整合はありません。'
                 : '不動産所得決算書の補正額に、勘定科目参照切れまたは区分不整合があります。'
+        );
+    }
+
+    private function checkConsumptionTaxSettlementJournals(?int $bookId): array
+    {
+        if (! Schema::hasTable('journal_entries') || ! Schema::hasTable('journal_entry_lines') || ! Schema::hasTable('account_titles')) {
+            return $this->skipped('消費税精算仕訳チェックに必要なテーブルがありません。');
+        }
+
+        $query = DB::table('journal_entries as je')
+            ->leftJoin('journal_entry_lines as jel', 'jel.journal_entry_id', '=', 'je.id')
+            ->leftJoin('account_titles as at', 'at.id', '=', 'jel.account_title_id')
+            ->where('je.entry_type', 'consumption_tax_settlement')
+            ->where(function ($query): void {
+                $query
+                    ->whereNull('jel.id')
+                    ->orWhereNull('at.id')
+                    ->orWhereColumn('at.book_id', '<>', 'je.book_id')
+                    ->orWhereNotIn('at.category', ['asset', 'liability']);
+            });
+
+        $this->applyBookFilter($query, 'je.book_id', $bookId);
+
+        $count = $query->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'ERROR',
+            $count,
+            $count === 0
+                ? '消費税精算仕訳の明細科目は整合しています。'
+                : '消費税精算仕訳に、明細なし、参照切れ、別帳簿科目、または資産・負債以外の科目があります。'
         );
     }
 }
