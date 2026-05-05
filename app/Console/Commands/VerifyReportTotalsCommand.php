@@ -23,6 +23,7 @@ class VerifyReportTotalsCommand extends Command
         'trial_balance',
         'cash_ledger',
         'bank_ledger',
+        'expense_ledger',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -37,6 +38,8 @@ class VerifyReportTotalsCommand extends Command
         'account_name',
         'sub_account_code',
         'sub_account_name',
+        'department_code',
+        'department_name',
         'category',
         'normal_balance',
         'opening_balance_side',
@@ -168,6 +171,10 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'bank_ledger') {
             return $this->verifyBankLedgerCase($case, $failOnExtra);
+        }
+
+        if ($report === 'expense_ledger') {
+            return $this->verifyExpenseLedgerCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -1366,6 +1373,266 @@ class VerifyReportTotalsCommand extends Command
         }
 
         return $actualRows;
+    }
+
+
+
+    private function verifyExpenseLedgerCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('許容差額: ' . $this->formatAmount($tolerance));
+
+        $actualRows = $this->buildExpenseLedgerActualRows($bookId, $periodFrom, $periodTo, $case['expected']);
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedKeys = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $accountCode = (string) ($expectedRow['account_code'] ?? '');
+
+            if ($accountCode === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'account_code が未指定です。'];
+                continue;
+            }
+
+            $subAccountCode = isset($expectedRow['sub_account_code']) && (string) $expectedRow['sub_account_code'] !== ''
+                ? (string) $expectedRow['sub_account_code']
+                : null;
+            $departmentCode = isset($expectedRow['department_code']) && (string) $expectedRow['department_code'] !== ''
+                ? (string) $expectedRow['department_code']
+                : null;
+
+            $key = $this->expenseLedgerKey($accountCode, $subAccountCode, $departmentCode);
+            $expectedKeys[] = $key;
+            $actualRow = $actualRows[$key] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $key, '行存在', 'あり', 'なし', '-', 'クラウド側に対象経費科目の集計行がありません。'];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $key, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $key,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraKeys = array_values(array_diff(array_keys($actualRows), $expectedKeys));
+
+            foreach ($extraKeys as $extraKey) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraKey,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    '期待値にないクラウド側の経費科目集計行があります。',
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
+        ];
+    }
+
+    private function buildExpenseLedgerActualRows(int $bookId, string $periodFrom, string $periodTo, array $expectedRows): array
+    {
+        $expectedKeys = collect($expectedRows)
+            ->filter(fn ($row): bool => is_array($row) && ! empty($row['account_code']))
+            ->map(function ($row): string {
+                $subAccountCode = isset($row['sub_account_code']) && (string) $row['sub_account_code'] !== ''
+                    ? (string) $row['sub_account_code']
+                    : null;
+                $departmentCode = isset($row['department_code']) && (string) $row['department_code'] !== ''
+                    ? (string) $row['department_code']
+                    : null;
+
+                return $this->expenseLedgerKey((string) $row['account_code'], $subAccountCode, $departmentCode);
+            })
+            ->unique()
+            ->values()
+            ->all();
+
+        $query = DB::table('journal_entry_lines as jel')
+            ->join('journal_entries as je', 'je.id', '=', 'jel.journal_entry_id')
+            ->join('account_titles as at', 'at.id', '=', 'jel.account_title_id')
+            ->leftJoin('sub_account_titles as sat', 'sat.id', '=', 'jel.sub_account_title_id')
+            ->leftJoin('departments as d', 'd.id', '=', 'jel.department_id')
+            ->where('je.book_id', $bookId)
+            ->where('je.status', 'posted')
+            ->where('at.book_id', $bookId)
+            ->where('at.category', 'expense')
+            ->whereDate('je.entry_date', '>=', $periodFrom)
+            ->whereDate('je.entry_date', '<=', $periodTo)
+            ->select([
+                'at.account_code',
+                'at.name as account_name',
+                'sat.sub_account_code',
+                'sat.name as sub_account_name',
+                'd.department_code',
+                'd.name as department_name',
+                'jel.side',
+                'jel.amount',
+            ])
+            ->orderBy('at.sort_order')
+            ->orderBy('at.account_code')
+            ->orderBy('je.entry_date')
+            ->orderBy('je.id')
+            ->orderBy('jel.line_no');
+
+        $actualRows = [];
+
+        $query->get()->each(function (object $line) use (&$actualRows, $expectedKeys): void {
+            $accountCode = (string) ($line->account_code ?? '');
+            $accountName = (string) ($line->account_name ?? '');
+            $subAccountCode = (string) ($line->sub_account_code ?? '');
+            $subAccountName = (string) ($line->sub_account_name ?? '');
+            $departmentCode = (string) ($line->department_code ?? '');
+            $departmentName = (string) ($line->department_name ?? '');
+
+            if ($accountCode === '') {
+                $accountCode = '__NO_ACCOUNT_CODE__';
+            }
+
+            $candidateKeys = [
+                $this->expenseLedgerKey($accountCode, null, null),
+            ];
+
+            if ($subAccountCode !== '') {
+                $candidateKeys[] = $this->expenseLedgerKey($accountCode, $subAccountCode, null);
+            }
+
+            if ($departmentCode !== '') {
+                $candidateKeys[] = $this->expenseLedgerKey($accountCode, null, $departmentCode);
+            }
+
+            if ($subAccountCode !== '' && $departmentCode !== '') {
+                $candidateKeys[] = $this->expenseLedgerKey($accountCode, $subAccountCode, $departmentCode);
+            }
+
+            foreach (array_unique($candidateKeys) as $key) {
+                if (
+                    $key !== $this->expenseLedgerKey($accountCode, null, null)
+                    && ! in_array($key, $expectedKeys, true)
+                ) {
+                    continue;
+                }
+
+                if (! isset($actualRows[$key])) {
+                    $actualRows[$key] = [
+                        'account_code' => $accountCode,
+                        'account_name' => $accountName,
+                        'sub_account_code' => str_contains($key, '|sub:') ? $subAccountCode : null,
+                        'sub_account_name' => str_contains($key, '|sub:') ? $subAccountName : null,
+                        'department_code' => str_contains($key, '|dept:') ? $departmentCode : null,
+                        'department_name' => str_contains($key, '|dept:') ? $departmentName : null,
+                        'entries_count' => 0.0,
+                        'expense_total' => 0.0,
+                        'reversal_total' => 0.0,
+                        'net_expense_total' => 0.0,
+                        'debit_total' => 0.0,
+                        'credit_total' => 0.0,
+                        'total_amount' => 0.0,
+                    ];
+                }
+
+                $amount = $this->normalizeAmount($line->amount ?? 0);
+                $expenseAmount = (string) $line->side === 'debit' ? $amount : 0.0;
+                $reversalAmount = (string) $line->side === 'credit' ? $amount : 0.0;
+
+                $actualRows[$key]['entries_count']++;
+                $actualRows[$key]['expense_total'] = round($actualRows[$key]['expense_total'] + $expenseAmount, 2);
+                $actualRows[$key]['reversal_total'] = round($actualRows[$key]['reversal_total'] + $reversalAmount, 2);
+                $actualRows[$key]['debit_total'] = round($actualRows[$key]['debit_total'] + $expenseAmount, 2);
+                $actualRows[$key]['credit_total'] = round($actualRows[$key]['credit_total'] + $reversalAmount, 2);
+                $actualRows[$key]['net_expense_total'] = round($actualRows[$key]['expense_total'] - $actualRows[$key]['reversal_total'], 2);
+                $actualRows[$key]['total_amount'] = $actualRows[$key]['net_expense_total'];
+            }
+        });
+
+        return $actualRows;
+    }
+
+    private function expenseLedgerKey(string $accountCode, ?string $subAccountCode, ?string $departmentCode): string
+    {
+        $key = $accountCode;
+
+        if ($subAccountCode !== null && $subAccountCode !== '') {
+            $key .= '|sub:' . $subAccountCode;
+        }
+
+        if ($departmentCode !== null && $departmentCode !== '') {
+            $key .= '|dept:' . $departmentCode;
+        }
+
+        return $key;
     }
 
 
