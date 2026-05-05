@@ -1,0 +1,23 @@
+{
+  "case_id": "property_annual_income_001",
+  "title": "物件別年間収入 基本ケース",
+  "report": "property_annual_income",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "status": "all",
+  "tolerance": 0,
+  "expected": [
+    {
+      "property_code": "P001",
+      "property_name": "サンプルマンション",
+      "rent_amount": 1200000,
+      "common_service_fee": 120000,
+      "parking_fee": 60000,
+      "other_amount": 0,
+      "expected_total": 1380000,
+      "received_total": 1380000,
+      "remaining_total": 0
+    }
+  ]
+}
