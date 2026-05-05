@@ -1,42 +1,35 @@
 @extends('layouts.app')
 
-@section('title', '翌期賃貸データ引継ぎ')
+@section('title', '翌期固定資産・借入金引継ぎ')
 
 @section('content')
     @php
         $summaryLabels = [
-            'owners' => '所有者',
-            'categories' => '物件区分',
-            'properties' => '物件',
-            'units' => '部屋・区画',
-            'tenants' => '契約者',
-            'payment_items' => '入金項目',
-            'payment_accounts' => '入金口座',
-            'contracts' => '賃貸条件',
+            'assets' => '固定資産',
+            'loans' => '借入金',
+            'repayments' => '未仕訳の返済予定',
         ];
     @endphp
 
     <div class="page-header">
         <div>
-            <h2 class="page-title">翌期賃貸データ引継ぎ</h2>
-            <p class="page-description">年度繰越で作成した翌期帳簿へ、物件・契約・入金マスタをコピーします。</p>
+            <h2 class="page-title">翌期固定資産・借入金引継ぎ</h2>
+            <p class="page-description">翌期帳簿へ固定資産台帳と借入金台帳をコピーします。</p>
         </div>
         <div class="actions">
             @if ($sourceBookId)
-                <a href="{{ route('closing.next-year-rollover-creations.index', ['book_id' => $sourceBookId]) }}" class="button button-secondary">翌期帳簿作成へ</a>
-                <a href="{{ route('closing.next-year-rollovers.index', ['book_id' => $sourceBookId]) }}" class="button button-secondary">年度繰越プレビューへ</a>
-                @if ($targetBookId)
-                    <a href="{{ route('closing.next-year-payment-schedule-builds.index', ['book_id' => $targetBookId]) }}" class="button">翌期入金予定生成へ</a>
-                    <a href="{{ route('closing.next-year-asset-loan-carryovers.index', ['source_book_id' => $sourceBookId, 'target_book_id' => $targetBookId]) }}" class="button button-secondary">固定資産・借入金引継ぎへ</a>
-                @endif
+                <a href="{{ route('closing.next-year-rental-carryovers.index', ['source_book_id' => $sourceBookId, 'target_book_id' => $targetBookId]) }}" class="button button-secondary">賃貸データ引継ぎへ</a>
+                <a href="{{ route('closing.next-year-payment-schedule-builds.index', ['book_id' => $targetBookId ?: $sourceBookId]) }}" class="button button-secondary">翌期入金予定生成へ</a>
+                <a href="{{ route('depreciable-assets.index', ['book_id' => $targetBookId ?: $sourceBookId]) }}" class="button button-secondary">固定資産台帳へ</a>
+                <a href="{{ route('borrowing-loans.index', ['book_id' => $targetBookId ?: $sourceBookId]) }}" class="button button-secondary">借入金台帳へ</a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
     </div>
 
     <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
-        この初版では、有効な所有者・物件・部屋・契約者・入金項目・入金口座・賃貸条件・月額変更履歴をコピーします。
-        重複防止のため、移行先帳簿に既に賃貸管理データがある場合はコピーできません。
+        初版では、固定資産台帳、借入金台帳、未仕訳の返済予定をコピーします。
+        減価償却仕訳と借入返済仕訳は、引継ぎ後に翌期帳簿側で作成します。
     </div>
 
     @if (session('status'))
@@ -55,7 +48,7 @@
     @endif
 
     <div class="card" style="margin-bottom: 16px;">
-        <form method="GET" action="{{ route('closing.next-year-rental-carryovers.index') }}">
+        <form method="GET" action="{{ route('closing.next-year-asset-loan-carryovers.index') }}">
             <div class="form-grid">
                 <div class="field">
                     <label for="source_book_id">移行元帳簿<span class="required">必須</span></label>
@@ -85,8 +78,8 @@
                 <div class="field">
                     <label for="copy_only_active">コピー範囲</label>
                     <select id="copy_only_active" name="copy_only_active">
-                        <option value="1" {{ $copyOnlyActive ? 'selected' : '' }}>有効データのみ</option>
-                        <option value="0" {{ !$copyOnlyActive ? 'selected' : '' }}>無効データも含める</option>
+                        <option value="1" {{ $copyOnlyActive ? 'selected' : '' }}>有効・未完了データのみ</option>
+                        <option value="0" {{ !$copyOnlyActive ? 'selected' : '' }}>処分済・完済も含める</option>
                     </select>
                 </div>
             </div>
@@ -133,13 +126,13 @@
             <div class="alert alert-error">移行元帳簿と移行先帳簿の事業主が異なります。</div>
         @elseif (!$canCopy)
             <div class="alert alert-error">
-                移行先帳簿に既に賃貸管理データがあります。重複防止のため、この画面からはコピーできません。
+                移行先帳簿に既に固定資産または借入金があります。重複防止のため、この画面からはコピーできません。
             </div>
         @else
             <form
                 method="POST"
-                action="{{ route('closing.next-year-rental-carryovers.store') }}"
-                onsubmit="return confirm('移行先帳簿へ賃貸管理データをコピーしますか？この処理は重複防止のため、空の移行先帳簿にだけ実行してください。');"
+                action="{{ route('closing.next-year-asset-loan-carryovers.store') }}"
+                onsubmit="return confirm('移行先帳簿へ固定資産・借入金台帳をコピーしますか？');"
             >
                 @csrf
                 <input type="hidden" name="source_book_id" value="{{ $sourceBook->id }}">
@@ -159,12 +152,12 @@
 
                     <div class="field">
                         <label>コピー範囲</label>
-                        <div>{{ $copyOnlyActive ? '有効データのみ' : '無効データも含める' }}</div>
+                        <div>{{ $copyOnlyActive ? '有効・未完了データのみ' : '処分済・完済も含める' }}</div>
                     </div>
                 </div>
 
                 <div class="actions" style="margin-top: 16px;">
-                    <button type="submit" class="button">賃貸管理データを引き継ぐ</button>
+                    <button type="submit" class="button">固定資産・借入金を引き継ぐ</button>
                 </div>
             </form>
         @endif

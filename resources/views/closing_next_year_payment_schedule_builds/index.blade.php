@@ -27,6 +27,7 @@
                 <a href="{{ route('monthly-payment-schedules.create', ['book_id' => $selectedBookId]) }}" class="button button-secondary">月次入金予定生成へ</a>
                 <a href="{{ route('payment-schedules.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">入金予定一覧へ</a>
                 <a href="{{ route('closing.next-year-rental-carryovers.index', ['target_book_id' => $selectedBookId]) }}" class="button button-secondary">賃貸データ引継ぎへ</a>
+                <a href="{{ route('closing.next-year-asset-loan-carryovers.index', ['target_book_id' => $selectedBookId]) }}" class="button button-secondary">固定資産・借入金引継ぎへ</a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
