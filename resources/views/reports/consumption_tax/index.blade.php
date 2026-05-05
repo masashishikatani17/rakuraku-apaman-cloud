@@ -68,6 +68,12 @@
                 >
                     消費税申告用集計へ
                 </a>
+                <a
+                    href="{{ route('consumption-tax-category-reviews.index', ['book_id' => $selectedBookId, 'default_tax_rate' => $taxRate]) }}"
+                    class="button button-secondary"
+                >
+                    消費税区分レビューへ
+                </a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>

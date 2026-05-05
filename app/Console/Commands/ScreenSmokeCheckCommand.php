@@ -177,6 +177,7 @@ class ScreenSmokeCheckCommand extends Command
             ['label' => '消費税集計', 'name' => 'reports.consumption-tax.index', 'params' => $bookParams],
             ['label' => '消費税精算仕訳', 'name' => 'consumption-tax-settlement-journals.index', 'params' => $bookParams],
             ['label' => '消費税申告用集計', 'name' => 'reports.consumption-tax-filing.index', 'params' => $bookParams],
+            ['label' => '消費税区分レビュー', 'name' => 'consumption-tax-category-reviews.index', 'params' => $bookParams],
 
             ['label' => '所有者', 'name' => 'property-owners.index', 'params' => $bookParams],
             ['label' => '物件区分', 'name' => 'property-categories.index', 'params' => $bookParams],
