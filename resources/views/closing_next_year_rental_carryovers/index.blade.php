@@ -25,6 +25,9 @@
             @if ($sourceBookId)
                 <a href="{{ route('closing.next-year-rollover-creations.index', ['book_id' => $sourceBookId]) }}" class="button button-secondary">翌期帳簿作成へ</a>
                 <a href="{{ route('closing.next-year-rollovers.index', ['book_id' => $sourceBookId]) }}" class="button button-secondary">年度繰越プレビューへ</a>
+                @if ($targetBookId)
+                    <a href="{{ route('closing.next-year-payment-schedule-builds.index', ['book_id' => $targetBookId]) }}" class="button">翌期入金予定生成へ</a>
+                @endif
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>

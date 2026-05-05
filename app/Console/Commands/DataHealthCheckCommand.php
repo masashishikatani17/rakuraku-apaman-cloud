@@ -136,6 +136,21 @@ class DataHealthCheckCommand extends Command
                 'callback' => fn () => $this->checkPaymentScheduleStatus($bookId),
             ],
             [
+                'name' => 'next_year_payment_schedule_references',
+                'label' => '翌期入金予定の参照整合性',
+                'callback' => fn () => $this->checkNextYearPaymentScheduleReferences($bookId),
+            ],
+            [
+                'name' => 'next_year_payment_schedule_duplicates',
+                'label' => '翌期入金予定の重複',
+                'callback' => fn () => $this->checkNextYearPaymentScheduleDuplicates($bookId),
+            ],
+            [
+                'name' => 'next_year_payment_schedule_contract_period',
+                'label' => '翌期入金予定の契約期間',
+                'callback' => fn () => $this->checkNextYearPaymentScheduleContractPeriod($bookId),
+            ],
+            [
                 'name' => 'confirmed_receipts_without_journal',
                 'label' => '仕訳未作成の確定入金',
                 'callback' => fn () => $this->checkConfirmedReceiptsWithoutJournal($bookId),
@@ -352,6 +367,155 @@ class DataHealthCheckCommand extends Command
             $count === 0 ? 'OK' : 'WARNING',
             $count,
             $count === 0 ? '入金予定の状態と金額は概ね一致しています。' : '入金予定の状態と金額に不整合があります。'
+        );
+    }
+
+    private function checkNextYearPaymentScheduleReferences(?int $bookId): array
+    {
+        foreach (['payment_schedules', 'rental_contracts', 'contract_tenants', 'payment_items', 'payment_accounts'] as $table) {
+            if (! Schema::hasTable($table)) {
+                return $this->skipped($table . ' テーブルがありません。');
+            }
+        }
+
+        $query = DB::table('payment_schedules as ps')
+            ->leftJoin('rental_contracts as rc', 'rc.id', '=', 'ps.rental_contract_id')
+            ->leftJoin('contract_tenants as ps_ct', 'ps_ct.id', '=', 'ps.contract_tenant_id')
+            ->leftJoin('contract_tenants as rc_ct', 'rc_ct.id', '=', 'rc.contract_tenant_id')
+            ->leftJoin('payment_items as pi', 'pi.id', '=', 'ps.payment_item_id')
+            ->leftJoin('payment_accounts as pa', 'pa.id', '=', 'ps.payment_account_id')
+            ->where(function ($query): void {
+                $query
+                    ->where(function ($query): void {
+                        $query
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('rc.id')
+                                    ->orWhereColumn('rc.book_id', '<>', 'ps.book_id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('ps_ct.id')
+                                    ->orWhereColumn('ps_ct.book_id', '<>', 'ps.book_id')
+                                    ->orWhereColumn('ps.contract_tenant_id', '<>', 'rc.contract_tenant_id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('pi.id')
+                                    ->orWhereColumn('pi.book_id', '<>', 'ps.book_id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNotNull('ps.payment_account_id')
+                            ->where(function ($query): void {
+                                $query
+                                    ->whereNull('pa.id')
+                                    ->orWhereColumn('pa.book_id', '<>', 'ps.book_id');
+                            });
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNotNull('rc_ct.id')
+                            ->whereColumn('rc_ct.book_id', '<>', 'ps.book_id');
+                    });
+            });
+
+        $this->applyBookFilter($query, 'ps.book_id', $bookId);
+
+        $count = $query->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'ERROR',
+            $count,
+            $count === 0
+                ? '入金予定の賃貸条件・契約者・入金項目・入金口座の参照は整合しています。'
+                : '入金予定に、別帳簿参照、参照切れ、または賃貸条件と契約者の不一致があります。'
+        );
+    }
+
+    private function checkNextYearPaymentScheduleDuplicates(?int $bookId): array
+    {
+        if (! Schema::hasTable('payment_schedules')) {
+            return $this->skipped('payment_schedules テーブルがありません。');
+        }
+
+        $query = DB::table('payment_schedules')
+            ->where('status', '<>', 'cancelled')
+            ->select([
+                'book_id',
+                'rental_contract_id',
+                'payment_item_id',
+                'due_on',
+            ])
+            ->selectRaw('COUNT(*) as duplicate_count')
+            ->groupBy('book_id', 'rental_contract_id', 'payment_item_id', 'due_on')
+            ->havingRaw('duplicate_count > 1');
+
+        $this->applyBookFilter($query, 'book_id', $bookId);
+
+        $count = $query->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'ERROR',
+            $count,
+            $count === 0
+                ? '同一契約・同一入金項目・同一予定日の入金予定重複はありません。'
+                : '同一契約・同一入金項目・同一予定日の入金予定が重複しています。翌期入金予定生成の重複防止を確認してください。'
+        );
+    }
+
+    private function checkNextYearPaymentScheduleContractPeriod(?int $bookId): array
+    {
+        if (! Schema::hasTable('payment_schedules') || ! Schema::hasTable('rental_contracts')) {
+            return $this->skipped('入金予定または賃貸条件テーブルがありません。');
+        }
+
+        $query = DB::table('payment_schedules as ps')
+            ->join('rental_contracts as rc', 'rc.id', '=', 'ps.rental_contract_id')
+            ->where('ps.status', '<>', 'cancelled')
+            ->where(function ($query): void {
+                $query
+                    ->where(function ($query): void {
+                        $query
+                            ->whereNotNull('rc.move_in_on')
+                            ->whereRaw("LAST_DAY(STR_TO_DATE(CONCAT(ps.target_year_month, '-01'), '%Y-%m-%d')) < rc.move_in_on");
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNull('rc.move_in_on')
+                            ->whereNotNull('rc.contract_started_on')
+                            ->whereRaw("LAST_DAY(STR_TO_DATE(CONCAT(ps.target_year_month, '-01'), '%Y-%m-%d')) < rc.contract_started_on");
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNotNull('rc.move_out_on')
+                            ->whereRaw("STR_TO_DATE(CONCAT(ps.target_year_month, '-01'), '%Y-%m-%d') > rc.move_out_on");
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNull('rc.move_out_on')
+                            ->whereNotNull('rc.contract_ended_on')
+                            ->whereRaw("STR_TO_DATE(CONCAT(ps.target_year_month, '-01'), '%Y-%m-%d') > rc.contract_ended_on");
+                    });
+            });
+
+        $this->applyBookFilter($query, 'ps.book_id', $bookId);
+
+        $count = $query->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'WARNING',
+            $count,
+            $count === 0
+                ? '入金予定の対象年月は賃貸条件の契約期間内に収まっています。'
+                : '契約開始前または契約終了後の対象年月に入金予定があります。退去日・契約終了日・翌期入金予定生成範囲を確認してください。'
         );
     }
 

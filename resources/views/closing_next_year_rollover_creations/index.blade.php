@@ -19,6 +19,7 @@
             @if ($selectedBookId)
                 <a href="{{ route('closing.next-year-rollovers.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button button-secondary">年度繰越プレビューへ</a>
                 <a href="{{ route('closing.next-year-rental-carryovers.index', ['source_book_id' => $selectedBookId]) }}" class="button button-secondary">賃貸データ引継ぎへ</a>
+                <a href="{{ route('closing.next-year-payment-schedule-builds.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">翌期入金予定生成へ</a>
                 <a href="{{ route('opening-balances.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">開始残高へ</a>
             @endif
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
