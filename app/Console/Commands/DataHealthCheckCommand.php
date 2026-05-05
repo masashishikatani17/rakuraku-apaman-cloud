@@ -201,6 +201,16 @@ class DataHealthCheckCommand extends Command
                 'callback' => fn () => $this->checkConsumptionTaxCategoryConsistency($bookId),
             ],
             [
+                'name' => 'consumption_tax_auto_category_non_zero_accounts',
+                'label' => '消費税自動判定科目の残高',
+                'callback' => fn () => $this->checkConsumptionTaxAutoCategoryNonZeroAccounts($bookId),
+            ],
+            [
+                'name' => 'consumption_tax_taxable_rate_missing',
+                'label' => '消費税課税科目の税率未設定',
+                'callback' => fn () => $this->checkConsumptionTaxTaxableRateMissing($bookId),
+            ],
+            [
                 'name' => 'property_linked_pl_lines',
                 'label' => '物件未配賦のPL仕訳',
                 'callback' => fn () => $this->checkUnassignedPropertyProfitLossLines($bookId),
@@ -1010,6 +1020,108 @@ class DataHealthCheckCommand extends Command
             $count === 0
                 ? '借入返済予定の借入金・返済仕訳の参照は整合しています。'
                 : '借入返済予定に、借入金参照切れ、別帳簿仕訳、または仕訳区分不一致があります。'
+        );
+    }
+
+    private function checkConsumptionTaxAutoCategoryNonZeroAccounts(?int $bookId): array
+    {
+        foreach (['account_titles', 'journal_entries', 'journal_entry_lines'] as $table) {
+            if (! Schema::hasTable($table)) {
+                return $this->skipped($table . ' テーブルがありません。');
+            }
+        }
+
+        $subQuery = DB::table('account_titles as at')
+            ->leftJoin('journal_entry_lines as jel', 'jel.account_title_id', '=', 'at.id')
+            ->leftJoin('journal_entries as je', function ($join): void {
+                $join->on('je.id', '=', 'jel.journal_entry_id')
+                    ->where('je.status', '=', 'posted')
+                    ->where('je.entry_type', '<>', 'consumption_tax_settlement');
+            })
+            ->whereIn('at.category', ['revenue', 'expense'])
+            ->where(function ($query): void {
+                $query
+                    ->whereNull('at.consumption_tax_category')
+                    ->orWhere('at.consumption_tax_category', '')
+                    ->orWhere('at.consumption_tax_category', 'auto');
+            })
+            ->select('at.id')
+            ->selectRaw("
+                COALESCE(SUM(
+                    CASE
+                        WHEN je.id IS NULL THEN 0
+                        WHEN at.normal_balance = 'debit' AND jel.side = 'debit' THEN jel.amount
+                        WHEN at.normal_balance = 'debit' AND jel.side = 'credit' THEN -jel.amount
+                        WHEN at.normal_balance = 'credit' AND jel.side = 'credit' THEN jel.amount
+                        WHEN at.normal_balance = 'credit' AND jel.side = 'debit' THEN -jel.amount
+                        ELSE 0
+                    END
+                ), 0) as balance_amount
+            ")
+            ->groupBy('at.id')
+            ->havingRaw('ABS(balance_amount) >= 0.005');
+
+        $this->applyBookFilter($subQuery, 'at.book_id', $bookId);
+
+        $count = DB::query()
+            ->fromSub($subQuery, 'auto_tax_accounts')
+            ->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'WARNING',
+            $count,
+            $count === 0
+                ? '消費税区分が自動判定のまま金額がある収益・経費科目はありません。'
+                : '消費税区分が自動判定のまま金額がある収益・経費科目があります。消費税区分レビュー画面で確認してください。'
+        );
+    }
+
+    private function checkConsumptionTaxTaxableRateMissing(?int $bookId): array
+    {
+        foreach (['account_titles', 'journal_entries', 'journal_entry_lines'] as $table) {
+            if (! Schema::hasTable($table)) {
+                return $this->skipped($table . ' テーブルがありません。');
+            }
+        }
+
+        $subQuery = DB::table('account_titles as at')
+            ->leftJoin('journal_entry_lines as jel', 'jel.account_title_id', '=', 'at.id')
+            ->leftJoin('journal_entries as je', function ($join): void {
+                $join->on('je.id', '=', 'jel.journal_entry_id')
+                    ->where('je.status', '=', 'posted')
+                    ->where('je.entry_type', '<>', 'consumption_tax_settlement');
+            })
+            ->whereIn('at.category', ['revenue', 'expense'])
+            ->whereIn('at.consumption_tax_category', ['taxable_sales', 'taxable_purchase'])
+            ->whereNull('at.consumption_tax_rate')
+            ->select('at.id')
+            ->selectRaw("
+                COALESCE(SUM(
+                    CASE
+                        WHEN je.id IS NULL THEN 0
+                        WHEN at.normal_balance = 'debit' AND jel.side = 'debit' THEN jel.amount
+                        WHEN at.normal_balance = 'debit' AND jel.side = 'credit' THEN -jel.amount
+                        WHEN at.normal_balance = 'credit' AND jel.side = 'credit' THEN jel.amount
+                        WHEN at.normal_balance = 'credit' AND jel.side = 'debit' THEN -jel.amount
+                        ELSE 0
+                    END
+                ), 0) as balance_amount
+            ")
+            ->groupBy('at.id')
+            ->havingRaw('ABS(balance_amount) >= 0.005');
+
+        $this->applyBookFilter($subQuery, 'at.book_id', $bookId);
+
+        $count = DB::query()
+            ->fromSub($subQuery, 'taxable_rate_missing_accounts')
+            ->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'WARNING',
+            $count,
+            $count === 0
+                ? '金額がある課税売上・課税仕入科目には税率が設定されています。'
+                : '金額がある課税売上・課税仕入科目に税率未設定があります。既定税率で計算はできますが、軽減税率や個別税率確認のため税率設定を推奨します。'
         );
     }
 
