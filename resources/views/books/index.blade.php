@@ -10,6 +10,12 @@
         </div>
         <div class="actions">
             <a
+                href="{{ route('work-menu.index', $selectedBusinessOwnerId ? ['business_owner_id' => $selectedBusinessOwnerId] : []) }}"
+                class="button"
+            >
+                業務メニューへ
+            </a>
+            <a
                 href="{{ $selectedBusinessOwnerId ? route('books.create', ['business_owner_id' => $selectedBusinessOwnerId]) : route('books.create') }}"
                 class="button"
             >
@@ -262,6 +268,12 @@
                                     class="button button-secondary"
                                 >
                                     賃貸仕訳処理
+                                </a>
+                                <a
+                                    href="{{ route('work-menu.index', ['book_id' => $book->id]) }}"
+                                    class="button"
+                                >
+                                    業務メニュー
                                 </a>
                                 <a
                                     href="{{ route('closing.book-locks.index', ['business_owner_id' => $book->business_owner_id]) }}"
