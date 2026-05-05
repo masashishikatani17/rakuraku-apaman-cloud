@@ -19,12 +19,18 @@ class VerifyReportTotalsCommand extends Command
 
     private const SUPPORTED_REPORTS = [
         'property_annual_income',
+        'contract_tenant_annual_income',
         'trial_balance',
     ];
 
     private const IDENTITY_FIELDS = [
         'property_code',
         'property_name',
+        'tenant_code',
+        'tenant_name',
+        'tenant_short_name',
+        'property_labels',
+        'unit_no',
         'account_code',
         'account_name',
         'category',
@@ -141,6 +147,10 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'property_annual_income') {
             return $this->verifyPropertyAnnualIncomeCase($case, $failOnExtra);
+        }
+
+        if ($report === 'contract_tenant_annual_income') {
+            return $this->verifyContractTenantAnnualIncomeCase($case, $failOnExtra);
         }
 
         if ($report === 'trial_balance') {
@@ -366,6 +376,227 @@ class VerifyReportTotalsCommand extends Command
         foreach ($rows as $propertyCode => $row) {
             $rows[$propertyCode]['total_amount'] = round((float) $row['expected_total'], 2);
             $rows[$propertyCode]['remaining_total'] = round(max((float) $row['expected_total'] - (float) $row['received_total'], 0), 2);
+        }
+
+        return $rows;
+    }
+
+
+
+    private function verifyContractTenantAnnualIncomeCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $status = (string) ($case['status'] ?? 'all');
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('状態: ' . $status);
+        $this->line('許容差額: ' . $this->formatAmount($tolerance));
+
+        $actualRows = $this->buildContractTenantAnnualIncomeActualRows($bookId, $periodFrom, $periodTo, $status);
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedTenantCodes = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $tenantCode = (string) ($expectedRow['tenant_code'] ?? '');
+
+            if ($tenantCode === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'tenant_code が未指定です。'];
+                continue;
+            }
+
+            $expectedTenantCodes[] = $tenantCode;
+            $actualRow = $actualRows[$tenantCode] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $tenantCode, '行存在', 'あり', 'なし', '-', 'クラウド側に対象契約者の集計行がありません。'];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $tenantCode, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $tenantCode,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraTenantCodes = array_values(array_diff(array_keys($actualRows), $expectedTenantCodes));
+
+            foreach ($extraTenantCodes as $extraTenantCode) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraTenantCode,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    '期待値にないクラウド側の集計行があります。',
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
+        ];
+    }
+
+    private function buildContractTenantAnnualIncomeActualRows(int $bookId, string $periodFrom, string $periodTo, string $status): array
+    {
+        $query = DB::table('payment_schedules as ps')
+            ->join('contract_tenants as ct', 'ct.id', '=', 'ps.contract_tenant_id')
+            ->leftJoin('rental_contracts as rc', 'rc.id', '=', 'ps.rental_contract_id')
+            ->leftJoin('properties as p', 'p.id', '=', 'rc.property_id')
+            ->leftJoin('property_units as pu', 'pu.id', '=', 'rc.property_unit_id')
+            ->leftJoin('payment_items as pi', 'pi.id', '=', 'ps.payment_item_id')
+            ->where('ps.book_id', $bookId)
+            ->whereDate('ps.due_on', '>=', $periodFrom)
+            ->whereDate('ps.due_on', '<=', $periodTo);
+
+        if ($status !== 'all') {
+            $query->where('ps.status', $status);
+        }
+
+        $rows = [];
+
+        $query
+            ->select([
+                'ct.tenant_code',
+                'ct.name as tenant_name',
+                'ct.short_name as tenant_short_name',
+                'p.property_code',
+                'p.name as property_name',
+                'pu.unit_no',
+                'pi.item_type',
+                'ps.expected_amount',
+                'ps.received_amount',
+            ])
+            ->orderBy('ct.tenant_code')
+            ->orderBy('ct.id')
+            ->get()
+            ->each(function (object $schedule) use (&$rows): void {
+                $tenantCode = (string) ($schedule->tenant_code ?? '');
+
+                if ($tenantCode === '') {
+                    $tenantCode = '__NO_TENANT_CODE__';
+                }
+
+                if (! isset($rows[$tenantCode])) {
+                    $rows[$tenantCode] = [
+                        'tenant_code' => $tenantCode,
+                        'tenant_name' => (string) ($schedule->tenant_name ?? ''),
+                        'tenant_short_name' => (string) ($schedule->tenant_short_name ?? ''),
+                        'property_labels' => [],
+                        'schedules_count' => 0.0,
+                        'expected_total' => 0.0,
+                        'received_total' => 0.0,
+                        'remaining_total' => 0.0,
+                        'rent_amount' => 0.0,
+                        'common_service_fee' => 0.0,
+                        'parking_fee' => 0.0,
+                        'other_amount' => 0.0,
+                        'total_amount' => 0.0,
+                    ];
+                }
+
+                $propertyLabel = trim(
+                    (string) ($schedule->property_code ?? '')
+                    . ' '
+                    . (string) ($schedule->property_name ?? '')
+                );
+
+                if ((string) ($schedule->unit_no ?? '') !== '') {
+                    $propertyLabel = trim($propertyLabel . ' / ' . (string) $schedule->unit_no);
+                }
+
+                if ($propertyLabel !== '' && ! in_array($propertyLabel, $rows[$tenantCode]['property_labels'], true)) {
+                    $rows[$tenantCode]['property_labels'][] = $propertyLabel;
+                }
+
+                $expectedAmount = $this->normalizeAmount($schedule->expected_amount ?? 0);
+                $receivedAmount = $this->normalizeAmount($schedule->received_amount ?? 0);
+                $itemType = (string) ($schedule->item_type ?? 'other');
+
+                $rows[$tenantCode]['schedules_count']++;
+                $rows[$tenantCode]['expected_total'] = round($rows[$tenantCode]['expected_total'] + $expectedAmount, 2);
+                $rows[$tenantCode]['received_total'] = round($rows[$tenantCode]['received_total'] + $receivedAmount, 2);
+
+                if ($itemType === 'rent') {
+                    $rows[$tenantCode]['rent_amount'] = round($rows[$tenantCode]['rent_amount'] + $expectedAmount, 2);
+                } elseif ($itemType === 'common_service') {
+                    $rows[$tenantCode]['common_service_fee'] = round($rows[$tenantCode]['common_service_fee'] + $expectedAmount, 2);
+                } elseif ($itemType === 'parking') {
+                    $rows[$tenantCode]['parking_fee'] = round($rows[$tenantCode]['parking_fee'] + $expectedAmount, 2);
+                } else {
+                    $rows[$tenantCode]['other_amount'] = round($rows[$tenantCode]['other_amount'] + $expectedAmount, 2);
+                }
+            });
+
+        foreach ($rows as $tenantCode => $row) {
+            $rows[$tenantCode]['total_amount'] = round((float) $row['expected_total'], 2);
+            $rows[$tenantCode]['remaining_total'] = round(max((float) $row['expected_total'] - (float) $row['received_total'], 0), 2);
+            $rows[$tenantCode]['property_labels'] = implode(' / ', $row['property_labels']);
         }
 
         return $rows;
