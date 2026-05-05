@@ -18,6 +18,7 @@
         <div class="actions">
             @if ($selectedBookId)
                 <a href="{{ route('reports.consumption-tax.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'tax_rate' => $taxRate, 'amount_mode' => $amountMode]) }}" class="button button-secondary">消費税集計へ</a>
+                <a href="{{ route('reports.consumption-tax-filing.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'default_tax_rate' => $taxRate, 'amount_mode' => $amountMode]) }}" class="button">消費税申告用集計へ</a>
                 <a href="{{ route('journal-entries.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">仕訳一覧へ</a>
                 <a href="{{ route('closing.book-locks.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">年度締めへ</a>
             @endif

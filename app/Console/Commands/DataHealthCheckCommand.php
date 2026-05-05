@@ -196,6 +196,11 @@ class DataHealthCheckCommand extends Command
                 'callback' => fn () => $this->checkConsumptionTaxSettlementJournals($bookId),
             ],
             [
+                'name' => 'consumption_tax_category_consistency',
+                'label' => '消費税区分の整合性',
+                'callback' => fn () => $this->checkConsumptionTaxCategoryConsistency($bookId),
+            ],
+            [
                 'name' => 'property_linked_pl_lines',
                 'label' => '物件未配賦のPL仕訳',
                 'callback' => fn () => $this->checkUnassignedPropertyProfitLossLines($bookId),
@@ -1663,6 +1668,70 @@ class DataHealthCheckCommand extends Command
             $count === 0
                 ? '消費税精算仕訳の明細科目は整合しています。'
                 : '消費税精算仕訳に、明細なし、参照切れ、別帳簿科目、または資産・負債以外の科目があります。'
+        );
+    }
+
+    private function checkConsumptionTaxCategoryConsistency(?int $bookId): array
+    {
+        if (! Schema::hasTable('account_titles')) {
+            return $this->skipped('account_titles テーブルがありません。');
+        }
+
+        $validCategories = [
+            'auto',
+            'taxable_sales',
+            'taxable_purchase',
+            'exempt_sales',
+            'non_taxable',
+            'out_of_scope',
+            'not_applicable',
+        ];
+
+        $query = DB::table('account_titles')
+            ->where(function ($query) use ($validCategories): void {
+                $query
+                    ->where(function ($query) use ($validCategories): void {
+                        $query
+                            ->whereNotNull('consumption_tax_category')
+                            ->where('consumption_tax_category', '<>', '')
+                            ->whereNotIn('consumption_tax_category', $validCategories);
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where('category', 'revenue')
+                            ->where('consumption_tax_category', 'taxable_purchase');
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->where('category', 'expense')
+                            ->whereIn('consumption_tax_category', ['taxable_sales', 'exempt_sales']);
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNotIn('category', ['revenue', 'expense'])
+                            ->whereIn('consumption_tax_category', ['taxable_sales', 'taxable_purchase', 'exempt_sales']);
+                    })
+                    ->orWhere(function ($query): void {
+                        $query
+                            ->whereNotNull('consumption_tax_rate')
+                            ->where(function ($query): void {
+                                $query
+                                    ->where('consumption_tax_rate', '<', 0)
+                                    ->orWhere('consumption_tax_rate', '>', 100);
+                            });
+                    });
+            });
+
+        $this->applyBookFilter($query, 'book_id', $bookId);
+
+        $count = $query->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'ERROR',
+            $count,
+            $count === 0
+                ? '勘定科目の消費税区分と税率に明らかな不整合はありません。'
+                : '勘定科目の消費税区分または税率に不整合があります。収益科目・費用科目・対象外科目の設定を確認してください。'
         );
     }
 }
