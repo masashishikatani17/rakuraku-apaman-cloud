@@ -15,6 +15,12 @@
             >
                 帳簿を新規登録
             </a>
+            <a
+                href="{{ route('closing.book-locks.index', $selectedBusinessOwnerId ? ['business_owner_id' => $selectedBusinessOwnerId] : []) }}"
+                class="button button-secondary"
+            >
+                年度締め・帳簿ロック
+            </a>
             <a href="{{ route('business-owners.index') }}" class="button button-secondary">事業主一覧へ戻る</a>
         </div>
     </div>
@@ -256,6 +262,12 @@
                                     class="button button-secondary"
                                 >
                                     賃貸仕訳処理
+                                </a>
+                                <a
+                                    href="{{ route('closing.book-locks.index', ['business_owner_id' => $book->business_owner_id]) }}"
+                                    class="button button-secondary"
+                                >
+                                    年度締め
                                 </a>
                                 <a
                                     href="{{ route('account-titles.index', ['book_id' => $book->id]) }}"

@@ -131,6 +131,11 @@ class DataHealthCheckCommand extends Command
                 'callback' => fn () => $this->checkVoucherDuplicates($bookId),
             ],
             [
+                'name' => 'closed_book_unposted_journals',
+                'label' => '締了帳簿の未投稿仕訳',
+                'callback' => fn () => $this->checkClosedBookUnpostedJournals($bookId),
+            ],
+            [
                 'name' => 'payment_schedule_status',
                 'label' => '入金予定の状態と金額',
                 'callback' => fn () => $this->checkPaymentScheduleStatus($bookId),
@@ -342,6 +347,30 @@ class DataHealthCheckCommand extends Command
             $count === 0 ? 'OK' : 'ERROR',
             $count,
             $count === 0 ? '伝票番号の重複はありません。' : '同一帳簿内で伝票番号が重複しています。'
+        );
+    }
+
+    private function checkClosedBookUnpostedJournals(?int $bookId): array
+    {
+        if (! Schema::hasTable('books') || ! Schema::hasTable('journal_entries')) {
+            return $this->skipped('books または journal_entries テーブルがありません。');
+        }
+
+        $query = DB::table('books as b')
+            ->join('journal_entries as je', 'je.book_id', '=', 'b.id')
+            ->where('b.status', 'closed')
+            ->where('je.status', '<>', 'posted');
+
+        $this->applyBookFilter($query, 'b.id', $bookId);
+
+        $count = $query->count();
+
+        return $this->result(
+            $count === 0 ? 'OK' : 'WARNING',
+            $count,
+            $count === 0
+                ? '締了帳簿に未投稿仕訳はありません。'
+                : '締了帳簿に未投稿仕訳があります。年度締め前の状態を確認してください。'
         );
     }
 

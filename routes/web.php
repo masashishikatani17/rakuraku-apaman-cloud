@@ -5,6 +5,7 @@ use App\Http\Controllers\BalanceSheetReportController;
 use App\Http\Controllers\BlueReturnStatementPreviewController;
 use App\Http\Controllers\BookController;
 use App\Http\Controllers\BorrowingLoanController;
+use App\Http\Controllers\ClosingBookLockController;
 use App\Http\Controllers\BusinessOwnerController;
 use App\Http\Controllers\CashBankLedgerController;
 use App\Http\Controllers\ComplexJournalEntryController;
@@ -100,6 +101,15 @@ Route::get('/opening-balances', [OpeningBalanceController::class, 'index'])
 
 Route::post('/opening-balances', [OpeningBalanceController::class, 'store'])
     ->name('opening-balances.store');
+
+Route::get('/closing/book-locks', [ClosingBookLockController::class, 'index'])
+    ->name('closing.book-locks.index');
+
+Route::post('/closing/book-locks/{book}/close', [ClosingBookLockController::class, 'close'])
+    ->name('closing.book-locks.close');
+
+Route::post('/closing/book-locks/{book}/reopen', [ClosingBookLockController::class, 'reopen'])
+    ->name('closing.book-locks.reopen');
 
 Route::get('/closing/next-year-rollovers', [ClosingNextYearRolloverController::class, 'index'])
     ->name('closing.next-year-rollovers.index');
