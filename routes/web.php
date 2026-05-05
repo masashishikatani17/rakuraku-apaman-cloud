@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountingMenuController;
 use App\Http\Controllers\AccountTitleController;
 use App\Http\Controllers\BalanceSheetReportController;
 use App\Http\Controllers\BlueReturnStatementPreviewController;
@@ -78,6 +79,9 @@ Route::get('/', function () {
 
 Route::get('/work-menu', [WorkMenuController::class, 'index'])
     ->name('work-menu.index');
+
+Route::get('/accounting-menu', [AccountingMenuController::class, 'index'])
+    ->name('accounting-menu.index');
 
 Route::get('/business-owners', [BusinessOwnerController::class, 'index'])
     ->name('business-owners.index');
