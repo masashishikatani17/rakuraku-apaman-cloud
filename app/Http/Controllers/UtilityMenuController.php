@@ -46,34 +46,50 @@ class UtilityMenuController extends Controller
 
         return [
             [
-                'key' => 'maintenance',
-                'title' => 'データ保守',
-                'description' => 'Access版ユーティリティのバックアップ・復元・保守に相当する入口です。',
+                'key' => 'access_backup_restore',
+                'title' => 'Access版ユーティリティ（データ保存・読込み）',
+                'description' => 'Access版 F_ユーティリティ の「データ保存・読込み」から FN_バックアップ復元 を開く導線です。Cloud版では現時点で未実装表示に留めます。',
                 'items' => [
-                    $this->menuItem('CSV出力', 'csv-exports.index', $bookParams),
-                    $this->menuItem('PDF出力', 'pdf-exports.index', $bookParams),
-                    $this->menuItem('バックアップ・復元', 'backup-restores.index', $bookParams),
+                    $this->menuItem('データ保存・読込み / バックアップ復元', 'backup-restores.index', $bookParams),
                 ],
             ],
             [
-                'key' => 'rollover',
-                'title' => '年度繰越・締め処理',
-                'description' => '年度繰越、翌期データ作成、帳簿ロックの入口です。',
+                'key' => 'access_year_rollover',
+                'title' => 'Access版ユーティリティ（年度繰越処理）',
+                'description' => 'Access版 F_ユーティリティ の「年度繰越処理」から FN_データ年度繰越 を開く導線に相当します。Cloud版では既存の翌期作成系画面に分けています。',
                 'items' => [
                     $this->menuItem('年度繰越プレビュー', 'closing.next-year-rollovers.index', $bookParams),
                     $this->menuItem('翌期帳簿作成', 'closing.next-year-rollover-creations.index', $bookParams),
                     $this->menuItem('翌期賃貸データ引継ぎ', 'closing.next-year-rental-carryovers.index', ['source_book_id' => $bookId]),
                     $this->menuItem('翌期入金予定生成', 'closing.next-year-payment-schedule-builds.index', $bookParams),
                     $this->menuItem('翌期固定資産・借入金引継ぎ', 'closing.next-year-asset-loan-carryovers.index', ['source_book_id' => $bookId]),
-                    $this->menuItem('年度締め・帳簿ロック', 'closing.book-locks.index', $bookParams),
                 ],
             ],
             [
-                'key' => 'checks',
-                'title' => '確認・補助',
-                'description' => '画面確認やデータ整合性確認に使う補助入口です。',
+                'key' => 'access_pending_mapping',
+                'title' => 'Access確認済み・Cloud対応要確認',
+                'description' => 'Access版 F_ユーティリティ に存在することは確認済みですが、Cloud版での対応先を追加確認する項目です。',
                 'items' => [
+                    $this->menuItem('印刷用紙サイズセット', 'access-print-paper-size-settings.index', $bookParams),
+                    $this->menuItem('バージョン情報', 'access-version-info.index', $bookParams),
+                ],
+            ],
+            [
+                'key' => 'cloud_deferred',
+                'title' => 'Access直下導線未確認（Cloud側補助・後回し）',
+                'description' => '以下は既にCloud版に作成済みの補助導線です。削除はしませんが、Access版 F_ユーティリティ 直下の独立導線としては後続で確認します。',
+                'items' => [
+                    $this->menuItem('CSV出力', 'csv-exports.index', $bookParams),
+                    $this->menuItem('PDF出力', 'pdf-exports.index', $bookParams),
+                    $this->menuItem('年度締め・帳簿ロック', 'closing.book-locks.index', $bookParams),
                     $this->menuItem('帳簿一覧', 'books.index'),
+                ],
+            ],
+            [
+                'key' => 'return',
+                'title' => '戻る',
+                'description' => 'Access版 F_ユーティリティ の「戻る」から FN_メインメニューへ戻る導線です。',
+                'items' => [
                     $this->menuItem('メインメニューへ戻る', 'main-menu.index', $bookParams),
                 ],
             ],

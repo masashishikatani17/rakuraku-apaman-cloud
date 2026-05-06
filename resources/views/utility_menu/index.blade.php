@@ -6,7 +6,7 @@
     <div class="page-header">
         <div>
             <h2 class="page-title">ユーティリティメニュー</h2>
-            <p class="page-description">Access版のユーティリティに近い導線で、保守・出力・年度処理を開きます。</p>
+            <p class="page-description">Access版 F_ユーティリティ の導線を基準に、データ保存・読込み、年度繰越処理、確認項目を整理します。</p>
         </div>
         <div class="actions">
             <a href="{{ route('main-menu.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">メインメニューへ戻る</a>
@@ -15,7 +15,7 @@
     </div>
 
     <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
-        バックアップ復元は未実装のため、現時点では未実装表示にしています。CSV/PDF出力、年度繰越、帳簿ロックはここから開けます。
+        Access版で確認できた「データ保存・読込み」「年度繰越処理」「印刷用紙サイズセット」「バージョン情報」を上段に置き、Cloud側で追加済みだがAccess直下導線として未確認の項目は後回し欄に分けています。
     </div>
 
     <div class="card" style="margin-bottom: 16px;">
