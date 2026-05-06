@@ -30,6 +30,7 @@ class VerifyReportTotalsCommand extends Command
         'real_estate_income_statement',
         'consumption_tax',
         'consumption_tax_filing',
+        'blue_return_statement',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -72,6 +73,9 @@ class VerifyReportTotalsCommand extends Command
         'note',
         'memo',
         'tolerance',
+        'statement_category',
+        'statement_category_label',
+        'balance_sheet_category',
     ];
 
     public function handle(): int
@@ -224,6 +228,10 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'consumption_tax_filing') {
             return $this->verifyConsumptionTaxFilingCase($case, $failOnExtra);
+        }
+
+        if ($report === 'blue_return_statement') {
+            return $this->verifyBlueReturnStatementCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -3650,6 +3658,429 @@ class VerifyReportTotalsCommand extends Command
             'consumption_tax_amount' => round($taxIncludedAmount - $taxBaseAmount, 2),
             'tax_included_amount' => $taxIncludedAmount,
         ];
+    }
+
+
+
+    private function verifyBlueReturnStatementCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $display = in_array((string) ($case['display'] ?? 'non_zero'), ['non_zero', 'all'], true)
+            ? (string) ($case['display'] ?? 'non_zero')
+            : 'non_zero';
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('表示: ' . $display);
+        $this->line('許容差額: ' . $this->formatAmount($tolerance));
+
+        $actualRows = $this->buildBlueReturnStatementActualRows($bookId, $periodFrom, $periodTo, $display);
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedKeys = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $key = $this->blueReturnStatementKeyFromExpectedRow($expectedRow);
+
+            if ($key === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'key、statement_category、balance_sheet_category、または account_code を指定してください。'];
+                continue;
+            }
+
+            $expectedKeys[] = $key;
+            $actualRow = $actualRows[$key] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $key, '行存在', 'あり', 'なし', '-', 'クラウド側に対象の青色申告決算書集計行がありません。'];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $key, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $key,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraKeys = array_values(array_diff(array_keys($actualRows), $expectedKeys));
+
+            foreach ($extraKeys as $extraKey) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraKey,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    '期待値にないクラウド側の青色申告決算書集計行があります。',
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
+        ];
+    }
+
+    private function buildBlueReturnStatementActualRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        string $display
+    ): array {
+        $profitLossRows = $this->buildBlueReturnProfitLossRows($bookId, $periodFrom, $periodTo, $display);
+        $balanceSheetRows = $this->buildBlueReturnBalanceSheetRows($bookId, $periodTo, $display);
+
+        $revenueTotal = round(
+            collect($profitLossRows)
+                ->where('category', 'revenue')
+                ->sum(fn (array $row): float => (float) $row['amount']),
+            2
+        );
+
+        $expenseTotal = round(
+            collect($profitLossRows)
+                ->where('category', 'expense')
+                ->sum(fn (array $row): float => (float) $row['amount']),
+            2
+        );
+
+        $assetTotal = round(
+            collect($balanceSheetRows)
+                ->where('category', 'asset')
+                ->sum(fn (array $row): float => (float) $row['amount']),
+            2
+        );
+
+        $liabilityTotal = round(
+            collect($balanceSheetRows)
+                ->where('category', 'liability')
+                ->sum(fn (array $row): float => (float) $row['amount']),
+            2
+        );
+
+        $equityTotal = round(
+            collect($balanceSheetRows)
+                ->where('category', 'equity')
+                ->sum(fn (array $row): float => (float) $row['amount']),
+            2
+        );
+
+        $incomeTotal = round($revenueTotal - $expenseTotal, 2);
+        $liabilityEquityIncomeTotal = round($liabilityTotal + $equityTotal + $incomeTotal, 2);
+
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'revenue_total' => $revenueTotal,
+                'expense_total' => $expenseTotal,
+                'income_total' => $incomeTotal,
+                'asset_total' => $assetTotal,
+                'liability_total' => $liabilityTotal,
+                'equity_total' => $equityTotal,
+                'liability_equity_income_total' => $liabilityEquityIncomeTotal,
+                'balance_difference' => round($assetTotal - $liabilityEquityIncomeTotal, 2),
+                'pl_category_count' => collect($profitLossRows)
+                    ->where('statement_category', '!=', 'none')
+                    ->groupBy('statement_category')
+                    ->count(),
+                'bs_account_count' => count($balanceSheetRows),
+            ],
+        ];
+
+        collect($profitLossRows)
+            ->where('statement_category', '!=', 'none')
+            ->groupBy('statement_category')
+            ->each(function ($rows, string $statementCategory) use (&$actualRows): void {
+                $amount = round(
+                    collect($rows)->sum(fn (array $row): float => (float) $row['amount']),
+                    2
+                );
+
+                $actualRows['statement_category:' . $statementCategory] = [
+                    'key' => 'statement_category:' . $statementCategory,
+                    'statement_category' => $statementCategory,
+                    'category' => str_starts_with($statementCategory, 'revenue_') ? 'revenue' : 'expense',
+                    'accounts_count' => collect($rows)->count(),
+                    'amount' => $amount,
+                    'total_amount' => $amount,
+                ];
+            });
+
+        collect($balanceSheetRows)
+            ->groupBy('category')
+            ->each(function ($rows, string $category) use (&$actualRows): void {
+                $amount = round(
+                    collect($rows)->sum(fn (array $row): float => (float) $row['amount']),
+                    2
+                );
+
+                $actualRows['bs_category:' . $category] = [
+                    'key' => 'bs_category:' . $category,
+                    'balance_sheet_category' => $category,
+                    'accounts_count' => collect($rows)->count(),
+                    'amount' => $amount,
+                    'total_amount' => $amount,
+                ];
+            });
+
+        foreach ($profitLossRows as $row) {
+            $actualRows['account:' . $row['account_code']] = $row + [
+                'key' => 'account:' . $row['account_code'],
+                'total_amount' => $row['amount'],
+            ];
+        }
+
+        foreach ($balanceSheetRows as $row) {
+            $actualRows['account:' . $row['account_code']] = $row + [
+                'key' => 'account:' . $row['account_code'],
+                'total_amount' => $row['amount'],
+            ];
+        }
+
+        return $actualRows;
+    }
+
+    private function buildBlueReturnProfitLossRows(int $bookId, string $periodFrom, string $periodTo, string $display): array
+    {
+        $closingAdjustments = $this->buildBlueReturnClosingAdjustments($bookId, $periodFrom, $periodTo);
+
+        $rows = DB::table('account_titles as at')
+            ->leftJoin('journal_entry_lines as jel', 'jel.account_title_id', '=', 'at.id')
+            ->leftJoin('journal_entries as je', function ($join) use ($bookId, $periodFrom, $periodTo): void {
+                $join->on('je.id', '=', 'jel.journal_entry_id')
+                    ->where('je.book_id', '=', $bookId)
+                    ->where('je.status', '=', 'posted')
+                    ->whereDate('je.entry_date', '>=', $periodFrom)
+                    ->whereDate('je.entry_date', '<=', $periodTo);
+            })
+            ->where('at.book_id', $bookId)
+            ->whereIn('at.category', ['revenue', 'expense'])
+            ->select([
+                'at.id as account_title_id',
+                'at.account_code',
+                'at.name as account_name',
+                'at.category',
+                'at.normal_balance',
+                'at.real_estate_statement_category',
+                'at.sort_order',
+            ])
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'credit' THEN jel.amount ELSE 0 END), 0) as credit_total")
+            ->groupBy(
+                'at.id',
+                'at.account_code',
+                'at.name',
+                'at.category',
+                'at.normal_balance',
+                'at.real_estate_statement_category',
+                'at.sort_order'
+            )
+            ->orderBy('at.sort_order')
+            ->orderBy('at.account_code')
+            ->get()
+            ->map(function (object $row) use ($closingAdjustments): array {
+                $debitTotal = $this->normalizeAmount($row->debit_total ?? 0);
+                $creditTotal = $this->normalizeAmount($row->credit_total ?? 0);
+
+                $accountingAmount = (string) $row->normal_balance === 'debit'
+                    ? round($debitTotal - $creditTotal, 2)
+                    : round($creditTotal - $debitTotal, 2);
+
+                $statementCategory = $this->resolveRealEstateStatementCategory(
+                    (string) $row->category,
+                    (string) $row->account_name,
+                    $row->real_estate_statement_category !== null ? (string) $row->real_estate_statement_category : null
+                );
+
+                $adjustmentAmount = $closingAdjustments[(int) $row->account_title_id] ?? 0.0;
+                $filingAmount = $statementCategory === 'none'
+                    ? 0.0
+                    : round($accountingAmount + $adjustmentAmount, 2);
+
+                return [
+                    'account_title_id' => (int) $row->account_title_id,
+                    'account_code' => (string) $row->account_code,
+                    'account_name' => (string) $row->account_name,
+                    'category' => (string) $row->category,
+                    'normal_balance' => (string) $row->normal_balance,
+                    'statement_category' => $statementCategory,
+                    'accounting_amount' => $accountingAmount,
+                    'adjustment_amount' => $adjustmentAmount,
+                    'debit_total' => $debitTotal,
+                    'credit_total' => $creditTotal,
+                    'amount' => $filingAmount,
+                ];
+            })
+            ->values()
+            ->all();
+
+        if ($display === 'non_zero') {
+            $rows = array_values(array_filter($rows, fn (array $row): bool => abs((float) $row['amount']) >= 0.005));
+        }
+
+        return $rows;
+    }
+
+    private function buildBlueReturnBalanceSheetRows(int $bookId, string $periodTo, string $display): array
+    {
+        $rows = DB::table('account_titles as at')
+            ->leftJoin('journal_entry_lines as jel', 'jel.account_title_id', '=', 'at.id')
+            ->leftJoin('journal_entries as je', function ($join) use ($bookId, $periodTo): void {
+                $join->on('je.id', '=', 'jel.journal_entry_id')
+                    ->where('je.book_id', '=', $bookId)
+                    ->where('je.status', '=', 'posted')
+                    ->whereDate('je.entry_date', '<=', $periodTo);
+            })
+            ->where('at.book_id', $bookId)
+            ->whereIn('at.category', ['asset', 'liability', 'equity'])
+            ->select([
+                'at.id as account_title_id',
+                'at.account_code',
+                'at.name as account_name',
+                'at.category',
+                'at.normal_balance',
+                'at.sort_order',
+            ])
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'credit' THEN jel.amount ELSE 0 END), 0) as credit_total")
+            ->groupBy(
+                'at.id',
+                'at.account_code',
+                'at.name',
+                'at.category',
+                'at.normal_balance',
+                'at.sort_order'
+            )
+            ->orderBy('at.category')
+            ->orderBy('at.sort_order')
+            ->orderBy('at.account_code')
+            ->get()
+            ->map(function (object $row): array {
+                $debitTotal = $this->normalizeAmount($row->debit_total ?? 0);
+                $creditTotal = $this->normalizeAmount($row->credit_total ?? 0);
+
+                $amount = (string) $row->normal_balance === 'debit'
+                    ? round($debitTotal - $creditTotal, 2)
+                    : round($creditTotal - $debitTotal, 2);
+
+                return [
+                    'account_title_id' => (int) $row->account_title_id,
+                    'account_code' => (string) $row->account_code,
+                    'account_name' => (string) $row->account_name,
+                    'category' => (string) $row->category,
+                    'normal_balance' => (string) $row->normal_balance,
+                    'debit_total' => $debitTotal,
+                    'credit_total' => $creditTotal,
+                    'amount' => $amount,
+                ];
+            })
+            ->values()
+            ->all();
+
+        if ($display === 'non_zero') {
+            $rows = array_values(array_filter($rows, fn (array $row): bool => abs((float) $row['amount']) >= 0.005));
+        }
+
+        return $rows;
+    }
+
+    private function buildBlueReturnClosingAdjustments(int $bookId, string $periodFrom, string $periodTo): array
+    {
+        return DB::table('real_estate_closing_adjustments')
+            ->where('book_id', $bookId)
+            ->whereDate('date_from', $periodFrom)
+            ->whereDate('date_to', $periodTo)
+            ->select('account_title_id')
+            ->selectRaw('COALESCE(SUM(adjustment_amount), 0) as adjustment_amount')
+            ->groupBy('account_title_id')
+            ->get()
+            ->mapWithKeys(fn (object $row): array => [
+                (int) $row->account_title_id => $this->normalizeAmount($row->adjustment_amount ?? 0),
+            ])
+            ->all();
+    }
+
+    private function blueReturnStatementKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['statement_category']) && (string) $row['statement_category'] !== '') {
+            return 'statement_category:' . (string) $row['statement_category'];
+        }
+
+        if (isset($row['balance_sheet_category']) && (string) $row['balance_sheet_category'] !== '') {
+            return 'bs_category:' . (string) $row['balance_sheet_category'];
+        }
+
+        if (isset($row['account_code']) && (string) $row['account_code'] !== '') {
+            return 'account:' . (string) $row['account_code'];
+        }
+
+        return '';
     }
 
 
