@@ -1,0 +1,42 @@
+{
+  "case_id": "consumption_tax_001",
+  "title": "消費税集計 基本ケース",
+  "report": "consumption_tax",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "tax_rate": 10,
+  "amount_mode": "tax_included",
+  "display": "non_zero",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "taxable_sales_base_total": 1254545.45,
+      "taxable_sales_tax_total": 125454.55,
+      "taxable_sales_total": 1380000,
+      "excluded_sales_total": 0,
+      "taxable_purchase_base_total": 272727.27,
+      "taxable_purchase_tax_total": 27272.73,
+      "taxable_purchase_total": 300000,
+      "excluded_purchase_total": 0,
+      "estimated_consumption_tax_payable": 98181.82
+    },
+    {
+      "account_code": "401",
+      "account_name": "不動産収入",
+      "amount": 1380000,
+      "tax_base_amount": 1254545.45,
+      "consumption_tax_amount": 125454.55,
+      "tax_included_amount": 1380000
+    },
+    {
+      "account_code": "501",
+      "account_name": "修繕費",
+      "amount": 300000,
+      "tax_base_amount": 272727.27,
+      "consumption_tax_amount": 27272.73,
+      "tax_included_amount": 300000
+    }
+  ]
+}
