@@ -6,7 +6,7 @@
     <div class="page-header">
         <div>
             <h2 class="page-title">データメニュー</h2>
-            <p class="page-description">Access版のデータ選択・データ新規作成・データ変更・データ年度繰越に近い導線です。</p>
+            <p class="page-description">Access版 FN_データ変更時保存先選択・FN_データ変更・FN_データ新規作成・FN_データ年度繰越の導線を基準にしています。</p>
         </div>
         <div class="actions">
             <a href="{{ route('main-menu.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">メインメニューへ戻る</a>
@@ -15,7 +15,7 @@
     </div>
 
     <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
-        帳簿選択や年度繰越など、Access版でデータ管理系に分かれていた入口をまとめています。
+        Access版で確認できたデータ変更・新規作成・年度繰越の入口を上段に置き、Cloud対応先が未確定のものは未実装表示として残しています。
     </div>
 
     <div class="card" style="margin-bottom: 16px;">

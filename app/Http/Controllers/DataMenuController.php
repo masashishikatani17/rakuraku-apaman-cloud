@@ -46,29 +46,30 @@ class DataMenuController extends Controller
 
         return [
             [
-                'key' => 'select',
-                'title' => 'データ選択',
-                'description' => 'Access版のデータ選択に相当します。',
+                'key' => 'access_data_change',
+                'title' => 'Access版データ変更',
+                'description' => 'Access版 FN_データ変更時保存先選択 から FN_データ変更 を開く導線です。Cloud版では帳簿一覧と事業主一覧を既存入口として対応させます。',
                 'items' => [
                     $this->menuItem('帳簿一覧', 'books.index'),
                     $this->menuItem('事業主一覧', 'business-owners.index'),
-                    $this->menuItem('メインメニューへ戻る', 'main-menu.index', $bookParams),
+                    $this->menuItem('データ変更時保存先選択', 'access-data-change-storage-select.index', $bookParams),
                 ],
             ],
             [
-                'key' => 'create',
-                'title' => 'データ新規作成・基本設定',
-                'description' => 'Access版のデータ新規作成・データ変更に相当する入口です。',
+                'key' => 'access_data_create_edit',
+                'title' => 'Access版データ新規作成・修正',
+                'description' => 'Access版 FN_データ変更 の新規・修正・削除ボタンに対応する整理欄です。未対応の修正・削除は未実装表示に留めます。',
                 'items' => [
                     $this->menuItem('帳簿を新規登録', 'books.create'),
-                    $this->menuItem('開始残高', 'opening-balances.index', $bookParams),
-                    $this->menuItem('年度締め・帳簿ロック', 'closing.book-locks.index', $bookParams),
+                    $this->menuItem('事業主 新規・修正', 'business-owners.index'),
+                    $this->menuItem('帳簿修正', 'access-book-edit.index', $bookParams),
+                    $this->menuItem('データ削除', 'access-data-delete.index', $bookParams),
                 ],
             ],
             [
-                'key' => 'year_rollover',
-                'title' => 'データ年度繰越',
-                'description' => 'Access版のデータ年度繰越に相当する入口です。',
+                'key' => 'access_year_rollover',
+                'title' => 'Access版データ年度繰越',
+                'description' => 'Access版 FN_データ変更 の「コピー」から FN_データ年度繰越 を開く導線に相当します。Cloud版では既存の翌期作成系画面に分けています。',
                 'items' => [
                     $this->menuItem('年度繰越プレビュー', 'closing.next-year-rollovers.index', $bookParams),
                     $this->menuItem('翌期帳簿作成', 'closing.next-year-rollover-creations.index', $bookParams),
@@ -78,9 +79,27 @@ class DataMenuController extends Controller
                 ],
             ],
             [
+                'key' => 'access_rollover_selection',
+                'title' => 'Access版データ繰越処理_選択',
+                'description' => 'Access版 FN_メインメニュー から確認できた繰越処理選択系の導線です。開始残高取込は開始残高画面へ寄せ、データ削除・決算書は対応要確認として未実装表示にします。',
+                'items' => [
+                    $this->menuItem('開始残高取込', 'opening-balances.index', $bookParams),
+                    $this->menuItem('データ削除', 'access-rollover-data-delete.index', $bookParams),
+                    $this->menuItem('決算書', 'access-rollover-closing-statement.index', $bookParams),
+                ],
+            ],
+            [
+                'key' => 'cloud_deferred',
+                'title' => 'Access直下導線未確認（Cloud側補助・後回し）',
+                'description' => '以下は既にCloud版にある補助導線です。削除はしませんが、Access版データメニュー直下の独立導線としては後続で確認します。',
+                'items' => [
+                    $this->menuItem('年度締め・帳簿ロック', 'closing.book-locks.index', $bookParams),
+                ],
+            ],
+            [
                 'key' => 'return',
                 'title' => '戻る',
-                'description' => 'Access版のメインメニューへ戻る導線です。',
+                'description' => 'Access版データ系画面の「戻る」から FN_メインメニューへ戻る導線です。',
                 'items' => [
                     $this->menuItem('メインメニューへ戻る', 'main-menu.index', $bookParams),
                 ],
