@@ -3,14 +3,27 @@
 @section('title', '補助科目登録')
 
 @section('content')
+    @php
+        $backBookId = $selectedBookId ?? request('book_id');
+        $backAccountTitleId = $selectedAccountTitleId ?? request('account_title_id');
+
+        $subAccountBackParams = array_filter([
+            'book_id' => $backBookId,
+            'account_title_id' => $backAccountTitleId,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $accountTitleBackParams = array_filter([
+            'book_id' => $backBookId,
+        ], fn ($value) => $value !== null && $value !== '');
+    @endphp
     <div class="page-header">
         <div>
             <h2 class="page-title">補助科目登録</h2>
             <p class="page-description">補助科目を使用する勘定科目に対して補助科目を登録します。</p>
         </div>
         <div class="actions">
-            <a href="{{ route('sub-account-titles.index') }}" class="button button-secondary">補助科目一覧へ戻る</a>
-            <a href="{{ route('account-titles.index') }}" class="button button-secondary">勘定科目一覧へ戻る</a>
+            <a href="{{ route('sub-account-titles.index', $subAccountBackParams) }}" class="button button-secondary">補助科目一覧へ戻る</a>
+            <a href="{{ route('account-titles.index', $accountTitleBackParams) }}" class="button button-secondary">勘定科目一覧へ戻る</a>
         </div>
     </div>
 
@@ -118,7 +131,7 @@
 
                 <div class="actions" style="margin-top: 24px;">
                     <button type="submit" class="button">登録する</button>
-                    <a href="{{ route('sub-account-titles.index') }}" class="button button-secondary">キャンセル</a>
+                    <a href="{{ route('sub-account-titles.index', $subAccountBackParams) }}" class="button button-secondary">キャンセル</a>
                 </div>
             </form>
         </div>
