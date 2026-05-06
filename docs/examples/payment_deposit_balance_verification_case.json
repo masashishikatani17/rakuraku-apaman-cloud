@@ -1,0 +1,27 @@
+{
+  "case_id": "payment_deposit_balance_001",
+  "title": "預り金残高一覧 基本ケース",
+  "report": "payment_deposit_balance",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "display": "remaining",
+  "tolerance": 0,
+  "expected": [
+    {
+      "tenant_code": "T001",
+      "tenant_name": "山田太郎",
+      "property_code": "P001",
+      "property_name": "サンプルマンション",
+      "unit_no": "101",
+      "target_year_month": "2026-01",
+      "payment_item_name": "家賃",
+      "expected_amount": 100000,
+      "received_amount": 110000,
+      "deposited_total": 10000,
+      "applied_total": 3000,
+      "remaining_total": 7000,
+      "total_amount": 7000
+    }
+  ]
+}
