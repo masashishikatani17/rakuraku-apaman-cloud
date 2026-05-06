@@ -34,6 +34,7 @@ class VerifyReportTotalsCommand extends Command
         'white_return_statement',
         'real_estate_closing_detail',
         'income_statement',
+        'balance_sheet',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -254,6 +255,10 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'income_statement') {
             return $this->verifyIncomeStatementCase($case, $failOnExtra);
+        }
+
+        if ($report === 'balance_sheet') {
+            return $this->verifyBalanceSheetCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -5346,6 +5351,363 @@ class VerifyReportTotalsCommand extends Command
 
         if (isset($row['account_code']) && (string) $row['account_code'] !== '') {
             return 'account:' . (string) $row['account_code'];
+        }
+
+        if (isset($row['category']) && (string) $row['category'] !== '') {
+            return 'category:' . (string) $row['category'];
+        }
+
+        return '';
+    }
+
+
+
+    private function verifyBalanceSheetCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $display = in_array((string) ($case['display'] ?? 'non_zero'), ['non_zero', 'all'], true)
+            ? (string) ($case['display'] ?? 'non_zero')
+            : 'non_zero';
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('表示: ' . $display);
+        $this->line('許容差額: ' . $this->formatAmount($tolerance));
+
+        $actualRows = $this->buildBalanceSheetActualRows($bookId, $periodFrom, $periodTo, $display);
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedKeys = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $key = $this->balanceSheetKeyFromExpectedRow($expectedRow);
+
+            if ($key === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'key、category、balance_sheet_category、または account_code を指定してください。'];
+                continue;
+            }
+
+            $expectedKeys[] = $key;
+            $actualRow = $actualRows[$key] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $key, '行存在', 'あり', 'なし', '-', 'クラウド側に対象の貸借対照表集計行がありません。'];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $key, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $key,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraKeys = array_values(array_diff(array_keys($actualRows), $expectedKeys));
+
+            foreach ($extraKeys as $extraKey) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraKey,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    '期待値にないクラウド側の貸借対照表集計行があります。',
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
+        ];
+    }
+
+    private function buildBalanceSheetActualRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        string $display
+    ): array {
+        $accountRows = $this->buildBalanceSheetAccountRows($bookId, $periodTo, $display);
+        $profitLossSummary = $this->buildBalanceSheetProfitLossSummary($bookId, $periodFrom, $periodTo);
+
+        $assetRows = collect($accountRows)->where('category', 'asset');
+        $liabilityRows = collect($accountRows)->where('category', 'liability');
+        $equityRows = collect($accountRows)->where('category', 'equity');
+
+        $assetTotal = round($assetRows->sum(fn (array $row): float => (float) $row['amount']), 2);
+        $liabilityTotal = round($liabilityRows->sum(fn (array $row): float => (float) $row['amount']), 2);
+        $equityTotal = round($equityRows->sum(fn (array $row): float => (float) $row['amount']), 2);
+        $currentProfitLoss = round((float) $profitLossSummary['profit_loss_total'], 2);
+        $netAssetsTotal = round($equityTotal + $currentProfitLoss, 2);
+        $liabilityEquityTotal = round($liabilityTotal + $netAssetsTotal, 2);
+
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'rows_count' => count($accountRows),
+                'asset_accounts_count' => $assetRows->count(),
+                'liability_accounts_count' => $liabilityRows->count(),
+                'equity_accounts_count' => $equityRows->count(),
+                'asset_total' => $assetTotal,
+                'liability_total' => $liabilityTotal,
+                'equity_total' => $equityTotal,
+                'current_profit_loss' => $currentProfitLoss,
+                'net_assets_total' => $netAssetsTotal,
+                'liability_equity_total' => $liabilityEquityTotal,
+                'balance_difference' => round($assetTotal - $liabilityEquityTotal, 2),
+                'total_amount' => $assetTotal,
+            ],
+            'category:asset' => [
+                'key' => 'category:asset',
+                'category' => 'asset',
+                'balance_sheet_category' => 'asset',
+                'accounts_count' => $assetRows->count(),
+                'debit_total' => round($assetRows->sum(fn (array $row): float => (float) $row['debit_total']), 2),
+                'credit_total' => round($assetRows->sum(fn (array $row): float => (float) $row['credit_total']), 2),
+                'amount' => $assetTotal,
+                'total_amount' => $assetTotal,
+            ],
+            'category:liability' => [
+                'key' => 'category:liability',
+                'category' => 'liability',
+                'balance_sheet_category' => 'liability',
+                'accounts_count' => $liabilityRows->count(),
+                'debit_total' => round($liabilityRows->sum(fn (array $row): float => (float) $row['debit_total']), 2),
+                'credit_total' => round($liabilityRows->sum(fn (array $row): float => (float) $row['credit_total']), 2),
+                'amount' => $liabilityTotal,
+                'total_amount' => $liabilityTotal,
+            ],
+            'category:equity' => [
+                'key' => 'category:equity',
+                'category' => 'equity',
+                'balance_sheet_category' => 'equity',
+                'accounts_count' => $equityRows->count(),
+                'debit_total' => round($equityRows->sum(fn (array $row): float => (float) $row['debit_total']), 2),
+                'credit_total' => round($equityRows->sum(fn (array $row): float => (float) $row['credit_total']), 2),
+                'amount' => $equityTotal,
+                'total_amount' => $equityTotal,
+            ],
+            'profit_loss:current' => [
+                'key' => 'profit_loss:current',
+                'revenue_total' => $profitLossSummary['revenue_total'],
+                'expense_total' => $profitLossSummary['expense_total'],
+                'profit_loss_total' => $profitLossSummary['profit_loss_total'],
+                'amount' => $profitLossSummary['profit_loss_total'],
+                'total_amount' => $profitLossSummary['profit_loss_total'],
+            ],
+        ];
+
+        foreach ($accountRows as $row) {
+            $actualRows[(string) $row['key']] = $row;
+        }
+
+        return $actualRows;
+    }
+
+    private function buildBalanceSheetAccountRows(int $bookId, string $periodTo, string $display): array
+    {
+        $rows = DB::table('account_titles as at')
+            ->leftJoin('journal_entry_lines as jel', 'jel.account_title_id', '=', 'at.id')
+            ->leftJoin('journal_entries as je', function ($join) use ($bookId, $periodTo): void {
+                $join->on('je.id', '=', 'jel.journal_entry_id')
+                    ->where('je.book_id', '=', $bookId)
+                    ->where('je.status', '=', 'posted')
+                    ->whereDate('je.entry_date', '<=', $periodTo);
+            })
+            ->where('at.book_id', $bookId)
+            ->whereIn('at.category', ['asset', 'liability', 'equity'])
+            ->select([
+                'at.id as account_title_id',
+                'at.account_code',
+                'at.name as account_name',
+                'at.category',
+                'at.normal_balance',
+                'at.is_active',
+                'at.sort_order',
+            ])
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'credit' THEN jel.amount ELSE 0 END), 0) as credit_total")
+            ->groupBy(
+                'at.id',
+                'at.account_code',
+                'at.name',
+                'at.category',
+                'at.normal_balance',
+                'at.is_active',
+                'at.sort_order'
+            )
+            ->orderBy('at.sort_order')
+            ->orderBy('at.account_code')
+            ->get()
+            ->map(function (object $row): array {
+                $debitTotal = $this->normalizeAmount($row->debit_total ?? 0);
+                $creditTotal = $this->normalizeAmount($row->credit_total ?? 0);
+
+                $amount = (string) $row->normal_balance === 'debit'
+                    ? round($debitTotal - $creditTotal, 2)
+                    : round($creditTotal - $debitTotal, 2);
+
+                return [
+                    'key' => 'account:' . (string) $row->account_code,
+                    'account_title_id' => (int) $row->account_title_id,
+                    'account_code' => (string) $row->account_code,
+                    'account_name' => (string) $row->account_name,
+                    'category' => (string) $row->category,
+                    'balance_sheet_category' => (string) $row->category,
+                    'normal_balance' => (string) $row->normal_balance,
+                    'debit_total' => $debitTotal,
+                    'credit_total' => $creditTotal,
+                    'debit_amount' => $debitTotal,
+                    'credit_amount' => $creditTotal,
+                    'amount' => $amount,
+                    'total_amount' => $amount,
+                ];
+            })
+            ->values()
+            ->all();
+
+        if ($display === 'non_zero') {
+            $rows = array_values(array_filter($rows, function (array $row): bool {
+                return abs((float) $row['debit_total']) >= 0.005
+                    || abs((float) $row['credit_total']) >= 0.005
+                    || abs((float) $row['amount']) >= 0.005;
+            }));
+        }
+
+        return $rows;
+    }
+
+    private function buildBalanceSheetProfitLossSummary(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo
+    ): array {
+        $rows = DB::table('account_titles as at')
+            ->leftJoin('journal_entry_lines as jel', 'jel.account_title_id', '=', 'at.id')
+            ->leftJoin('journal_entries as je', function ($join) use ($bookId, $periodFrom, $periodTo): void {
+                $join->on('je.id', '=', 'jel.journal_entry_id')
+                    ->where('je.book_id', '=', $bookId)
+                    ->where('je.status', '=', 'posted')
+                    ->whereDate('je.entry_date', '>=', $periodFrom)
+                    ->whereDate('je.entry_date', '<=', $periodTo);
+            })
+            ->where('at.book_id', $bookId)
+            ->whereIn('at.category', ['revenue', 'expense'])
+            ->select([
+                'at.id as account_title_id',
+                'at.category',
+                'at.normal_balance',
+            ])
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'credit' THEN jel.amount ELSE 0 END), 0) as credit_total")
+            ->groupBy(
+                'at.id',
+                'at.category',
+                'at.normal_balance'
+            )
+            ->get();
+
+        $revenueTotal = 0.0;
+        $expenseTotal = 0.0;
+
+        foreach ($rows as $row) {
+            $debitTotal = $this->normalizeAmount($row->debit_total ?? 0);
+            $creditTotal = $this->normalizeAmount($row->credit_total ?? 0);
+
+            $amount = (string) $row->normal_balance === 'debit'
+                ? round($debitTotal - $creditTotal, 2)
+                : round($creditTotal - $debitTotal, 2);
+
+            if ((string) $row->category === 'revenue') {
+                $revenueTotal = round($revenueTotal + $amount, 2);
+            }
+
+            if ((string) $row->category === 'expense') {
+                $expenseTotal = round($expenseTotal + $amount, 2);
+            }
+        }
+
+        return [
+            'revenue_total' => round($revenueTotal, 2),
+            'expense_total' => round($expenseTotal, 2),
+            'profit_loss_total' => round($revenueTotal - $expenseTotal, 2),
+        ];
+    }
+
+    private function balanceSheetKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['account_code']) && (string) $row['account_code'] !== '') {
+            return 'account:' . (string) $row['account_code'];
+        }
+
+        if (isset($row['balance_sheet_category']) && (string) $row['balance_sheet_category'] !== '') {
+            return 'category:' . (string) $row['balance_sheet_category'];
         }
 
         if (isset($row['category']) && (string) $row['category'] !== '') {

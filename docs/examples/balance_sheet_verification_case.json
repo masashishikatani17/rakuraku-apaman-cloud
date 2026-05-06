@@ -1,0 +1,54 @@
+{
+  "case_id": "balance_sheet_001",
+  "title": "貸借対照表 基本ケース",
+  "report": "balance_sheet",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "display": "non_zero",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "asset_total": 1000000,
+      "liability_total": 300000,
+      "equity_total": -380000,
+      "current_profit_loss": 1080000,
+      "net_assets_total": 700000,
+      "liability_equity_total": 1000000,
+      "balance_difference": 0,
+      "total_amount": 1000000
+    },
+    {
+      "balance_sheet_category": "asset",
+      "amount": 1000000,
+      "total_amount": 1000000
+    },
+    {
+      "balance_sheet_category": "liability",
+      "amount": 300000,
+      "total_amount": 300000
+    },
+    {
+      "balance_sheet_category": "equity",
+      "amount": -380000,
+      "total_amount": -380000
+    },
+    {
+      "key": "profit_loss:current",
+      "revenue_total": 1380000,
+      "expense_total": 300000,
+      "profit_loss_total": 1080000,
+      "amount": 1080000,
+      "total_amount": 1080000
+    },
+    {
+      "account_code": "101",
+      "account_name": "現金",
+      "debit_total": 1000000,
+      "credit_total": 0,
+      "amount": 1000000,
+      "total_amount": 1000000
+    }
+  ]
+}
