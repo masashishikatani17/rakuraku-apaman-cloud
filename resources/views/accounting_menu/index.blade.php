@@ -6,7 +6,7 @@
     <div class="page-header">
         <div>
             <h2 class="page-title">会計管理メニュー</h2>
-            <p class="page-description">Access版の FN_会計管理 に近い導線で、会計入力・帳簿・推移表を開きます。</p>
+            <p class="page-description">Access版 FN_会計管理 の導線を基準に、出納帳・仕訳・試算表・決算書作成系を整理します。</p>
         </div>
         <div class="actions">
             <a href="{{ route('main-menu.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">メインメニューへ戻る</a>
@@ -15,8 +15,7 @@
     </div>
 
     <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
-        決算・申告、年度繰越、消費税、賃貸管理は別メニューに分けています。
-        この画面は、Access版の会計管理直下に近い「仕訳・出納帳・元帳・試算表・推移表」を中心にしています。
+        Access版 FN_会計管理 で確認できた「現金出納帳」「預金出納帳」「経費帳」「仕訳伝票」「仕訳帳」「残高試算表」「決算書作成系」を上段に置き、Cloud側で追加済みだがAccess直下導線として未確認の項目は後回し欄に分けています。
     </div>
 
     <div class="card" style="margin-bottom: 16px;">
