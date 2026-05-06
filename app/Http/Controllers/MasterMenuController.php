@@ -85,7 +85,7 @@ class MasterMenuController extends Controller
                 'title' => '戻る',
                 'description' => 'Access版のメインメニューへ戻る導線です。',
                 'items' => [
-                    $this->menuItem('メインメニューへ戻る', 'work-menu.index', $bookParams),
+                    $this->menuItem('メインメニューへ戻る', 'main-menu.index', $bookParams),
                     $this->menuItem('会計管理メニューへ', 'accounting-menu.index', $bookParams),
                 ],
             ],

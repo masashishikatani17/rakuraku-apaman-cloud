@@ -81,8 +81,11 @@ use App\Http\Controllers\UtilityMenuController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    return redirect()->route('work-menu.index');
+    return redirect()->route('main-menu.index');
 });
+
+Route::get('/main-menu', [WorkMenuController::class, 'index'])
+    ->name('main-menu.index');
 
 Route::get('/work-menu', [WorkMenuController::class, 'index'])
     ->name('work-menu.index');

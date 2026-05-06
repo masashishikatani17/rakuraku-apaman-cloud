@@ -98,7 +98,7 @@ class AccountingMenuController extends Controller
                 'title' => '戻る',
                 'description' => 'Access版の「メインメニューへ戻る」に相当します。',
                 'items' => [
-                    $this->menuItem('メインメニューへ戻る', 'work-menu.index', $bookParams),
+                    $this->menuItem('メインメニューへ戻る', 'main-menu.index', $bookParams),
                     $this->menuItem('帳簿一覧へ戻る', 'books.index'),
                 ],
             ],

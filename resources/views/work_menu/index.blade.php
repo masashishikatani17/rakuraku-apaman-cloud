@@ -1,12 +1,12 @@
 @extends('layouts.app')
 
-@section('title', '業務メニュー')
+@section('title', 'メインメニュー')
 
 @section('content')
     <div class="page-header">
         <div>
-            <h2 class="page-title">業務メニュー</h2>
-            <p class="page-description">Access版のメインメニューに近い導線で、業務別に画面を開きます。</p>
+            <h2 class="page-title">メインメニュー</h2>
+            <p class="page-description">Access版のメインメニュー相当の入口です。業務別メニューから各画面を開きます。</p>
         </div>
         <div class="actions">
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ</a>
@@ -15,12 +15,12 @@
     </div>
 
     <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
-        この画面はAccess版のメインメニュー相当の入口です。
-        会計管理は別画面に切り出し、Access版の「メインメニュー → 会計管理 → 各帳簿画面」の導線に近づけています。
+        この画面はAccess版の「FN_メインメニュー」に相当する入口です。
+        ここには詳細画面を大量に並べず、データ・会計管理・マスタ・ユーティリティなどの下位メニューへの入口を置きます。
     </div>
 
     <div class="card" style="margin-bottom: 16px;">
-        <form method="GET" action="{{ route('work-menu.index') }}">
+        <form method="GET" action="{{ route('main-menu.index') }}">
             <div class="form-grid">
                 <div class="field">
                     <label for="book_id">対象帳簿</label>

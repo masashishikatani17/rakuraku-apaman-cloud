@@ -52,7 +52,7 @@ class DataMenuController extends Controller
                 'items' => [
                     $this->menuItem('帳簿一覧', 'books.index'),
                     $this->menuItem('事業主一覧', 'business-owners.index'),
-                    $this->menuItem('業務メニューへ戻る', 'work-menu.index', $bookParams),
+                    $this->menuItem('メインメニューへ戻る', 'main-menu.index', $bookParams),
                 ],
             ],
             [
@@ -82,7 +82,7 @@ class DataMenuController extends Controller
                 'title' => '戻る',
                 'description' => 'Access版のメインメニューへ戻る導線です。',
                 'items' => [
-                    $this->menuItem('メインメニューへ戻る', 'work-menu.index', $bookParams),
+                    $this->menuItem('メインメニューへ戻る', 'main-menu.index', $bookParams),
                 ],
             ],
         ];

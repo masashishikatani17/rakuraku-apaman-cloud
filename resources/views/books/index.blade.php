@@ -10,10 +10,10 @@
         </div>
         <div class="actions">
             <a
-                href="{{ route('work-menu.index', $selectedBusinessOwnerId ? ['business_owner_id' => $selectedBusinessOwnerId] : []) }}"
+                href="{{ route('main-menu.index') }}"
                 class="button"
             >
-                業務メニューへ
+                メインメニューへ
             </a>
             <a
                 href="{{ $selectedBusinessOwnerId ? route('books.create', ['business_owner_id' => $selectedBusinessOwnerId]) : route('books.create') }}"
@@ -32,7 +32,7 @@
     </div>
 
     <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
-        各業務画面へは「業務メニュー」から進みます。
+        各業務画面へは「メインメニュー」から進みます。
         この画面では、帳簿の選択、状態確認、新規作成、年度締めへの導線だけを残しています。
     </div>
 
@@ -118,10 +118,10 @@
                         <td>
                             <div class="actions">
                                 <a
-                                    href="{{ route('work-menu.index', ['book_id' => $book->id]) }}"
+                                    href="{{ route('main-menu.index', ['book_id' => $book->id]) }}"
                                     class="button"
                                 >
-                                    業務メニュー
+                                    メインメニュー
                                 </a>
                                 <a
                                     href="{{ route('opening-balances.index', ['book_id' => $book->id]) }}"
