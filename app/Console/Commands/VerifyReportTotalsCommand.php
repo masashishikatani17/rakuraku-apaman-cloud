@@ -36,6 +36,7 @@ class VerifyReportTotalsCommand extends Command
         'income_statement',
         'balance_sheet',
         'department_trial_balance',
+        'sub_account_ledger',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -93,6 +94,18 @@ class VerifyReportTotalsCommand extends Command
         'department_sort_order',
         'account_title_id',
         'account_is_active',
+        'sub_account_title_id',
+        'line_key',
+        'journal_entry_id',
+        'line_no',
+        'entry_date',
+        'voucher_no',
+        'entry_type',
+        'description_text',
+        'side',
+        'counterpart_labels',
+        'line_note',
+        'running_balance_side',
     ];
 
     public function handle(): int
@@ -269,6 +282,10 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'department_trial_balance') {
             return $this->verifyDepartmentTrialBalanceCase($case, $failOnExtra);
+        }
+
+        if ($report === 'sub_account_ledger') {
+            return $this->verifySubAccountLedgerCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -6150,6 +6167,478 @@ class VerifyReportTotalsCommand extends Command
     }
 
     private function departmentTrialBalanceNormalizeBalance(float $rawBalance, string $normalBalance): array
+    {
+        $balance = round(abs($rawBalance), 2);
+
+        if ($balance < 0.005) {
+            return [0.0, null];
+        }
+
+        if ($rawBalance > 0) {
+            return [$balance, $normalBalance];
+        }
+
+        return [
+            $balance,
+            $normalBalance === 'debit' ? 'credit' : 'debit',
+        ];
+    }
+
+
+
+    private function verifySubAccountLedgerCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('許容差額: ' . $this->formatAmount($tolerance));
+
+        $actualRows = $this->buildSubAccountLedgerActualRows($bookId, $periodFrom, $periodTo, $case);
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedKeys = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $key = $this->subAccountLedgerKeyFromExpectedRow($expectedRow);
+
+            if ($key === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'key、journal_entry_id + line_no、または account_code + sub_account_code を指定してください。'];
+                continue;
+            }
+
+            $expectedKeys[] = $key;
+            $actualRow = $actualRows[$key] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $key, '行存在', 'あり', 'なし', '-', 'クラウド側に対象の補助元帳集計行がありません。'];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $key, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $key,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraKeys = array_values(array_diff(array_keys($actualRows), $expectedKeys));
+
+            foreach ($extraKeys as $extraKey) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraKey,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    '期待値にないクラウド側の補助元帳集計行があります。',
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
+        ];
+    }
+
+    private function buildSubAccountLedgerActualRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        array $case
+    ): array {
+        $selection = $this->resolveSubAccountLedgerSelection($bookId, $case);
+        $normalBalance = (string) $selection->normal_balance;
+
+        $opening = $this->calculateSubAccountLedgerOpeningBalance(
+            $bookId,
+            (int) $selection->sub_account_title_id,
+            $periodFrom,
+            $normalBalance
+        );
+
+        $lineRows = $this->buildSubAccountLedgerLineRows(
+            $bookId,
+            (int) $selection->sub_account_title_id,
+            $periodFrom,
+            $periodTo,
+            $normalBalance,
+            (float) $opening['raw_balance']
+        );
+
+        $periodDebitTotal = round(
+            collect($lineRows)->sum(fn (array $row): float => (float) $row['debit_amount']),
+            2
+        );
+        $periodCreditTotal = round(
+            collect($lineRows)->sum(fn (array $row): float => (float) $row['credit_amount']),
+            2
+        );
+        $endingRawBalance = round(
+            (float) $opening['raw_balance']
+            + collect($lineRows)->sum(fn (array $row): float => (float) $row['balance_delta_raw']),
+            2
+        );
+
+        [$endingBalance, $endingBalanceSide] = $this->subAccountLedgerNormalizeBalance(
+            $endingRawBalance,
+            $normalBalance
+        );
+
+        $totalIncrease = $normalBalance === 'debit'
+            ? $periodDebitTotal
+            : $periodCreditTotal;
+        $totalDecrease = $normalBalance === 'debit'
+            ? $periodCreditTotal
+            : $periodDebitTotal;
+
+        $summary = [
+            'key' => 'summary',
+            'account_title_id' => (int) $selection->account_title_id,
+            'account_code' => (string) $selection->account_code,
+            'account_name' => (string) $selection->account_name,
+            'sub_account_title_id' => (int) $selection->sub_account_title_id,
+            'sub_account_code' => (string) $selection->sub_account_code,
+            'sub_account_name' => (string) $selection->sub_account_name,
+            'normal_balance' => $normalBalance,
+            'entries_count' => count($lineRows),
+            'opening_debit_total' => $opening['debit_total'],
+            'opening_credit_total' => $opening['credit_total'],
+            'opening_balance' => $opening['balance'],
+            'opening_balance_side' => $opening['side'],
+            'opening_debit' => $opening['side'] === 'debit' ? $opening['balance'] : 0.0,
+            'opening_credit' => $opening['side'] === 'credit' ? $opening['balance'] : 0.0,
+            'period_debit_total' => $periodDebitTotal,
+            'period_credit_total' => $periodCreditTotal,
+            'debit_total' => $periodDebitTotal,
+            'credit_total' => $periodCreditTotal,
+            'total_increase' => $totalIncrease,
+            'total_decrease' => $totalDecrease,
+            'ending_balance' => $endingBalance,
+            'ending_balance_side' => $endingBalanceSide,
+            'ending_debit' => $endingBalanceSide === 'debit' ? $endingBalance : 0.0,
+            'ending_credit' => $endingBalanceSide === 'credit' ? $endingBalance : 0.0,
+            'total_amount' => $endingBalance,
+        ];
+
+        $subAccountKey = $this->subAccountLedgerSelectionKey(
+            (string) $selection->account_code,
+            (string) $selection->sub_account_code
+        );
+
+        $actualRows = [
+            'summary' => $summary,
+            $subAccountKey => array_merge($summary, [
+                'key' => $subAccountKey,
+            ]),
+        ];
+
+        foreach ($lineRows as $lineRow) {
+            $actualRows[(string) $lineRow['key']] = $lineRow;
+        }
+
+        return $actualRows;
+    }
+
+    private function resolveSubAccountLedgerSelection(int $bookId, array $case): object
+    {
+        if (isset($case['sub_account_title_id']) && (string) $case['sub_account_title_id'] !== '') {
+            $selection = DB::table('sub_account_titles as sat')
+                ->join('account_titles as at', 'at.id', '=', 'sat.account_title_id')
+                ->where('at.book_id', $bookId)
+                ->where('sat.id', (int) $case['sub_account_title_id'])
+                ->select([
+                    'at.id as account_title_id',
+                    'at.account_code',
+                    'at.name as account_name',
+                    'at.normal_balance',
+                    'sat.id as sub_account_title_id',
+                    'sat.sub_account_code',
+                    'sat.name as sub_account_name',
+                ])
+                ->first();
+
+            if ($selection !== null) {
+                return $selection;
+            }
+        }
+
+        $accountCode = isset($case['account_code']) && (string) $case['account_code'] !== ''
+            ? (string) $case['account_code']
+            : null;
+        $subAccountCode = isset($case['sub_account_code']) && (string) $case['sub_account_code'] !== ''
+            ? (string) $case['sub_account_code']
+            : null;
+
+        if ($accountCode === null || $subAccountCode === null) {
+            foreach (($case['expected'] ?? []) as $expectedRow) {
+                if (! is_array($expectedRow)) {
+                    continue;
+                }
+
+                if ($accountCode === null && isset($expectedRow['account_code']) && (string) $expectedRow['account_code'] !== '') {
+                    $accountCode = (string) $expectedRow['account_code'];
+                }
+
+                if ($subAccountCode === null && isset($expectedRow['sub_account_code']) && (string) $expectedRow['sub_account_code'] !== '') {
+                    $subAccountCode = (string) $expectedRow['sub_account_code'];
+                }
+
+                if ($accountCode !== null && $subAccountCode !== null) {
+                    break;
+                }
+            }
+        }
+
+        if ($accountCode !== null && $subAccountCode !== null) {
+            $selection = DB::table('sub_account_titles as sat')
+                ->join('account_titles as at', 'at.id', '=', 'sat.account_title_id')
+                ->where('at.book_id', $bookId)
+                ->where('at.account_code', $accountCode)
+                ->where('sat.sub_account_code', $subAccountCode)
+                ->select([
+                    'at.id as account_title_id',
+                    'at.account_code',
+                    'at.name as account_name',
+                    'at.normal_balance',
+                    'sat.id as sub_account_title_id',
+                    'sat.sub_account_code',
+                    'sat.name as sub_account_name',
+                ])
+                ->first();
+
+            if ($selection !== null) {
+                return $selection;
+            }
+        }
+
+        throw new \RuntimeException('補助元帳の検証対象を特定できません。case ルートに sub_account_title_id、または account_code と sub_account_code を指定してください。');
+    }
+
+    private function calculateSubAccountLedgerOpeningBalance(
+        int $bookId,
+        int $subAccountTitleId,
+        string $periodFrom,
+        string $normalBalance
+    ): array {
+        $opening = DB::table('journal_entry_lines as jel')
+            ->join('journal_entries as je', 'je.id', '=', 'jel.journal_entry_id')
+            ->where('je.book_id', $bookId)
+            ->where('je.status', 'posted')
+            ->where('jel.sub_account_title_id', $subAccountTitleId)
+            ->whereDate('je.entry_date', '<', $periodFrom)
+            ->selectRaw("COALESCE(SUM(CASE WHEN jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN jel.side = 'credit' THEN jel.amount ELSE 0 END), 0) as credit_total")
+            ->first();
+
+        $debitTotal = $this->normalizeAmount($opening->debit_total ?? 0);
+        $creditTotal = $this->normalizeAmount($opening->credit_total ?? 0);
+
+        $rawBalance = $normalBalance === 'debit'
+            ? round($debitTotal - $creditTotal, 2)
+            : round($creditTotal - $debitTotal, 2);
+
+        [$balance, $side] = $this->subAccountLedgerNormalizeBalance($rawBalance, $normalBalance);
+
+        return [
+            'debit_total' => $debitTotal,
+            'credit_total' => $creditTotal,
+            'balance' => $balance,
+            'side' => $side,
+            'raw_balance' => $rawBalance,
+        ];
+    }
+
+    private function buildSubAccountLedgerLineRows(
+        int $bookId,
+        int $subAccountTitleId,
+        string $periodFrom,
+        string $periodTo,
+        string $normalBalance,
+        float $openingRawBalance
+    ): array {
+        $rows = DB::table('journal_entry_lines as jel')
+            ->join('journal_entries as je', 'je.id', '=', 'jel.journal_entry_id')
+            ->leftJoin('account_titles as at', 'at.id', '=', 'jel.account_title_id')
+            ->leftJoin('sub_account_titles as sat', 'sat.id', '=', 'jel.sub_account_title_id')
+            ->leftJoin('departments as d', 'd.id', '=', 'jel.department_id')
+            ->where('je.book_id', $bookId)
+            ->where('je.status', 'posted')
+            ->where('jel.sub_account_title_id', $subAccountTitleId)
+            ->whereDate('je.entry_date', '>=', $periodFrom)
+            ->whereDate('je.entry_date', '<=', $periodTo)
+            ->select([
+                'jel.id as journal_entry_line_id',
+                'jel.journal_entry_id',
+                'jel.line_no',
+                'jel.side',
+                'jel.amount',
+                'jel.line_note',
+                'je.entry_date',
+                'je.voucher_no',
+                'je.entry_type',
+                'je.description_text',
+                'at.account_code',
+                'at.name as account_name',
+                'sat.sub_account_code',
+                'sat.name as sub_account_name',
+                'd.department_code',
+                'd.name as department_name',
+            ])
+            ->orderBy('je.entry_date')
+            ->orderByRaw("COALESCE(je.voucher_no, '')")
+            ->orderBy('je.id')
+            ->orderBy('jel.line_no')
+            ->get();
+
+        $runningRawBalance = round($openingRawBalance, 2);
+        $lineRows = [];
+
+        foreach ($rows as $row) {
+            $amount = $this->normalizeAmount($row->amount ?? 0);
+            $side = (string) $row->side;
+
+            $balanceDeltaRaw = $side === $normalBalance
+                ? $amount
+                : -$amount;
+
+            $runningRawBalance = round($runningRawBalance + $balanceDeltaRaw, 2);
+            [$runningBalance, $runningBalanceSide] = $this->subAccountLedgerNormalizeBalance(
+                $runningRawBalance,
+                $normalBalance
+            );
+
+            $key = 'line:' . (int) $row->journal_entry_id . ':' . (int) $row->line_no;
+
+            $lineRows[] = [
+                'key' => $key,
+                'line_key' => $key,
+                'journal_entry_line_id' => (int) $row->journal_entry_line_id,
+                'journal_entry_id' => (int) $row->journal_entry_id,
+                'line_no' => (int) $row->line_no,
+                'entry_date' => (string) $row->entry_date,
+                'voucher_no' => $row->voucher_no !== null ? (string) $row->voucher_no : '',
+                'entry_type' => $row->entry_type !== null ? (string) $row->entry_type : '',
+                'description_text' => $row->description_text !== null ? (string) $row->description_text : '',
+                'account_code' => $row->account_code !== null ? (string) $row->account_code : '',
+                'account_name' => $row->account_name !== null ? (string) $row->account_name : '',
+                'sub_account_code' => $row->sub_account_code !== null ? (string) $row->sub_account_code : '',
+                'sub_account_name' => $row->sub_account_name !== null ? (string) $row->sub_account_name : '',
+                'department_code' => $row->department_code !== null ? (string) $row->department_code : '',
+                'department_name' => $row->department_name !== null ? (string) $row->department_name : '',
+                'side' => $side,
+                'debit_amount' => $side === 'debit' ? $amount : 0.0,
+                'credit_amount' => $side === 'credit' ? $amount : 0.0,
+                'amount' => $amount,
+                'line_note' => $row->line_note !== null ? (string) $row->line_note : '',
+                'balance_delta_raw' => $balanceDeltaRaw,
+                'running_balance' => $runningBalance,
+                'running_balance_side' => $runningBalanceSide,
+                'running_debit' => $runningBalanceSide === 'debit' ? $runningBalance : 0.0,
+                'running_credit' => $runningBalanceSide === 'credit' ? $runningBalance : 0.0,
+                'total_amount' => $amount,
+            ];
+        }
+
+        return $lineRows;
+    }
+
+    private function subAccountLedgerKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (
+            isset($row['journal_entry_id'], $row['line_no'])
+            && (string) $row['journal_entry_id'] !== ''
+            && (string) $row['line_no'] !== ''
+        ) {
+            return 'line:' . (int) $row['journal_entry_id'] . ':' . (int) $row['line_no'];
+        }
+
+        if (
+            isset($row['account_code'], $row['sub_account_code'])
+            && (string) $row['account_code'] !== ''
+            && (string) $row['sub_account_code'] !== ''
+        ) {
+            return $this->subAccountLedgerSelectionKey(
+                (string) $row['account_code'],
+                (string) $row['sub_account_code']
+            );
+        }
+
+        return '';
+    }
+
+    private function subAccountLedgerSelectionKey(string $accountCode, string $subAccountCode): string
+    {
+        return 'sub_account:' . $accountCode . '|' . $subAccountCode;
+    }
+
+    private function subAccountLedgerNormalizeBalance(float $rawBalance, string $normalBalance): array
     {
         $balance = round(abs($rawBalance), 2);
 
