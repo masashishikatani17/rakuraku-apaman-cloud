@@ -29,6 +29,7 @@ class VerifyReportTotalsCommand extends Command
         'payment_deposit_balance',
         'real_estate_income_statement',
         'consumption_tax',
+        'consumption_tax_filing',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -57,9 +58,15 @@ class VerifyReportTotalsCommand extends Command
         'category',
         'normal_balance',
         'consumption_tax_category',
+        'tax_group',
+        'tax_group_label',
         'tax_target_label',
         'tax_reason',
+        'judgement_source',
         'amount_mode',
+        'tax_method',
+        'default_tax_rate',
+        'deemed_purchase_rate',
         'opening_balance_side',
         'ending_balance_side',
         'note',
@@ -213,6 +220,10 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'consumption_tax') {
             return $this->verifyConsumptionTaxCase($case, $failOnExtra);
+        }
+
+        if ($report === 'consumption_tax_filing') {
+            return $this->verifyConsumptionTaxFilingCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -3215,6 +3226,428 @@ class VerifyReportTotalsCommand extends Command
         return [
             'tax_base_amount' => $taxBaseAmount,
             'consumption_tax_amount' => $consumptionTaxAmount,
+            'tax_included_amount' => $taxIncludedAmount,
+        ];
+    }
+
+
+
+    private function verifyConsumptionTaxFilingCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $defaultTaxRate = isset($case['default_tax_rate'])
+            ? (float) $case['default_tax_rate']
+            : (isset($case['tax_rate']) ? (float) $case['tax_rate'] : 10.0);
+        $amountMode = in_array((string) ($case['amount_mode'] ?? 'tax_included'), ['tax_included', 'tax_excluded'], true)
+            ? (string) ($case['amount_mode'] ?? 'tax_included')
+            : 'tax_included';
+        $taxMethod = in_array((string) ($case['tax_method'] ?? 'general'), ['general', 'simplified', 'exempt'], true)
+            ? (string) ($case['tax_method'] ?? 'general')
+            : 'general';
+        $deemedPurchaseRate = isset($case['deemed_purchase_rate'])
+            ? (float) $case['deemed_purchase_rate']
+            : 40.0;
+        $display = in_array((string) ($case['display'] ?? 'non_zero'), ['non_zero', 'all'], true)
+            ? (string) ($case['display'] ?? 'non_zero')
+            : 'non_zero';
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('既定税率: ' . $defaultTaxRate . '%');
+        $this->line('金額扱い: ' . $amountMode);
+        $this->line('計算方式: ' . $taxMethod);
+        $this->line('みなし仕入率: ' . $deemedPurchaseRate . '%');
+        $this->line('表示: ' . $display);
+        $this->line('許容差額: ' . $this->formatAmount($tolerance));
+
+        $actualRows = $this->buildConsumptionTaxFilingActualRows(
+            $bookId,
+            $periodFrom,
+            $periodTo,
+            $defaultTaxRate,
+            $amountMode,
+            $taxMethod,
+            $deemedPurchaseRate,
+            $display
+        );
+
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedKeys = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $key = $this->consumptionTaxFilingKeyFromExpectedRow($expectedRow);
+
+            if ($key === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'key、account_code、tax_group、または tax_group と tax_rate を指定してください。'];
+                continue;
+            }
+
+            $expectedKeys[] = $key;
+            $actualRow = $actualRows[$key] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $key, '行存在', 'あり', 'なし', '-', 'クラウド側に対象の消費税申告用集計行がありません。'];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $key, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $key,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraKeys = array_values(array_diff(array_keys($actualRows), $expectedKeys));
+
+            foreach ($extraKeys as $extraKey) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraKey,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    '期待値にないクラウド側の消費税申告用集計行があります。',
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
+        ];
+    }
+
+    private function buildConsumptionTaxFilingActualRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        float $defaultTaxRate,
+        string $amountMode,
+        string $taxMethod,
+        float $deemedPurchaseRate,
+        string $display
+    ): array {
+        $accountRows = DB::table('journal_entry_lines as jel')
+            ->join('journal_entries as je', 'je.id', '=', 'jel.journal_entry_id')
+            ->join('account_titles as at', 'at.id', '=', 'jel.account_title_id')
+            ->where('je.book_id', $bookId)
+            ->where('je.status', 'posted')
+            ->where('je.entry_type', '<>', 'consumption_tax_settlement')
+            ->where('at.book_id', $bookId)
+            ->whereIn('at.category', ['revenue', 'expense'])
+            ->whereDate('je.entry_date', '>=', $periodFrom)
+            ->whereDate('je.entry_date', '<=', $periodTo)
+            ->select([
+                'at.id as account_title_id',
+                'at.account_code',
+                'at.name as account_name',
+                'at.category',
+                'at.normal_balance',
+                'at.consumption_tax_category',
+                'at.consumption_tax_rate',
+                'at.sort_order',
+            ])
+            ->selectRaw("COALESCE(SUM(CASE WHEN jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN jel.side = 'credit' THEN jel.amount ELSE 0 END), 0) as credit_total")
+            ->groupBy(
+                'at.id',
+                'at.account_code',
+                'at.name',
+                'at.category',
+                'at.normal_balance',
+                'at.consumption_tax_category',
+                'at.consumption_tax_rate',
+                'at.sort_order'
+            )
+            ->orderBy('at.sort_order')
+            ->orderBy('at.account_code')
+            ->orderBy('at.id')
+            ->get()
+            ->map(function (object $row) use ($defaultTaxRate, $amountMode): array {
+                $debitTotal = $this->normalizeAmount($row->debit_total ?? 0);
+                $creditTotal = $this->normalizeAmount($row->credit_total ?? 0);
+                $amount = (string) $row->normal_balance === 'debit'
+                    ? round($debitTotal - $creditTotal, 2)
+                    : round($creditTotal - $debitTotal, 2);
+
+                $masterCategory = (string) ($row->consumption_tax_category ?: 'auto');
+                $classification = $this->classifyConsumptionTaxFilingCategory(
+                    (string) $row->category,
+                    (string) $row->account_name,
+                    $masterCategory
+                );
+                $taxRate = $row->consumption_tax_rate !== null
+                    ? (float) $row->consumption_tax_rate
+                    : $defaultTaxRate;
+                $tax = $this->calculateConsumptionTaxFilingTax(
+                    $amount,
+                    $taxRate,
+                    $amountMode,
+                    (bool) $classification['is_taxable']
+                );
+
+                return [
+                    'key' => 'account:' . (string) $row->account_code,
+                    'account_code' => (string) $row->account_code,
+                    'account_name' => (string) $row->account_name,
+                    'category' => (string) $row->category,
+                    'normal_balance' => (string) $row->normal_balance,
+                    'consumption_tax_category' => $masterCategory,
+                    'tax_group' => (string) $classification['tax_group'],
+                    'tax_group_label' => (string) $classification['tax_group_label'],
+                    'judgement_source' => (string) $classification['judgement_source'],
+                    'tax_rate' => $taxRate,
+                    'debit_total' => $debitTotal,
+                    'credit_total' => $creditTotal,
+                    'amount' => $amount,
+                    'tax_base_amount' => $tax['tax_base_amount'],
+                    'consumption_tax_amount' => $tax['consumption_tax_amount'],
+                    'tax_included_amount' => $tax['tax_included_amount'],
+                ];
+            })
+            ->filter(fn (array $row): bool => $display === 'all' || abs((float) $row['amount']) >= 0.005)
+            ->values();
+
+        $taxableSalesRows = $accountRows->filter(fn (array $row): bool => $row['tax_group'] === 'taxable_sales');
+        $taxablePurchaseRows = $accountRows->filter(fn (array $row): bool => $row['tax_group'] === 'taxable_purchase');
+
+        $salesTax = round($taxableSalesRows->sum(fn (array $row): float => (float) $row['consumption_tax_amount']), 2);
+        $purchaseTax = round($taxablePurchaseRows->sum(fn (array $row): float => (float) $row['consumption_tax_amount']), 2);
+        $generalPayable = round($salesTax - $purchaseTax, 2);
+        $simplifiedDeduction = round($salesTax * ($deemedPurchaseRate / 100), 2);
+        $simplifiedPayable = round($salesTax - $simplifiedDeduction, 2);
+
+        $estimatedPayable = match ($taxMethod) {
+            'simplified' => $simplifiedPayable,
+            'exempt' => 0.0,
+            default => $generalPayable,
+        };
+
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'rows_count' => $accountRows->count(),
+                'taxable_sales_base_total' => round($taxableSalesRows->sum(fn (array $row): float => (float) $row['tax_base_amount']), 2),
+                'taxable_sales_tax_total' => $salesTax,
+                'taxable_purchase_base_total' => round($taxablePurchaseRows->sum(fn (array $row): float => (float) $row['tax_base_amount']), 2),
+                'taxable_purchase_tax_total' => $purchaseTax,
+                'exempt_sales_total' => round($accountRows->filter(fn (array $row): bool => $row['tax_group'] === 'exempt_sales')->sum(fn (array $row): float => (float) $row['amount']), 2),
+                'non_taxable_total' => round($accountRows->filter(fn (array $row): bool => $row['tax_group'] === 'non_taxable')->sum(fn (array $row): float => (float) $row['amount']), 2),
+                'out_of_scope_total' => round($accountRows->filter(fn (array $row): bool => $row['tax_group'] === 'out_of_scope')->sum(fn (array $row): float => (float) $row['amount']), 2),
+                'not_applicable_total' => round($accountRows->filter(fn (array $row): bool => $row['tax_group'] === 'not_applicable')->sum(fn (array $row): float => (float) $row['amount']), 2),
+                'auto_judged_count' => $accountRows->filter(fn (array $row): bool => $row['judgement_source'] === 'auto')->count(),
+                'general_payable' => $generalPayable,
+                'simplified_deduction' => $simplifiedDeduction,
+                'simplified_payable' => $simplifiedPayable,
+                'estimated_payable' => $estimatedPayable,
+            ],
+        ];
+
+        $accountRows
+            ->groupBy('tax_group')
+            ->each(function ($rows, string $taxGroup) use (&$actualRows): void {
+                $first = collect($rows)->first();
+
+                $actualRows['tax_group:' . $taxGroup] = [
+                    'key' => 'tax_group:' . $taxGroup,
+                    'tax_group' => $taxGroup,
+                    'tax_group_label' => (string) ($first['tax_group_label'] ?? $taxGroup),
+                    'accounts_count' => collect($rows)->count(),
+                    'amount_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['amount']), 2),
+                    'tax_base_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['tax_base_amount']), 2),
+                    'tax_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['consumption_tax_amount']), 2),
+                    'auto_count' => collect($rows)->filter(fn (array $row): bool => $row['judgement_source'] === 'auto')->count(),
+                ];
+            });
+
+        $accountRows
+            ->filter(fn (array $row): bool => in_array($row['tax_group'], ['taxable_sales', 'taxable_purchase'], true))
+            ->groupBy(fn (array $row): string => $row['tax_group'] . '|' . number_format((float) $row['tax_rate'], 2, '.', ''))
+            ->each(function ($rows, string $key) use (&$actualRows): void {
+                [$taxGroup, $taxRate] = explode('|', $key);
+                $first = collect($rows)->first();
+
+                $actualRows['tax_rate:' . $taxGroup . ':' . number_format((float) $taxRate, 2, '.', '')] = [
+                    'key' => 'tax_rate:' . $taxGroup . ':' . number_format((float) $taxRate, 2, '.', ''),
+                    'tax_group' => $taxGroup,
+                    'tax_group_label' => (string) ($first['tax_group_label'] ?? $taxGroup),
+                    'tax_rate' => (float) $taxRate,
+                    'accounts_count' => collect($rows)->count(),
+                    'tax_base_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['tax_base_amount']), 2),
+                    'tax_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['consumption_tax_amount']), 2),
+                    'tax_included_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['tax_included_amount']), 2),
+                ];
+            });
+
+        foreach ($accountRows as $accountRow) {
+            $actualRows[(string) $accountRow['key']] = $accountRow;
+        }
+
+        return $actualRows;
+    }
+
+    private function consumptionTaxFilingKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['account_code']) && (string) $row['account_code'] !== '') {
+            return 'account:' . (string) $row['account_code'];
+        }
+
+        if (
+            isset($row['tax_group'], $row['tax_rate'])
+            && (string) $row['tax_group'] !== ''
+            && (string) $row['tax_rate'] !== ''
+        ) {
+            return 'tax_rate:' . (string) $row['tax_group'] . ':' . number_format((float) $row['tax_rate'], 2, '.', '');
+        }
+
+        if (isset($row['tax_group']) && (string) $row['tax_group'] !== '') {
+            return 'tax_group:' . (string) $row['tax_group'];
+        }
+
+        return '';
+    }
+
+    private function classifyConsumptionTaxFilingCategory(string $category, string $accountName, string $masterCategory): array
+    {
+        if ($masterCategory !== 'auto') {
+            return $this->fixedConsumptionTaxFilingClassification($masterCategory);
+        }
+
+        if ($this->containsAny($accountName, ['非課税', '不課税', '免税', '対象外', '仮受消費税', '仮払消費税', '未払消費税', '未収消費税'])) {
+            return $this->consumptionTaxFilingClassification('not_applicable', '対象外候補', 'auto');
+        }
+
+        if ($category === 'revenue') {
+            if ($this->containsAny($accountName, ['敷金', '保証金', '預り', '受取利息', '受取配当', '保険金', '補助金', '助成金'])) {
+                return $this->consumptionTaxFilingClassification('not_applicable', '対象外候補', 'auto');
+            }
+
+            return $this->consumptionTaxFilingClassification('taxable_sales', '課税売上候補', 'auto');
+        }
+
+        if ($this->containsAny($accountName, ['給料', '給与', '賃金', '賞与', '法定福利', '租税公課', '支払利息', '利息', '減価償却', '保険料', '諸会費', '寄附', '罰金', 'リース債務'])) {
+            return $this->consumptionTaxFilingClassification('not_applicable', '対象外候補', 'auto');
+        }
+
+        return $this->consumptionTaxFilingClassification('taxable_purchase', '課税仕入候補', 'auto');
+    }
+
+    private function fixedConsumptionTaxFilingClassification(string $masterCategory): array
+    {
+        return match ($masterCategory) {
+            'taxable_sales' => $this->consumptionTaxFilingClassification('taxable_sales', '課税売上', 'master'),
+            'taxable_purchase' => $this->consumptionTaxFilingClassification('taxable_purchase', '課税仕入', 'master'),
+            'exempt_sales' => $this->consumptionTaxFilingClassification('exempt_sales', '非課税売上', 'master'),
+            'non_taxable' => $this->consumptionTaxFilingClassification('non_taxable', '非課税', 'master'),
+            'out_of_scope' => $this->consumptionTaxFilingClassification('out_of_scope', '不課税', 'master'),
+            'not_applicable' => $this->consumptionTaxFilingClassification('not_applicable', '対象外', 'master'),
+            default => $this->consumptionTaxFilingClassification('not_applicable', '対象外', 'master'),
+        };
+    }
+
+    private function consumptionTaxFilingClassification(string $taxGroup, string $label, string $source): array
+    {
+        return [
+            'tax_group' => $taxGroup,
+            'tax_group_label' => $label,
+            'judgement_source' => $source,
+            'is_taxable' => in_array($taxGroup, ['taxable_sales', 'taxable_purchase'], true),
+        ];
+    }
+
+    private function calculateConsumptionTaxFilingTax(float $amount, float $taxRate, string $amountMode, bool $taxable): array
+    {
+        if (! $taxable || abs($amount) < 0.005 || $taxRate <= 0) {
+            return [
+                'tax_base_amount' => 0.0,
+                'consumption_tax_amount' => 0.0,
+                'tax_included_amount' => $amount,
+            ];
+        }
+
+        if ($amountMode === 'tax_excluded') {
+            $taxBaseAmount = round($amount, 2);
+            $taxAmount = round($amount * ($taxRate / 100), 2);
+
+            return [
+                'tax_base_amount' => $taxBaseAmount,
+                'consumption_tax_amount' => $taxAmount,
+                'tax_included_amount' => round($taxBaseAmount + $taxAmount, 2),
+            ];
+        }
+
+        $taxIncludedAmount = round($amount, 2);
+        $taxBaseAmount = round($amount / (1 + ($taxRate / 100)), 2);
+
+        return [
+            'tax_base_amount' => $taxBaseAmount,
+            'consumption_tax_amount' => round($taxIncludedAmount - $taxBaseAmount, 2),
             'tax_included_amount' => $taxIncludedAmount,
         ];
     }
