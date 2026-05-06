@@ -1,0 +1,37 @@
+{
+  "case_id": "white_return_statement_001",
+  "title": "白色収支内訳書プレビュー 基本ケース",
+  "report": "white_return_statement",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "display": "non_zero",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "income_total": 1380000,
+      "expense_total": 300000,
+      "profit_total": 1080000,
+      "adjustment_total": 0
+    },
+    {
+      "statement_category": "revenue_rent",
+      "statement_category_label": "家賃・賃料",
+      "accounting_amount": 1200000,
+      "adjustment_amount": 0,
+      "filing_amount": 1200000,
+      "amount": 1200000,
+      "total_amount": 1200000
+    },
+    {
+      "statement_category": "expense_repair",
+      "statement_category_label": "修繕費",
+      "accounting_amount": 300000,
+      "adjustment_amount": 0,
+      "filing_amount": 300000,
+      "amount": 300000,
+      "total_amount": 300000
+    }
+  ]
+}

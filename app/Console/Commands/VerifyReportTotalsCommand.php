@@ -31,6 +31,7 @@ class VerifyReportTotalsCommand extends Command
         'consumption_tax',
         'consumption_tax_filing',
         'blue_return_statement',
+        'white_return_statement',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -232,6 +233,10 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'blue_return_statement') {
             return $this->verifyBlueReturnStatementCase($case, $failOnExtra);
+        }
+
+        if ($report === 'white_return_statement') {
+            return $this->verifyWhiteReturnStatementCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -4074,6 +4079,337 @@ class VerifyReportTotalsCommand extends Command
 
         if (isset($row['balance_sheet_category']) && (string) $row['balance_sheet_category'] !== '') {
             return 'bs_category:' . (string) $row['balance_sheet_category'];
+        }
+
+        if (isset($row['account_code']) && (string) $row['account_code'] !== '') {
+            return 'account:' . (string) $row['account_code'];
+        }
+
+        return '';
+    }
+
+
+
+    private function verifyWhiteReturnStatementCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $display = in_array((string) ($case['display'] ?? 'non_zero'), ['non_zero', 'all'], true)
+            ? (string) ($case['display'] ?? 'non_zero')
+            : 'non_zero';
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('表示: ' . $display);
+        $this->line('許容差額: ' . $this->formatAmount($tolerance));
+
+        $actualRows = $this->buildWhiteReturnStatementActualRows($bookId, $periodFrom, $periodTo, $display);
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedKeys = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $key = $this->whiteReturnStatementKeyFromExpectedRow($expectedRow);
+
+            if ($key === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'key、statement_category、または account_code を指定してください。'];
+                continue;
+            }
+
+            $expectedKeys[] = $key;
+            $actualRow = $actualRows[$key] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $key, '行存在', 'あり', 'なし', '-', 'クラウド側に対象の白色収支内訳書集計行がありません。'];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $key, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $key,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraKeys = array_values(array_diff(array_keys($actualRows), $expectedKeys));
+
+            foreach ($extraKeys as $extraKey) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraKey,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    '期待値にないクラウド側の白色収支内訳書集計行があります。',
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
+        ];
+    }
+
+    private function buildWhiteReturnStatementActualRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        string $display
+    ): array {
+        $accountRows = $this->buildWhiteReturnAccountRows($bookId, $periodFrom, $periodTo, $display);
+
+        $incomeTotal = round(
+            collect($accountRows)
+                ->where('category', 'revenue')
+                ->where('statement_category', '!=', 'none')
+                ->sum(fn (array $row): float => (float) $row['filing_amount']),
+            2
+        );
+
+        $expenseTotal = round(
+            collect($accountRows)
+                ->where('category', 'expense')
+                ->where('statement_category', '!=', 'none')
+                ->sum(fn (array $row): float => (float) $row['filing_amount']),
+            2
+        );
+
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'income_total' => $incomeTotal,
+                'expense_total' => $expenseTotal,
+                'profit_total' => round($incomeTotal - $expenseTotal, 2),
+                'adjustment_total' => round(
+                    collect($accountRows)->sum(fn (array $row): float => (float) $row['adjustment_amount']),
+                    2
+                ),
+                'review_count' => collect($accountRows)
+                    ->filter(fn (array $row): bool => (bool) $row['needs_review'])
+                    ->count(),
+                'category_count' => collect($accountRows)
+                    ->groupBy('statement_category')
+                    ->count(),
+                'account_count' => count($accountRows),
+            ],
+        ];
+
+        collect($accountRows)
+            ->groupBy('statement_category')
+            ->each(function ($rows, string $statementCategory) use (&$actualRows): void {
+                $first = collect($rows)->first();
+                $accountingAmount = round(
+                    collect($rows)->sum(fn (array $row): float => (float) $row['accounting_amount']),
+                    2
+                );
+                $adjustmentAmount = round(
+                    collect($rows)->sum(fn (array $row): float => (float) $row['adjustment_amount']),
+                    2
+                );
+                $filingAmount = $statementCategory === 'none'
+                    ? 0.0
+                    : round(
+                        collect($rows)->sum(fn (array $row): float => (float) $row['filing_amount']),
+                        2
+                    );
+
+                $actualRows['statement_category:' . $statementCategory] = [
+                    'key' => 'statement_category:' . $statementCategory,
+                    'statement_category' => $statementCategory,
+                    'category' => (string) ($first['category'] ?? ''),
+                    'accounts_count' => collect($rows)->count(),
+                    'accounting_amount' => $accountingAmount,
+                    'adjustment_amount' => $adjustmentAmount,
+                    'filing_amount' => $filingAmount,
+                    'amount' => $filingAmount,
+                    'total_amount' => $filingAmount,
+                    'needs_review_count' => collect($rows)
+                        ->filter(fn (array $row): bool => (bool) $row['needs_review'])
+                        ->count(),
+                ];
+            });
+
+        foreach ($accountRows as $row) {
+            $actualRows['account:' . $row['account_code']] = $row + [
+                'key' => 'account:' . $row['account_code'],
+                'amount' => $row['filing_amount'],
+                'total_amount' => $row['filing_amount'],
+            ];
+        }
+
+        return $actualRows;
+    }
+
+    private function buildWhiteReturnAccountRows(int $bookId, string $periodFrom, string $periodTo, string $display): array
+    {
+        $closingAdjustments = $this->buildWhiteReturnClosingAdjustments($bookId, $periodFrom, $periodTo);
+
+        $rows = DB::table('account_titles as at')
+            ->leftJoin('journal_entry_lines as jel', 'jel.account_title_id', '=', 'at.id')
+            ->leftJoin('journal_entries as je', function ($join) use ($bookId, $periodFrom, $periodTo): void {
+                $join->on('je.id', '=', 'jel.journal_entry_id')
+                    ->where('je.book_id', '=', $bookId)
+                    ->where('je.status', '=', 'posted')
+                    ->whereDate('je.entry_date', '>=', $periodFrom)
+                    ->whereDate('je.entry_date', '<=', $periodTo);
+            })
+            ->where('at.book_id', $bookId)
+            ->whereIn('at.category', ['revenue', 'expense'])
+            ->select([
+                'at.id as account_title_id',
+                'at.account_code',
+                'at.name as account_name',
+                'at.category',
+                'at.normal_balance',
+                'at.real_estate_statement_category',
+                'at.sort_order',
+            ])
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'credit' THEN jel.amount ELSE 0 END), 0) as credit_total")
+            ->groupBy(
+                'at.id',
+                'at.account_code',
+                'at.name',
+                'at.category',
+                'at.normal_balance',
+                'at.real_estate_statement_category',
+                'at.sort_order'
+            )
+            ->orderBy('at.sort_order')
+            ->orderBy('at.account_code')
+            ->get()
+            ->map(function (object $row) use ($closingAdjustments): array {
+                $debitTotal = $this->normalizeAmount($row->debit_total ?? 0);
+                $creditTotal = $this->normalizeAmount($row->credit_total ?? 0);
+
+                $accountingAmount = (string) $row->normal_balance === 'debit'
+                    ? round($debitTotal - $creditTotal, 2)
+                    : round($creditTotal - $debitTotal, 2);
+
+                $statementCategory = $this->resolveRealEstateStatementCategory(
+                    (string) $row->category,
+                    (string) $row->account_name,
+                    $row->real_estate_statement_category !== null ? (string) $row->real_estate_statement_category : null
+                );
+
+                $adjustmentAmount = $closingAdjustments[(int) $row->account_title_id] ?? 0.0;
+                $filingAmount = $statementCategory === 'none'
+                    ? 0.0
+                    : round($accountingAmount + $adjustmentAmount, 2);
+
+                return [
+                    'account_title_id' => (int) $row->account_title_id,
+                    'account_code' => (string) $row->account_code,
+                    'account_name' => (string) $row->account_name,
+                    'category' => (string) $row->category,
+                    'normal_balance' => (string) $row->normal_balance,
+                    'statement_category' => $statementCategory,
+                    'debit_total' => $debitTotal,
+                    'credit_total' => $creditTotal,
+                    'accounting_amount' => $accountingAmount,
+                    'adjustment_amount' => $adjustmentAmount,
+                    'filing_amount' => $filingAmount,
+                    'needs_review' => $statementCategory === 'none' && abs((float) $accountingAmount) >= 0.005,
+                ];
+            })
+            ->values()
+            ->all();
+
+        if ($display === 'non_zero') {
+            $rows = array_values(array_filter($rows, function (array $row): bool {
+                return abs((float) $row['accounting_amount']) >= 0.005
+                    || abs((float) $row['adjustment_amount']) >= 0.005;
+            }));
+        }
+
+        return $rows;
+    }
+
+    private function buildWhiteReturnClosingAdjustments(int $bookId, string $periodFrom, string $periodTo): array
+    {
+        return DB::table('real_estate_closing_adjustments')
+            ->where('book_id', $bookId)
+            ->whereDate('date_from', $periodFrom)
+            ->whereDate('date_to', $periodTo)
+            ->select('account_title_id')
+            ->selectRaw('COALESCE(SUM(adjustment_amount), 0) as adjustment_amount')
+            ->groupBy('account_title_id')
+            ->get()
+            ->mapWithKeys(fn (object $row): array => [
+                (int) $row->account_title_id => $this->normalizeAmount($row->adjustment_amount ?? 0),
+            ])
+            ->all();
+    }
+
+    private function whiteReturnStatementKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['statement_category']) && (string) $row['statement_category'] !== '') {
+            return 'statement_category:' . (string) $row['statement_category'];
         }
 
         if (isset($row['account_code']) && (string) $row['account_code'] !== '') {
