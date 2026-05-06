@@ -74,7 +74,7 @@ class UtilityMenuController extends Controller
                 'description' => '画面確認やデータ整合性確認に使う補助入口です。',
                 'items' => [
                     $this->menuItem('帳簿一覧', 'books.index'),
-                    $this->menuItem('業務メニューへ戻る', 'work-menu.index', $bookParams),
+                    $this->menuItem('メインメニューへ戻る', 'main-menu.index', $bookParams),
                 ],
             ],
         ];

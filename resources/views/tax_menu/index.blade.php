@@ -9,7 +9,7 @@
             <p class="page-description">Access版の決算書作成・申告確認に近い導線です。</p>
         </div>
         <div class="actions">
-            <a href="{{ route('work-menu.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">メインメニューへ戻る</a>
+            <a href="{{ route('main-menu.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">メインメニューへ戻る</a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ</a>
         </div>
     </div>

@@ -9,7 +9,7 @@
             <p class="page-description">Access版のデータ選択・データ新規作成・データ変更・データ年度繰越に近い導線です。</p>
         </div>
         <div class="actions">
-            <a href="{{ route('work-menu.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">メインメニューへ戻る</a>
+            <a href="{{ route('main-menu.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">メインメニューへ戻る</a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ</a>
         </div>
     </div>

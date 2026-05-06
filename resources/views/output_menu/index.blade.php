@@ -9,7 +9,7 @@
             <p class="page-description">Access版の各種帳票・印刷指定に近い導線です。</p>
         </div>
         <div class="actions">
-            <a href="{{ route('work-menu.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">メインメニューへ戻る</a>
+            <a href="{{ route('main-menu.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">メインメニューへ戻る</a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ</a>
         </div>
     </div>

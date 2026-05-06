@@ -9,7 +9,7 @@
             <p class="page-description">Access版の FN_会計管理 に近い導線で、会計入力・帳簿・推移表を開きます。</p>
         </div>
         <div class="actions">
-            <a href="{{ route('work-menu.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">メインメニューへ戻る</a>
+            <a href="{{ route('main-menu.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">メインメニューへ戻る</a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ</a>
         </div>
     </div>

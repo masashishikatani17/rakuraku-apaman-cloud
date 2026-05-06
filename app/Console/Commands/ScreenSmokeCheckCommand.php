@@ -136,7 +136,8 @@ class ScreenSmokeCheckCommand extends Command
         $targets = [
             ['label' => '事業主一覧', 'name' => 'business-owners.index', 'params' => []],
             ['label' => '帳簿一覧', 'name' => 'books.index', 'params' => []],
-            ['label' => '業務メニュー', 'name' => 'work-menu.index', 'params' => $bookParams],
+            ['label' => 'メインメニュー', 'name' => 'main-menu.index', 'params' => $bookParams],
+            ['label' => '業務メニュー互換URL', 'name' => 'work-menu.index', 'params' => $bookParams],
             ['label' => '会計管理メニュー', 'name' => 'accounting-menu.index', 'params' => $bookParams],
             ['label' => 'データメニュー', 'name' => 'data-menu.index', 'params' => $bookParams],
             ['label' => 'マスタメニュー', 'name' => 'master-menu.index', 'params' => $bookParams],
