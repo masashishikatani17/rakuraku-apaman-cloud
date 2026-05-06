@@ -25,6 +25,7 @@ class VerifyReportTotalsCommand extends Command
         'bank_ledger',
         'expense_ledger',
         'general_ledger',
+        'monthly_trend',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -41,6 +42,8 @@ class VerifyReportTotalsCommand extends Command
         'sub_account_name',
         'department_code',
         'department_name',
+        'year_month',
+        'label',
         'category',
         'normal_balance',
         'opening_balance_side',
@@ -180,6 +183,10 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'general_ledger') {
             return $this->verifyGeneralLedgerCase($case, $failOnExtra);
+        }
+
+        if ($report === 'monthly_trend') {
+            return $this->verifyMonthlyTrendCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -1810,6 +1817,223 @@ class VerifyReportTotalsCommand extends Command
         }
 
         return $actualRows;
+    }
+
+
+
+    private function verifyMonthlyTrendCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $category = (string) ($case['category'] ?? 'all');
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('区分: ' . $category);
+        $this->line('許容差額: ' . $this->formatAmount($tolerance));
+
+        $actualRows = $this->buildMonthlyTrendActualRows($bookId, $periodFrom, $periodTo, $category);
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedMonths = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $yearMonth = (string) ($expectedRow['year_month'] ?? '');
+
+            if ($yearMonth === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'year_month が未指定です。'];
+                continue;
+            }
+
+            $expectedMonths[] = $yearMonth;
+            $actualRow = $actualRows[$yearMonth] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $yearMonth, '行存在', 'あり', 'なし', '-', 'クラウド側に対象年月の月次推移集計行がありません。'];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $yearMonth, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $yearMonth,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraMonths = array_values(array_diff(array_keys($actualRows), $expectedMonths));
+
+            foreach ($extraMonths as $extraMonth) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraMonth,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    '期待値にないクラウド側の月次推移集計行があります。',
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
+        ];
+    }
+
+    private function buildMonthlyTrendActualRows(int $bookId, string $periodFrom, string $periodTo, string $category): array
+    {
+        $rows = DB::table('journal_entry_lines as jel')
+            ->join('journal_entries as je', 'je.id', '=', 'jel.journal_entry_id')
+            ->join('account_titles as at', 'at.id', '=', 'jel.account_title_id')
+            ->where('je.book_id', $bookId)
+            ->where('je.status', 'posted')
+            ->where('at.book_id', $bookId)
+            ->whereIn('at.category', ['revenue', 'expense'])
+            ->whereDate('je.entry_date', '>=', $periodFrom)
+            ->whereDate('je.entry_date', '<=', $periodTo)
+            ->when($category !== 'all', fn ($query) => $query->where('at.category', $category))
+            ->select([
+                'at.category',
+                'at.normal_balance',
+            ])
+            ->selectRaw("DATE_FORMAT(je.entry_date, '%Y-%m') as year_month")
+            ->selectRaw("COALESCE(SUM(CASE WHEN jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN jel.side = 'credit' THEN jel.amount ELSE 0 END), 0) as credit_total")
+            ->groupBy(
+                'at.category',
+                'at.normal_balance',
+                DB::raw("DATE_FORMAT(je.entry_date, '%Y-%m')")
+            )
+            ->orderByRaw("DATE_FORMAT(je.entry_date, '%Y-%m')")
+            ->get();
+
+        $actualRows = [];
+
+        foreach ($this->buildYearMonths($periodFrom, $periodTo) as $yearMonth) {
+            $actualRows[$yearMonth] = [
+                'year_month' => $yearMonth,
+                'revenue_total' => 0.0,
+                'expense_total' => 0.0,
+                'profit_loss_total' => 0.0,
+                'total_amount' => 0.0,
+            ];
+        }
+
+        foreach ($rows as $row) {
+            $yearMonth = (string) $row->year_month;
+
+            if (! isset($actualRows[$yearMonth])) {
+                $actualRows[$yearMonth] = [
+                    'year_month' => $yearMonth,
+                    'revenue_total' => 0.0,
+                    'expense_total' => 0.0,
+                    'profit_loss_total' => 0.0,
+                    'total_amount' => 0.0,
+                ];
+            }
+
+            $debitTotal = $this->normalizeAmount($row->debit_total ?? 0);
+            $creditTotal = $this->normalizeAmount($row->credit_total ?? 0);
+            $amount = (string) $row->normal_balance === 'debit'
+                ? round($debitTotal - $creditTotal, 2)
+                : round($creditTotal - $debitTotal, 2);
+
+            if ((string) $row->category === 'revenue') {
+                $actualRows[$yearMonth]['revenue_total'] = round($actualRows[$yearMonth]['revenue_total'] + $amount, 2);
+            } elseif ((string) $row->category === 'expense') {
+                $actualRows[$yearMonth]['expense_total'] = round($actualRows[$yearMonth]['expense_total'] + $amount, 2);
+            }
+        }
+
+        foreach ($actualRows as $yearMonth => $row) {
+            $actualRows[$yearMonth]['profit_loss_total'] = round(
+                (float) $row['revenue_total'] - (float) $row['expense_total'],
+                2
+            );
+            $actualRows[$yearMonth]['total_amount'] = $actualRows[$yearMonth]['profit_loss_total'];
+        }
+
+        return $actualRows;
+    }
+
+    private function buildYearMonths(string $periodFrom, string $periodTo): array
+    {
+        $start = new \DateTimeImmutable(substr($periodFrom, 0, 7) . '-01');
+        $end = new \DateTimeImmutable(substr($periodTo, 0, 7) . '-01');
+
+        if ($start > $end) {
+            return [];
+        }
+
+        $months = [];
+        $cursor = $start;
+
+        while ($cursor <= $end) {
+            $months[] = $cursor->format('Y-m');
+            $cursor = $cursor->modify('+1 month');
+        }
+
+        return $months;
     }
 
 

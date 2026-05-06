@@ -1,0 +1,26 @@
+{
+  "case_id": "monthly_trend_001",
+  "title": "月次推移表 基本ケース",
+  "report": "monthly_trend",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "category": "all",
+  "tolerance": 0,
+  "expected": [
+    {
+      "year_month": "2026-01",
+      "revenue_total": 120000,
+      "expense_total": 30000,
+      "profit_loss_total": 90000,
+      "total_amount": 90000
+    },
+    {
+      "year_month": "2026-02",
+      "revenue_total": 120000,
+      "expense_total": 25000,
+      "profit_loss_total": 95000,
+      "total_amount": 95000
+    }
+  ]
+}
