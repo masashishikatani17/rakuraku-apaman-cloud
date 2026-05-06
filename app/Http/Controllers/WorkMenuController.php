@@ -47,65 +47,68 @@ class WorkMenuController extends Controller
         return [
             [
                 'key' => 'data',
-                'title' => 'データ選択・帳簿',
-                'description' => 'Access版のデータ選択・データ変更に相当する入口です。',
+                'title' => 'データ変更',
+                'description' => 'Access版 FN_メインメニュー の「データ変更」から入る導線に相当します。',
                 'items' => [
-                    $this->menuItem('データメニュー', 'data-menu.index', $bookParams),
+                    $this->menuItem('データメニューへ', 'data-menu.index', $bookParams),
                 ],
             ],
             [
                 'key' => 'accounting',
                 'title' => '会計管理',
-                'description' => 'Access版の会計管理メニューに相当します。',
+                'description' => 'Access版 FN_メインメニュー の「会計管理」から FN_会計管理 を開く導線に相当します。',
                 'items' => [
-                    $this->menuItem('会計管理メニュー', 'accounting-menu.index', $bookParams),
+                    $this->menuItem('会計管理メニューへ', 'accounting-menu.index', $bookParams),
                 ],
             ],
             [
-                'key' => 'rental',
-                'title' => '賃貸管理',
-                'description' => '物件・契約・退去処理に関する入口です。',
+                'key' => 'masters',
+                'title' => 'マスター',
+                'description' => 'Access版 FN_メインメニュー の「マスター」から FN_マスター を開く導線に相当します。',
                 'items' => [
-                    $this->menuItem('賃貸管理メニュー', 'rental-menu.index', $bookParams),
-                ],
-            ],
-            [
-                'key' => 'payment',
-                'title' => '入金管理',
-                'description' => '月次入金予定、入金実績、差額処理、預り金処理の入口です。',
-                'items' => [
-                    $this->menuItem('入金管理メニュー', 'payment-menu.index', $bookParams),
-                ],
-            ],
-            [
-                'key' => 'tax',
-                'title' => '決算・申告',
-                'description' => 'Access版の決算書作成系に相当する入口です。',
-                'items' => [
-                    $this->menuItem('決算・申告メニュー', 'tax-menu.index', $bookParams),
+                    $this->menuItem('マスターメニューへ', 'master-menu.index', $bookParams),
                 ],
             ],
             [
                 'key' => 'utility',
                 'title' => 'ユーティリティ',
-                'description' => 'Access版のユーティリティに相当します。',
+                'description' => 'Access版 FN_メインメニュー の「ユーティリティ」から F_ユーティリティ を開く導線に相当します。',
                 'items' => [
-                    $this->menuItem('ユーティリティメニュー', 'utility-menu.index', $bookParams),
+                    $this->menuItem('ユーティリティメニューへ', 'utility-menu.index', $bookParams),
                 ],
             ],
             [
-                'key' => 'masters',
-                'title' => 'マスタ',
-                'description' => '勘定科目、補助科目、摘要、部門などの管理入口です。',
+                'key' => 'rollover',
+                'title' => '年度繰越処理',
+                'description' => 'Access版 FN_メインメニュー から確認できたデータ繰越処理系の導線です。Cloud版ではデータメニュー側の年度繰越入口へ集約します。',
                 'items' => [
-                    $this->menuItem('マスタメニュー', 'master-menu.index', $bookParams),
+                    $this->menuItem('年度繰越処理へ', 'data-menu.index', $bookParams),
                 ],
             ],
             [
-                'key' => 'output',
-                'title' => '帳票・出力',
-                'description' => 'Access版の各種帳票・出力系に相当する入口です。',
+                'key' => 'exit',
+                'title' => '終了・データ保存先選択',
+                'description' => 'Access版 FN_メインメニュー の「終了」から FN_データ保存先選択 を開く導線です。Cloud版の保存先選択画面は未実装のため、現時点では導線メモとして表示します。',
                 'items' => [
+                    $this->menuItem('データ保存先選択', 'access-data-save-exit.index', $bookParams),
+                ],
+            ],
+            [
+                'key' => 'book_select',
+                'title' => '帳簿選択・状態確認',
+                'description' => 'Access版のデータ選択に近づけるため、Cloud版では帳簿一覧への入口を補助的に残します。',
+                'items' => [
+                    $this->menuItem('帳簿一覧へ', 'books.index'),
+                ],
+            ],
+            [
+                'key' => 'cloud_deferred',
+                'title' => 'Access親導線未確認（Cloud側分類・後回し）',
+                'description' => '以下は既にCloud版に作成済みの分類です。削除はしませんが、Access版メインメニュー直下の独立導線としては未確認のため、今後Accessフォーム対応を確認してから整理します。',
+                'items' => [
+                    $this->menuItem('賃貸管理メニュー', 'rental-menu.index', $bookParams),
+                    $this->menuItem('入金管理メニュー', 'payment-menu.index', $bookParams),
+                    $this->menuItem('決算・申告メニュー', 'tax-menu.index', $bookParams),
                     $this->menuItem('帳票・出力メニュー', 'output-menu.index', $bookParams),
                 ],
             ],
