@@ -24,6 +24,7 @@ class VerifyReportTotalsCommand extends Command
         'cash_ledger',
         'bank_ledger',
         'expense_ledger',
+        'general_ledger',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -175,6 +176,10 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'expense_ledger') {
             return $this->verifyExpenseLedgerCase($case, $failOnExtra);
+        }
+
+        if ($report === 'general_ledger') {
+            return $this->verifyGeneralLedgerCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -1633,6 +1638,178 @@ class VerifyReportTotalsCommand extends Command
         }
 
         return $key;
+    }
+
+
+
+    private function verifyGeneralLedgerCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('許容差額: ' . $this->formatAmount($tolerance));
+
+        $actualRows = $this->buildGeneralLedgerActualRows($bookId, $periodFrom, $periodTo, $case['expected']);
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedAccountCodes = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $accountCode = (string) ($expectedRow['account_code'] ?? '');
+
+            if ($accountCode === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'account_code が未指定です。'];
+                continue;
+            }
+
+            $expectedAccountCodes[] = $accountCode;
+            $actualRow = $actualRows[$accountCode] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $accountCode, '行存在', 'あり', 'なし', '-', 'クラウド側に対象勘定科目の元帳集計行がありません。'];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $accountCode, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $accountCode,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraAccountCodes = array_values(array_diff(array_keys($actualRows), $expectedAccountCodes));
+
+            foreach ($extraAccountCodes as $extraAccountCode) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraAccountCode,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    '期待値にないクラウド側の総勘定元帳集計行があります。',
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
+        ];
+    }
+
+    private function buildGeneralLedgerActualRows(int $bookId, string $periodFrom, string $periodTo, array $expectedRows): array
+    {
+        $expectedAccountCodes = collect($expectedRows)
+            ->filter(fn ($row): bool => is_array($row) && ! empty($row['account_code']))
+            ->pluck('account_code')
+            ->map(fn ($value): string => (string) $value)
+            ->unique()
+            ->values();
+
+        $accountTitles = DB::table('account_titles')
+            ->where('book_id', $bookId)
+            ->orderBy('sort_order')
+            ->orderBy('account_code')
+            ->orderBy('id')
+            ->get();
+
+        $actualRows = [];
+
+        foreach ($accountTitles as $accountTitle) {
+            $actualRow = $this->buildCashLedgerActualRow(
+                $bookId,
+                (int) $accountTitle->id,
+                (string) $accountTitle->account_code,
+                (string) $accountTitle->name,
+                (string) $accountTitle->normal_balance,
+                null,
+                null,
+                $periodFrom,
+                $periodTo
+            );
+
+            $hasExpected = $expectedAccountCodes->contains((string) $accountTitle->account_code);
+            $hasAmount = abs((float) $actualRow['opening_balance']) >= 0.005
+                || abs((float) $actualRow['period_debit_total']) >= 0.005
+                || abs((float) $actualRow['period_credit_total']) >= 0.005
+                || abs((float) $actualRow['ending_balance']) >= 0.005
+                || (int) $actualRow['entries_count'] > 0;
+
+            if (! $hasExpected && ! $hasAmount) {
+                continue;
+            }
+
+            $actualRow['debit_amount'] = $actualRow['period_debit_total'];
+            $actualRow['credit_amount'] = $actualRow['period_credit_total'];
+            $actualRow['total_debit'] = $actualRow['period_debit_total'];
+            $actualRow['total_credit'] = $actualRow['period_credit_total'];
+
+            $actualRows[(string) $accountTitle->account_code] = $actualRow;
+        }
+
+        return $actualRows;
     }
 
 

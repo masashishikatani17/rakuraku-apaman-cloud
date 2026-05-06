@@ -1,0 +1,35 @@
+{
+  "case_id": "general_ledger_001",
+  "title": "総勘定元帳 基本ケース",
+  "report": "general_ledger",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "tolerance": 0,
+  "expected": [
+    {
+      "account_code": "101",
+      "account_name": "現金",
+      "opening_balance": 100000,
+      "period_debit_total": 500000,
+      "period_credit_total": 200000,
+      "debit_amount": 500000,
+      "credit_amount": 200000,
+      "ending_balance": 400000,
+      "ending_debit": 400000,
+      "ending_credit": 0
+    },
+    {
+      "account_code": "401",
+      "account_name": "不動産収入",
+      "opening_balance": 0,
+      "period_debit_total": 0,
+      "period_credit_total": 1380000,
+      "debit_amount": 0,
+      "credit_amount": 1380000,
+      "ending_balance": 1380000,
+      "ending_debit": 0,
+      "ending_credit": 1380000
+    }
+  ]
+}
