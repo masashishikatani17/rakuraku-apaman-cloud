@@ -1,0 +1,51 @@
+{
+  "case_id": "sub_account_ledger_001",
+  "title": "補助元帳 基本ケース",
+  "report": "sub_account_ledger",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "account_code": "102",
+  "account_name": "普通預金",
+  "sub_account_code": "普通001",
+  "sub_account_name": "普通預金サンプル",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "opening_balance": 1000000,
+      "period_debit_total": 1380000,
+      "period_credit_total": 500000,
+      "debit_total": 1380000,
+      "credit_total": 500000,
+      "total_increase": 1380000,
+      "total_decrease": 500000,
+      "ending_balance": 1880000,
+      "ending_debit": 1880000,
+      "ending_credit": 0,
+      "total_amount": 1880000
+    },
+    {
+      "account_code": "102",
+      "sub_account_code": "普通001",
+      "opening_balance": 1000000,
+      "period_debit_total": 1380000,
+      "period_credit_total": 500000,
+      "ending_balance": 1880000,
+      "ending_debit": 1880000,
+      "ending_credit": 0
+    },
+    {
+      "key": "line:1:1",
+      "journal_entry_id": 1,
+      "line_no": 1,
+      "debit_amount": 1380000,
+      "credit_amount": 0,
+      "amount": 1380000,
+      "running_balance": 2380000,
+      "running_debit": 2380000,
+      "running_credit": 0,
+      "total_amount": 1380000
+    }
+  ]
+}
