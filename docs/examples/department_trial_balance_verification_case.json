@@ -1,0 +1,60 @@
+{
+  "case_id": "department_trial_balance_001",
+  "title": "部門別試算表 基本ケース",
+  "report": "department_trial_balance",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "debit_total": 300000,
+      "credit_total": 1380000,
+      "revenue_total": 1380000,
+      "expense_total": 300000,
+      "profit_loss_total": 1080000,
+      "amount": 1080000,
+      "total_amount": 1080000
+    },
+    {
+      "department_code": "D001",
+      "department_name": "サンプル部門",
+      "debit_total": 300000,
+      "credit_total": 1380000,
+      "revenue_total": 1380000,
+      "expense_total": 300000,
+      "profit_loss_total": 1080000,
+      "amount": 1080000,
+      "total_amount": 1080000
+    },
+    {
+      "category": "revenue",
+      "revenue_total": 1380000,
+      "expense_total": 0,
+      "profit_loss_total": 1380000,
+      "amount": 1380000,
+      "total_amount": 1380000
+    },
+    {
+      "category": "expense",
+      "revenue_total": 0,
+      "expense_total": 300000,
+      "profit_loss_total": -300000,
+      "amount": -300000,
+      "total_amount": -300000
+    },
+    {
+      "department_code": "D001",
+      "account_code": "401",
+      "account_name": "不動産収入",
+      "debit_total": 0,
+      "credit_total": 1380000,
+      "revenue_amount": 1380000,
+      "expense_amount": 0,
+      "profit_loss_amount": 1380000,
+      "amount": 1380000,
+      "total_amount": 1380000
+    }
+  ]
+}

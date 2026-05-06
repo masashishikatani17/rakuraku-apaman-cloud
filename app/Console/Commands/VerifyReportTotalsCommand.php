@@ -35,6 +35,7 @@ class VerifyReportTotalsCommand extends Command
         'real_estate_closing_detail',
         'income_statement',
         'balance_sheet',
+        'department_trial_balance',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -87,6 +88,11 @@ class VerifyReportTotalsCommand extends Command
         'ledger_label',
         'status',
         'has_adjustment',
+        'department_id',
+        'department_is_active',
+        'department_sort_order',
+        'account_title_id',
+        'account_is_active',
     ];
 
     public function handle(): int
@@ -259,6 +265,10 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'balance_sheet') {
             return $this->verifyBalanceSheetCase($case, $failOnExtra);
+        }
+
+        if ($report === 'department_trial_balance') {
+            return $this->verifyDepartmentTrialBalanceCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -5715,6 +5725,446 @@ class VerifyReportTotalsCommand extends Command
         }
 
         return '';
+    }
+
+
+
+    private function verifyDepartmentTrialBalanceCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $departmentId = isset($case['department_id']) && (string) $case['department_id'] !== ''
+            ? (int) $case['department_id']
+            : null;
+        $departmentCode = isset($case['department_code']) && (string) $case['department_code'] !== ''
+            ? (string) $case['department_code']
+            : null;
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('部門ID: ' . ($departmentId !== null ? (string) $departmentId : 'all'));
+        $this->line('部門コード: ' . ($departmentCode !== null ? $departmentCode : 'all'));
+        $this->line('許容差額: ' . $this->formatAmount($tolerance));
+
+        $actualRows = $this->buildDepartmentTrialBalanceActualRows(
+            $bookId,
+            $periodFrom,
+            $periodTo,
+            $departmentId,
+            $departmentCode
+        );
+
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedKeys = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $key = $this->departmentTrialBalanceKeyFromExpectedRow($expectedRow);
+
+            if ($key === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'key、department_code、department_id、account_code、category のいずれかを指定してください。'];
+                continue;
+            }
+
+            $expectedKeys[] = $key;
+            $actualRow = $actualRows[$key] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $key, '行存在', 'あり', 'なし', '-', 'クラウド側に対象の部門別試算表集計行がありません。'];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $key, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $key,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraKeys = array_values(array_diff(array_keys($actualRows), $expectedKeys));
+
+            foreach ($extraKeys as $extraKey) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraKey,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    '期待値にないクラウド側の部門別試算表集計行があります。',
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
+        ];
+    }
+
+    private function buildDepartmentTrialBalanceActualRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        ?int $departmentId,
+        ?string $departmentCode
+    ): array {
+        $query = DB::table('journal_entry_lines as jel')
+            ->join('journal_entries as je', 'je.id', '=', 'jel.journal_entry_id')
+            ->join('account_titles as at', 'at.id', '=', 'jel.account_title_id')
+            ->leftJoin('departments as d', 'd.id', '=', 'jel.department_id')
+            ->where('je.book_id', $bookId)
+            ->where('je.status', 'posted')
+            ->where('at.book_id', $bookId)
+            ->whereIn('at.category', ['revenue', 'expense'])
+            ->whereDate('je.entry_date', '>=', $periodFrom)
+            ->whereDate('je.entry_date', '<=', $periodTo)
+            ->select([
+                'd.id as department_id',
+                'd.department_code',
+                'd.name as department_name',
+                'd.is_active as department_is_active',
+                'd.sort_order as department_sort_order',
+                'at.id as account_title_id',
+                'at.account_code',
+                'at.name as account_name',
+                'at.category',
+                'at.normal_balance',
+                'at.is_active as account_is_active',
+                'at.sort_order as account_sort_order',
+            ])
+            ->selectRaw("COALESCE(SUM(CASE WHEN jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN jel.side = 'credit' THEN jel.amount ELSE 0 END), 0) as credit_total")
+            ->groupBy(
+                'd.id',
+                'd.department_code',
+                'd.name',
+                'd.is_active',
+                'd.sort_order',
+                'at.id',
+                'at.account_code',
+                'at.name',
+                'at.category',
+                'at.normal_balance',
+                'at.is_active',
+                'at.sort_order'
+            )
+            ->orderByRaw('COALESCE(d.sort_order, 999999)')
+            ->orderByRaw('COALESCE(d.department_code, "")')
+            ->orderBy('at.sort_order')
+            ->orderBy('at.account_code');
+
+        if ($departmentId !== null) {
+            $query->where('jel.department_id', $departmentId);
+        } elseif ($departmentCode !== null) {
+            if ($departmentCode === 'none') {
+                $query->whereNull('jel.department_id');
+            } else {
+                $query->where('d.department_code', $departmentCode);
+            }
+        }
+
+        $detailRows = $query
+            ->get()
+            ->map(function (object $row): array {
+                $debitTotal = $this->normalizeAmount($row->debit_total ?? 0);
+                $creditTotal = $this->normalizeAmount($row->credit_total ?? 0);
+                $normalBalance = (string) $row->normal_balance;
+
+                $rawBalance = $normalBalance === 'debit'
+                    ? round($debitTotal - $creditTotal, 2)
+                    : round($creditTotal - $debitTotal, 2);
+
+                [$endingBalance, $endingBalanceSide] = $this->departmentTrialBalanceNormalizeBalance(
+                    $rawBalance,
+                    $normalBalance
+                );
+
+                $revenueAmount = (string) $row->category === 'revenue'
+                    ? round($creditTotal - $debitTotal, 2)
+                    : 0.0;
+
+                $expenseAmount = (string) $row->category === 'expense'
+                    ? round($debitTotal - $creditTotal, 2)
+                    : 0.0;
+
+                $departmentKey = $this->departmentTrialBalanceDepartmentKey(
+                    $row->department_id !== null ? (int) $row->department_id : null,
+                    $row->department_code !== null ? (string) $row->department_code : null
+                );
+
+                return [
+                    'department_key' => $departmentKey,
+                    'department_id' => $row->department_id !== null ? (int) $row->department_id : null,
+                    'department_code' => $row->department_code !== null ? (string) $row->department_code : null,
+                    'department_name' => $row->department_name !== null ? (string) $row->department_name : '部門未設定',
+                    'department_is_active' => $row->department_id !== null ? (bool) $row->department_is_active : null,
+                    'department_sort_order' => $row->department_sort_order !== null ? (int) $row->department_sort_order : 999999,
+                    'account_title_id' => (int) $row->account_title_id,
+                    'account_code' => (string) $row->account_code,
+                    'account_name' => (string) $row->account_name,
+                    'category' => (string) $row->category,
+                    'normal_balance' => $normalBalance,
+                    'account_is_active' => (bool) $row->account_is_active,
+                    'debit_total' => $debitTotal,
+                    'credit_total' => $creditTotal,
+                    'debit_amount' => $debitTotal,
+                    'credit_amount' => $creditTotal,
+                    'ending_balance' => $endingBalance,
+                    'ending_balance_side' => $endingBalanceSide,
+                    'ending_debit' => $endingBalanceSide === 'debit' ? $endingBalance : 0.0,
+                    'ending_credit' => $endingBalanceSide === 'credit' ? $endingBalance : 0.0,
+                    'revenue_amount' => $revenueAmount,
+                    'expense_amount' => $expenseAmount,
+                    'profit_loss_amount' => round($revenueAmount - $expenseAmount, 2),
+                    'amount' => round($revenueAmount - $expenseAmount, 2),
+                    'total_amount' => round($revenueAmount - $expenseAmount, 2),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $actualRows = [];
+
+        $revenueTotal = round(
+            collect($detailRows)->sum(fn (array $row): float => (float) $row['revenue_amount']),
+            2
+        );
+        $expenseTotal = round(
+            collect($detailRows)->sum(fn (array $row): float => (float) $row['expense_amount']),
+            2
+        );
+
+        $actualRows['summary'] = [
+            'key' => 'summary',
+            'rows_count' => count($detailRows),
+            'departments_count' => collect($detailRows)->pluck('department_key')->unique()->count(),
+            'accounts_count' => collect($detailRows)->pluck('account_title_id')->unique()->count(),
+            'debit_total' => round(collect($detailRows)->sum(fn (array $row): float => (float) $row['debit_total']), 2),
+            'credit_total' => round(collect($detailRows)->sum(fn (array $row): float => (float) $row['credit_total']), 2),
+            'revenue_total' => $revenueTotal,
+            'expense_total' => $expenseTotal,
+            'profit_loss_total' => round($revenueTotal - $expenseTotal, 2),
+            'amount' => round($revenueTotal - $expenseTotal, 2),
+            'total_amount' => round($revenueTotal - $expenseTotal, 2),
+        ];
+
+        collect($detailRows)
+            ->groupBy('category')
+            ->each(function ($rows, string $category) use (&$actualRows): void {
+                $revenueTotal = round(collect($rows)->sum(fn (array $row): float => (float) $row['revenue_amount']), 2);
+                $expenseTotal = round(collect($rows)->sum(fn (array $row): float => (float) $row['expense_amount']), 2);
+                $profitLossTotal = round($revenueTotal - $expenseTotal, 2);
+
+                $actualRows['category:' . $category] = [
+                    'key' => 'category:' . $category,
+                    'category' => $category,
+                    'accounts_count' => collect($rows)->pluck('account_title_id')->unique()->count(),
+                    'departments_count' => collect($rows)->pluck('department_key')->unique()->count(),
+                    'debit_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['debit_total']), 2),
+                    'credit_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['credit_total']), 2),
+                    'revenue_total' => $revenueTotal,
+                    'expense_total' => $expenseTotal,
+                    'profit_loss_total' => $profitLossTotal,
+                    'amount' => $profitLossTotal,
+                    'total_amount' => $profitLossTotal,
+                ];
+            });
+
+        collect($detailRows)
+            ->groupBy('department_key')
+            ->each(function ($rows, string $departmentKey) use (&$actualRows): void {
+                $first = collect($rows)->first();
+                $revenueTotal = round(collect($rows)->sum(fn (array $row): float => (float) $row['revenue_amount']), 2);
+                $expenseTotal = round(collect($rows)->sum(fn (array $row): float => (float) $row['expense_amount']), 2);
+                $profitLossTotal = round($revenueTotal - $expenseTotal, 2);
+
+                $actualRows[$departmentKey] = [
+                    'key' => $departmentKey,
+                    'department_id' => $first['department_id'] ?? null,
+                    'department_code' => $first['department_code'] ?? null,
+                    'department_name' => $first['department_name'] ?? '部門未設定',
+                    'accounts_count' => collect($rows)->pluck('account_title_id')->unique()->count(),
+                    'debit_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['debit_total']), 2),
+                    'credit_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['credit_total']), 2),
+                    'revenue_total' => $revenueTotal,
+                    'expense_total' => $expenseTotal,
+                    'profit_loss_total' => $profitLossTotal,
+                    'amount' => $profitLossTotal,
+                    'total_amount' => $profitLossTotal,
+                ];
+            });
+
+        collect($detailRows)
+            ->groupBy('account_code')
+            ->each(function ($rows, string $accountCode) use (&$actualRows): void {
+                $first = collect($rows)->first();
+                $revenueTotal = round(collect($rows)->sum(fn (array $row): float => (float) $row['revenue_amount']), 2);
+                $expenseTotal = round(collect($rows)->sum(fn (array $row): float => (float) $row['expense_amount']), 2);
+                $profitLossTotal = round($revenueTotal - $expenseTotal, 2);
+
+                $actualRows['account:' . $accountCode] = [
+                    'key' => 'account:' . $accountCode,
+                    'account_code' => $accountCode,
+                    'account_name' => (string) ($first['account_name'] ?? ''),
+                    'category' => (string) ($first['category'] ?? ''),
+                    'departments_count' => collect($rows)->pluck('department_key')->unique()->count(),
+                    'debit_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['debit_total']), 2),
+                    'credit_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['credit_total']), 2),
+                    'revenue_amount' => $revenueTotal,
+                    'expense_amount' => $expenseTotal,
+                    'profit_loss_amount' => $profitLossTotal,
+                    'amount' => $profitLossTotal,
+                    'total_amount' => $profitLossTotal,
+                ];
+            });
+
+        foreach ($detailRows as $row) {
+            $key = $row['department_key'] . '|account:' . $row['account_code'];
+
+            $actualRows[$key] = $row + [
+                'key' => $key,
+            ];
+        }
+
+        return $actualRows;
+    }
+
+    private function departmentTrialBalanceKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['department_code']) && (string) $row['department_code'] !== '') {
+            $departmentKey = 'department:' . (string) $row['department_code'];
+
+            if (isset($row['account_code']) && (string) $row['account_code'] !== '') {
+                return $departmentKey . '|account:' . (string) $row['account_code'];
+            }
+
+            return $departmentKey;
+        }
+
+        if (isset($row['department_id']) && (string) $row['department_id'] !== '') {
+            $departmentKey = 'department_id:' . (int) $row['department_id'];
+
+            if (isset($row['account_code']) && (string) $row['account_code'] !== '') {
+                return $departmentKey . '|account:' . (string) $row['account_code'];
+            }
+
+            return $departmentKey;
+        }
+
+        if (isset($row['department']) && (string) $row['department'] === 'none') {
+            $departmentKey = 'department:none';
+
+            if (isset($row['account_code']) && (string) $row['account_code'] !== '') {
+                return $departmentKey . '|account:' . (string) $row['account_code'];
+            }
+
+            return $departmentKey;
+        }
+
+        if (isset($row['account_code']) && (string) $row['account_code'] !== '') {
+            return 'account:' . (string) $row['account_code'];
+        }
+
+        if (isset($row['category']) && (string) $row['category'] !== '') {
+            return 'category:' . (string) $row['category'];
+        }
+
+        return '';
+    }
+
+    private function departmentTrialBalanceDepartmentKey(?int $departmentId, ?string $departmentCode): string
+    {
+        if ($departmentCode !== null && $departmentCode !== '') {
+            return 'department:' . $departmentCode;
+        }
+
+        if ($departmentId !== null) {
+            return 'department_id:' . $departmentId;
+        }
+
+        return 'department:none';
+    }
+
+    private function departmentTrialBalanceNormalizeBalance(float $rawBalance, string $normalBalance): array
+    {
+        $balance = round(abs($rawBalance), 2);
+
+        if ($balance < 0.005) {
+            return [0.0, null];
+        }
+
+        if ($rawBalance > 0) {
+            return [$balance, $normalBalance];
+        }
+
+        return [
+            $balance,
+            $normalBalance === 'debit' ? 'credit' : 'debit',
+        ];
     }
 
 
