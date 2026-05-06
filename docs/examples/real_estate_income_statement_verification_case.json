@@ -1,0 +1,34 @@
+{
+  "case_id": "real_estate_income_statement_001",
+  "title": "不動産所得集計 基本ケース",
+  "report": "real_estate_income_statement",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "display": "non_zero",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "revenue_total": 1380000,
+      "expense_total": 300000,
+      "real_estate_income_total": 1080000,
+      "rental_expected_total": 1380000,
+      "rental_received_total": 1380000,
+      "rental_remaining_total": 0,
+      "depreciation_total": 0
+    },
+    {
+      "statement_category": "revenue_rent",
+      "statement_category_label": "家賃・賃料",
+      "amount": 1200000,
+      "total_amount": 1200000
+    },
+    {
+      "statement_category": "expense_repair",
+      "statement_category_label": "修繕費",
+      "amount": 300000,
+      "total_amount": 300000
+    }
+  ]
+}
