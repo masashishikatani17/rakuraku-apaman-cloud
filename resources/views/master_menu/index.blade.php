@@ -6,7 +6,7 @@
     <div class="page-header">
         <div>
             <h2 class="page-title">マスタメニュー</h2>
-            <p class="page-description">Access版のマスター管理に近い導線で、会計・賃貸・入金マスタを開きます。</p>
+            <p class="page-description">Access版 FN_マスター の導線を基準に、マスター画面を開きます。</p>
         </div>
         <div class="actions">
             <a href="{{ route('main-menu.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">メインメニューへ戻る</a>
@@ -15,7 +15,7 @@
     </div>
 
     <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
-        会計マスタ、賃貸マスタ、入金マスタをこの画面に集約します。入力・帳簿・決算画面とは分けています。
+        Access版 FN_マスター で確認できた項目を上段に置き、Cloud側で追加済みだがAccess直下導線として未確認の項目は後回し欄に分けています。
     </div>
 
     <div class="card" style="margin-bottom: 16px;">
