@@ -9,6 +9,27 @@
             <p class="page-description">登録済の仕訳を修正します。帳簿は変えずに内容だけ修正します。</p>
         </div>
         <div class="actions">
+@php
+                $parentBookId = request('book_id')
+                    ?? ($selectedBookId ?? null)
+                    ?? ($accountTitle->book_id ?? null)
+                    ?? ($journalDescription->book_id ?? null)
+                    ?? ($department->book_id ?? null)
+                    ?? ($propertyOwner->book_id ?? null)
+                    ?? ($propertyCategory->book_id ?? null)
+                    ?? ($property->book_id ?? null)
+                    ?? ($contractTenant->book_id ?? null)
+                    ?? ($paymentItem->book_id ?? null)
+                    ?? ($paymentAccount->book_id ?? null)
+                    ?? ($borrowingLoan->book_id ?? null)
+                    ?? ($journalEntry->book_id ?? null);
+            @endphp
+            <a
+                href="{{ route('accounting-menu.index', $parentBookId ? ['book_id' => $parentBookId] : []) }}"
+                class="button button-secondary"
+            >
+                会計管理メニューへ戻る
+            </a>
             <a href="{{ route('journal-entries.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">仕訳一覧へ戻る</a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
