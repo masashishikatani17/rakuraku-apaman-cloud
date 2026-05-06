@@ -1,0 +1,45 @@
+{
+  "case_id": "income_statement_001",
+  "title": "損益計算書 基本ケース",
+  "report": "income_statement",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "display": "non_zero",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "revenue_total": 1380000,
+      "expense_total": 300000,
+      "profit_loss_total": 1080000,
+      "total_amount": 1080000
+    },
+    {
+      "category": "revenue",
+      "amount": 1380000,
+      "total_amount": 1380000
+    },
+    {
+      "category": "expense",
+      "amount": 300000,
+      "total_amount": 300000
+    },
+    {
+      "account_code": "401",
+      "account_name": "不動産収入",
+      "debit_total": 0,
+      "credit_total": 1380000,
+      "amount": 1380000,
+      "total_amount": 1380000
+    },
+    {
+      "account_code": "501",
+      "account_name": "修繕費",
+      "debit_total": 300000,
+      "credit_total": 0,
+      "amount": 300000,
+      "total_amount": 300000
+    }
+  ]
+}
