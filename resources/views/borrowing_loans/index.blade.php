@@ -48,7 +48,13 @@
                     損益計算書へ
                 </a>
             @endif
-            <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
+            <a
+                href="{{ (isset($selectedBookId) && $selectedBookId) ? route('master-menu.index', ['book_id' => $selectedBookId]) : route('master-menu.index') }}"
+                class="button button-secondary"
+            >
+                マスタメニューへ戻る
+            </a>
+            <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ</a>
         </div>
     </div>
 
