@@ -62,7 +62,13 @@
                     貸借対照表へ
                 </a>
             @endif
-            <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
+            <a
+                href="{{ (isset($selectedBookId) && $selectedBookId) ? route('accounting-menu.index', ['book_id' => $selectedBookId]) : route('accounting-menu.index') }}"
+                class="button button-secondary"
+            >
+                会計管理メニューへ戻る
+            </a>
+            <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ</a>
         </div>
     </div>
 
