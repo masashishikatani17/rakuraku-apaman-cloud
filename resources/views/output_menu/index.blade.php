@@ -6,7 +6,7 @@
     <div class="page-header">
         <div>
             <h2 class="page-title">帳票・出力メニュー</h2>
-            <p class="page-description">Access版の各種帳票・印刷指定に近い導線です。</p>
+            <p class="page-description">Access版の印刷フォーム群との対応を確認しながら、Cloud版の帳票入口を整理しています。</p>
         </div>
         <div class="actions">
             <a href="{{ route('main-menu.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">メインメニューへ戻る</a>
@@ -15,7 +15,7 @@
     </div>
 
     <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
-        画面上の見た目や並び順は後で調整しやすいよう、まずは帳票・出力への導線をまとめています。
+        Access版に印刷フォームが確認できる帳票系を上段に置き、Cloud側で追加済みのCSV/PDF出力はAccess親導線未確認として後回し欄に分けています。
     </div>
 
     <div class="card" style="margin-bottom: 16px;">

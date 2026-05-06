@@ -6,7 +6,7 @@
     <div class="page-header">
         <div>
             <h2 class="page-title">決算・申告メニュー</h2>
-            <p class="page-description">Access版の決算書作成・申告確認に近い導線です。</p>
+            <p class="page-description">Access版の決算書作成系に近い導線を上段に置き、Cloud側追加項目を後回し欄に分けています。</p>
         </div>
         <div class="actions">
             <a href="{{ route('main-menu.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">メインメニューへ戻る</a>
@@ -15,7 +15,7 @@
     </div>
 
     <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
-        決算整理、不動産所得決算書、青色・白色プレビュー、消費税、物件別損益確認をこの画面に集約します。
+        Access版 FN_会計管理 から開く決算書作成系に相当する項目を上段に置き、消費税・決算補助・物件別損益などはAccess親導線未確認として残しています。
     </div>
 
     <div class="card" style="margin-bottom: 16px;">

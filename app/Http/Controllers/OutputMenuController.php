@@ -46,22 +46,9 @@ class OutputMenuController extends Controller
 
         return [
             [
-                'key' => 'rental_reports',
-                'title' => '賃貸帳票',
-                'description' => 'Access版の賃貸関連帳票に相当する入口です。',
-                'items' => [
-                    $this->menuItem('物件別入金一覧', 'reports.property-payments.index', $bookParams),
-                    $this->menuItem('物件別年間収入', 'reports.property-annual-incomes.index', $bookParams),
-                    $this->menuItem('契約者別年間収入', 'reports.contract-tenant-annual-incomes.index', $bookParams),
-                    $this->menuItem('物件台帳', 'reports.property-ledgers.index', $bookParams),
-                    $this->menuItem('賃貸条件一覧', 'reports.rental-contracts.index', $bookParams),
-                    $this->menuItem('空室・入退去予定', 'reports.occupancy-statuses.index', $bookParams),
-                ],
-            ],
-            [
-                'key' => 'accounting_reports',
-                'title' => '会計帳票',
-                'description' => '会計帳簿・集計表の出力入口です。',
+                'key' => 'access_print_accounting',
+                'title' => 'Access印刷フォーム確認済み（会計帳票）',
+                'description' => 'Access版には仕訳帳、残高試算表、月次推移表などの印刷フォームが確認できます。Cloud版では既存帳票入口として残します。',
                 'items' => [
                     $this->menuItem('仕訳日記帳', 'journal-diaries.index', $bookParams),
                     $this->menuItem('総勘定元帳', 'general-ledgers.index', $bookParams),
@@ -72,9 +59,9 @@ class OutputMenuController extends Controller
                 ],
             ],
             [
-                'key' => 'tax_reports',
-                'title' => '決算・申告帳票',
-                'description' => '申告書プレビューと消費税集計の入口です。',
+                'key' => 'access_print_closing',
+                'title' => 'Access印刷フォーム確認済み（決算書系）',
+                'description' => 'Access版には決算書のプレビュー・印刷系フォームが確認できます。Cloud版では既存の申告書プレビューと決算書内訳確認へ寄せます。',
                 'items' => [
                     $this->menuItem('不動産所得決算書内訳確認', 'reports.real-estate-closing-details.index', $bookParams),
                     $this->menuItem('青色申告決算書プレビュー', 'reports.blue-return-statement-previews.index', $bookParams),
@@ -83,9 +70,22 @@ class OutputMenuController extends Controller
                 ],
             ],
             [
-                'key' => 'export',
-                'title' => '出力',
-                'description' => 'CSV/PDF出力の入口です。',
+                'key' => 'access_print_rental',
+                'title' => 'Access印刷フォーム確認済み（賃貸・入金帳票候補）',
+                'description' => 'Access版には物件別年間収入台帳等の印刷フォームが確認できます。Cloud版では既存の賃貸・入金帳票入口として残します。',
+                'items' => [
+                    $this->menuItem('物件別入金一覧', 'reports.property-payments.index', $bookParams),
+                    $this->menuItem('物件別年間収入', 'reports.property-annual-incomes.index', $bookParams),
+                    $this->menuItem('契約者別年間収入', 'reports.contract-tenant-annual-incomes.index', $bookParams),
+                    $this->menuItem('物件台帳', 'reports.property-ledgers.index', $bookParams),
+                    $this->menuItem('賃貸条件一覧', 'reports.rental-contracts.index', $bookParams),
+                    $this->menuItem('空室・入退去予定', 'reports.occupancy-statuses.index', $bookParams),
+                ],
+            ],
+            [
+                'key' => 'cloud_export_deferred',
+                'title' => 'Access親導線未確認（Cloud側CSV/PDF出力・後回し）',
+                'description' => 'CSV/PDF出力はCloud版に作成済みです。Access版の帳票・印刷指定系との対応を後続で確認します。',
                 'items' => [
                     $this->menuItem('CSV出力', 'csv-exports.index', $bookParams),
                     $this->menuItem('PDF出力', 'pdf-exports.index', $bookParams),
@@ -94,7 +94,7 @@ class OutputMenuController extends Controller
             [
                 'key' => 'return',
                 'title' => '戻る',
-                'description' => 'Access版のメインメニューへ戻る導線です。',
+                'description' => 'Access版の親メニューへ戻る導線です。',
                 'items' => [
                     $this->menuItem('メインメニューへ戻る', 'main-menu.index', $bookParams),
                 ],
