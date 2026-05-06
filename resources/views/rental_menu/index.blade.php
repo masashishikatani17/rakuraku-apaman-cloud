@@ -6,7 +6,7 @@
     <div class="page-header">
         <div>
             <h2 class="page-title">賃貸管理メニュー</h2>
-            <p class="page-description">Access版の賃貸管理・物件台帳・契約管理に近い導線です。</p>
+            <p class="page-description">Access版 FN_マスター で確認できた賃貸基本マスタを上段に置き、Cloud側追加項目を後回し欄に分けています。</p>
         </div>
         <div class="actions">
             <a href="{{ route('main-menu.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">メインメニューへ戻る</a>
@@ -15,7 +15,7 @@
     </div>
 
     <div class="alert alert-success" style="background: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;">
-        物件・契約・退去・物件別損益をこの画面に集約します。入金予定や入金実績は入金管理メニューへ分けています。
+        Access版 FN_マスター 直下で確認できた「所有者」「物件」「物件区分」「契約者台帳」を上段に置き、部屋・区画、賃貸条件、退去、物件別損益などはAccess親導線未確認として残しています。
     </div>
 
     <div class="card" style="margin-bottom: 16px;">

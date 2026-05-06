@@ -46,41 +46,41 @@ class RentalMenuController extends Controller
 
         return [
             [
-                'key' => 'property',
-                'title' => '物件・所有者',
-                'description' => 'Access版の物件台帳・所有者系に相当する入口です。',
+                'key' => 'access_master_rental',
+                'title' => 'Access版マスター確認済み（賃貸基本）',
+                'description' => 'Access版 FN_マスター 直下で確認できた所有者、物件、物件区分、契約者台帳の導線です。Cloud版では賃貸管理メニューにも補助入口として残します。',
                 'items' => [
                     $this->menuItem('所有者', 'property-owners.index', $bookParams),
-                    $this->menuItem('物件区分', 'property-categories.index', $bookParams),
                     $this->menuItem('物件', 'properties.index', $bookParams),
-                    $this->menuItem('部屋・区画', 'property-units.index', $bookParams),
-                    $this->menuItem('物件台帳', 'reports.property-ledgers.index', $bookParams),
+                    $this->menuItem('物件区分', 'property-categories.index', $bookParams),
+                    $this->menuItem('契約者台帳', 'contract-tenants.index', $bookParams),
                 ],
             ],
             [
-                'key' => 'contract',
-                'title' => '契約管理',
-                'description' => '契約者台帳、賃貸条件、月額変更履歴の入口です。',
+                'key' => 'cloud_rental_registers',
+                'title' => 'Access親導線未確認（賃貸台帳・契約補助）',
+                'description' => '以下は既にCloud版に作成済みの賃貸関連画面です。削除はしませんが、Access版の親フォーム導線を後続で確認します。',
                 'items' => [
-                    $this->menuItem('契約者', 'contract-tenants.index', $bookParams),
+                    $this->menuItem('部屋・区画', 'property-units.index', $bookParams),
+                    $this->menuItem('物件台帳', 'reports.property-ledgers.index', $bookParams),
                     $this->menuItem('賃貸条件一覧', 'reports.rental-contracts.index', $bookParams),
                     $this->menuItem('月額変更履歴', 'rental-contract-terms.index', $bookParams),
                     $this->menuItem('空室・入退去予定', 'reports.occupancy-statuses.index', $bookParams),
                 ],
             ],
             [
-                'key' => 'move_out',
-                'title' => '退去・精算',
-                'description' => '退去処理と退去精算の入口です。',
+                'key' => 'cloud_move_out',
+                'title' => 'Access親導線未確認（退去・精算）',
+                'description' => '退去処理と退去精算はCloud版に作成済みですが、Access版での親フォーム導線を確認してから正式分類します。',
                 'items' => [
                     $this->menuItem('退去処理', 'rental-contract-move-outs.index', $bookParams),
                     $this->menuItem('退去精算', 'rental-move-out-settlements.index', $bookParams),
                 ],
             ],
             [
-                'key' => 'profit_loss',
-                'title' => '物件別損益・配賦',
-                'description' => '物件別損益、物件別配賦、自動仕訳物件紐づけの入口です。',
+                'key' => 'cloud_profit_loss',
+                'title' => 'Access親導線未確認（物件別損益・配賦）',
+                'description' => '物件別損益、配賦、自動仕訳物件紐づけはCloud版に作成済みです。Access版の親導線確認後に、決算・申告または帳票側へ寄せるか整理します。',
                 'items' => [
                     $this->menuItem('物件・所有者別損益', 'reports.property-owner-profit-losses.index', $bookParams),
                     $this->menuItem('物件別損益チェック', 'reports.property-profit-loss-checks.index', $bookParams),
@@ -91,7 +91,7 @@ class RentalMenuController extends Controller
             [
                 'key' => 'return',
                 'title' => '戻る',
-                'description' => 'Access版のメインメニューへ戻る導線です。',
+                'description' => 'Access版の親メニューへ戻る導線です。賃貸基本マスタは FN_マスター 由来のため、マスタメニューへの戻りも残します。',
                 'items' => [
                     $this->menuItem('メインメニューへ戻る', 'main-menu.index', $bookParams),
                     $this->menuItem('マスタメニューへ', 'master-menu.index', $bookParams),
