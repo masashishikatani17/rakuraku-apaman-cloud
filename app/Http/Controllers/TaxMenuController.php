@@ -46,30 +46,38 @@ class TaxMenuController extends Controller
 
         return [
             [
-                'key' => 'closing',
-                'title' => '決算整理',
-                'description' => '決算整理、減価償却、借入金台帳の入口です。',
-                'items' => [
-                    $this->menuItem('決算整理仕訳', 'closing-adjustment-journals.index', $bookParams),
-                    $this->menuItem('減価償却', 'depreciable-assets.index', $bookParams),
-                    $this->menuItem('借入金台帳', 'borrowing-loans.index', $bookParams),
-                ],
-            ],
-            [
-                'key' => 'real_estate',
-                'title' => '不動産所得決算書',
-                'description' => '不動産所得集計、決算書内訳、青色・白色プレビューの入口です。',
+                'key' => 'access_closing_statement',
+                'title' => 'Access版決算書作成メニュー確認済み',
+                'description' => 'Access版 FN_会計管理 から開く決算書作成系の導線に相当します。Cloud版では不動産所得集計、決算書内訳、申告書プレビュー、減価償却を既存入口として対応させます。',
                 'items' => [
                     $this->menuItem('不動産所得集計', 'reports.real-estate-income-statements.index', $bookParams),
                     $this->menuItem('不動産所得決算書内訳確認', 'reports.real-estate-closing-details.index', $bookParams),
                     $this->menuItem('青色申告決算書プレビュー', 'reports.blue-return-statement-previews.index', $bookParams),
                     $this->menuItem('白色収支内訳書プレビュー', 'reports.white-return-statement-previews.index', $bookParams),
+                    $this->menuItem('減価償却', 'depreciable-assets.index', $bookParams),
                 ],
             ],
             [
-                'key' => 'consumption_tax',
-                'title' => '消費税',
-                'description' => '消費税集計、申告用集計、区分レビュー、精算仕訳の入口です。',
+                'key' => 'access_pending_mapping',
+                'title' => 'Access確認済み・Cloud対応要確認',
+                'description' => 'Access版 FN_メインメニュー には消費税額の再計算ボタンが確認できますが、通常メニュー遷移ではないため、Cloud側では対応先を確定せず確認項目として残します。',
+                'items' => [
+                    $this->menuItem('消費税額の再計算 / 区分確認', 'access-consumption-tax-recalculation.index', $bookParams),
+                ],
+            ],
+            [
+                'key' => 'cloud_closing_deferred',
+                'title' => 'Access親導線未確認（Cloud側決算補助・後回し）',
+                'description' => '以下は既にCloud版に作成済みの決算補助画面です。削除はしませんが、Access版の親フォーム導線を確認してから正式分類します。',
+                'items' => [
+                    $this->menuItem('決算整理仕訳', 'closing-adjustment-journals.index', $bookParams),
+                    $this->menuItem('借入金台帳', 'borrowing-loans.index', $bookParams),
+                ],
+            ],
+            [
+                'key' => 'cloud_consumption_tax_deferred',
+                'title' => 'Access親導線未確認（Cloud側消費税・後回し）',
+                'description' => '消費税集計、申告用集計、区分レビュー、精算仕訳はCloud版に作成済みです。Access版の通常導線を後続で確認します。',
                 'items' => [
                     $this->menuItem('消費税集計', 'reports.consumption-tax.index', $bookParams),
                     $this->menuItem('消費税申告用集計', 'reports.consumption-tax-filing.index', $bookParams),
@@ -78,9 +86,9 @@ class TaxMenuController extends Controller
                 ],
             ],
             [
-                'key' => 'profit_loss',
-                'title' => '物件別損益',
-                'description' => '決算前の物件別損益確認と配賦確認です。',
+                'key' => 'cloud_profit_loss_deferred',
+                'title' => 'Access親導線未確認（物件別損益・配賦）',
+                'description' => '物件別損益、配賦、自動仕訳物件紐づけはCloud版に作成済みです。Access版の親導線確認後に、決算・申告または帳票側へ寄せるか整理します。',
                 'items' => [
                     $this->menuItem('物件・所有者別損益', 'reports.property-owner-profit-losses.index', $bookParams),
                     $this->menuItem('物件別損益チェック', 'reports.property-profit-loss-checks.index', $bookParams),
@@ -91,7 +99,7 @@ class TaxMenuController extends Controller
             [
                 'key' => 'return',
                 'title' => '戻る',
-                'description' => 'Access版のメインメニューへ戻る導線です。',
+                'description' => 'Access版の親メニューへ戻る導線です。決算書作成系は FN_会計管理 由来のため、会計管理メニューへの戻りも残します。',
                 'items' => [
                     $this->menuItem('メインメニューへ戻る', 'main-menu.index', $bookParams),
                     $this->menuItem('会計管理メニューへ', 'accounting-menu.index', $bookParams),
