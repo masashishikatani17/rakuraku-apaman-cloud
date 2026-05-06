@@ -1,0 +1,56 @@
+{
+  "case_id": "real_estate_closing_detail_001",
+  "title": "不動産所得決算書内訳確認 基本ケース",
+  "report": "real_estate_closing_detail",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "display": "non_zero",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "revenue_total": 1380000,
+      "expense_total": 300000,
+      "income_total": 1080000,
+      "adjustment_total": 0,
+      "reconciliation_warning_count": 0
+    },
+    {
+      "statement_category": "revenue_rent",
+      "statement_category_label": "家賃・賃料",
+      "accounting_amount": 1200000,
+      "adjustment_amount": 0,
+      "filing_amount": 1200000,
+      "amount": 1200000,
+      "total_amount": 1200000
+    },
+    {
+      "statement_category": "expense_repair",
+      "statement_category_label": "修繕費",
+      "accounting_amount": 300000,
+      "adjustment_amount": 0,
+      "filing_amount": 300000,
+      "amount": 300000,
+      "total_amount": 300000
+    },
+    {
+      "item_type": "rent",
+      "item_code": "RENT",
+      "payment_item_name": "家賃",
+      "expected_total": 1200000,
+      "received_total": 1200000,
+      "remaining_total": 0,
+      "amount": 1200000,
+      "total_amount": 1200000
+    },
+    {
+      "reconciliation_key": "rental_income",
+      "accounting_amount": 1380000,
+      "ledger_amount": 1380000,
+      "difference": 0,
+      "amount": 0,
+      "total_amount": 0
+    }
+  ]
+}

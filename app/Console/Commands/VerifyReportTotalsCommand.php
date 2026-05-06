@@ -32,6 +32,7 @@ class VerifyReportTotalsCommand extends Command
         'consumption_tax_filing',
         'blue_return_statement',
         'white_return_statement',
+        'real_estate_closing_detail',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -77,6 +78,13 @@ class VerifyReportTotalsCommand extends Command
         'statement_category',
         'statement_category_label',
         'balance_sheet_category',
+        'item_type',
+        'item_code',
+        'reconciliation_key',
+        'accounting_label',
+        'ledger_label',
+        'status',
+        'has_adjustment',
     ];
 
     public function handle(): int
@@ -237,6 +245,10 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'white_return_statement') {
             return $this->verifyWhiteReturnStatementCase($case, $failOnExtra);
+        }
+
+        if ($report === 'real_estate_closing_detail') {
+            return $this->verifyRealEstateClosingDetailCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -4417,6 +4429,660 @@ class VerifyReportTotalsCommand extends Command
         }
 
         return '';
+    }
+
+
+
+    private function verifyRealEstateClosingDetailCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $display = in_array((string) ($case['display'] ?? 'non_zero'), ['non_zero', 'all'], true)
+            ? (string) ($case['display'] ?? 'non_zero')
+            : 'non_zero';
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('表示: ' . $display);
+        $this->line('許容差額: ' . $this->formatAmount($tolerance));
+
+        $actualRows = $this->buildRealEstateClosingDetailActualRows($bookId, $periodFrom, $periodTo, $display);
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedKeys = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $key = $this->realEstateClosingDetailKeyFromExpectedRow($expectedRow);
+
+            if ($key === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'key、statement_category、account_code、item_type、reconciliation_key のいずれかを指定してください。'];
+                continue;
+            }
+
+            $expectedKeys[] = $key;
+            $actualRow = $actualRows[$key] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $key, '行存在', 'あり', 'なし', '-', 'クラウド側に対象の不動産所得決算書内訳確認行がありません。'];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $key, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $key,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraKeys = array_values(array_diff(array_keys($actualRows), $expectedKeys));
+
+            foreach ($extraKeys as $extraKey) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraKey,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    '期待値にないクラウド側の不動産所得決算書内訳確認行があります。',
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
+        ];
+    }
+
+    private function buildRealEstateClosingDetailActualRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        string $display
+    ): array {
+        $accountRows = $this->buildRealEstateClosingDetailAccountRows($bookId, $periodFrom, $periodTo, $display);
+        $categoryRows = $this->buildRealEstateClosingDetailCategoryRows($accountRows);
+        $incomeSourceRows = $this->buildRealEstateClosingDetailIncomeSourceRows($bookId, $periodFrom, $periodTo);
+        $reconciliationRows = $this->buildRealEstateClosingDetailReconciliationRows($bookId, $periodFrom, $periodTo, $categoryRows);
+
+        $revenueTotal = round(
+            collect($categoryRows)
+                ->where('category', 'revenue')
+                ->where('statement_category', '!=', 'none')
+                ->sum(fn (array $row): float => (float) $row['filing_amount']),
+            2
+        );
+
+        $expenseTotal = round(
+            collect($categoryRows)
+                ->where('category', 'expense')
+                ->where('statement_category', '!=', 'none')
+                ->sum(fn (array $row): float => (float) $row['filing_amount']),
+            2
+        );
+
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'revenue_total' => $revenueTotal,
+                'expense_total' => $expenseTotal,
+                'income_total' => round($revenueTotal - $expenseTotal, 2),
+                'adjustment_total' => round(
+                    collect($categoryRows)->sum(fn (array $row): float => (float) $row['adjustment_amount']),
+                    2
+                ),
+                'review_count' => collect($categoryRows)->sum(fn (array $row): int => (int) $row['needs_review_count']),
+                'reconciliation_warning_count' => collect($reconciliationRows)
+                    ->filter(fn (array $row): bool => abs((float) $row['difference']) >= 0.005)
+                    ->count(),
+                'category_count' => count($categoryRows),
+                'account_count' => count($accountRows),
+                'income_source_count' => count($incomeSourceRows),
+                'reconciliation_count' => count($reconciliationRows),
+            ],
+        ];
+
+        foreach ($categoryRows as $row) {
+            $key = 'statement_category:' . $row['statement_category'];
+            $actualRows[$key] = $row + [
+                'key' => $key,
+                'amount' => $row['filing_amount'],
+                'total_amount' => $row['filing_amount'],
+            ];
+        }
+
+        foreach ($incomeSourceRows as $row) {
+            $key = $this->realEstateClosingDetailIncomeSourceKey(
+                (string) $row['item_type'],
+                (string) $row['item_code'],
+                (string) $row['payment_item_name']
+            );
+
+            $actualRows[$key] = $row + [
+                'key' => $key,
+                'amount' => $row['received_total'],
+                'total_amount' => $row['received_total'],
+            ];
+        }
+
+        foreach ($reconciliationRows as $row) {
+            $key = 'reconciliation:' . $row['reconciliation_key'];
+            $actualRows[$key] = $row + [
+                'key' => $key,
+                'amount' => $row['difference'],
+                'total_amount' => $row['difference'],
+            ];
+        }
+
+        foreach ($accountRows as $row) {
+            $key = 'account:' . $row['account_code'];
+            $actualRows[$key] = $row + [
+                'key' => $key,
+                'amount' => $row['filing_amount'],
+                'total_amount' => $row['filing_amount'],
+            ];
+        }
+
+        return $actualRows;
+    }
+
+    private function buildRealEstateClosingDetailAccountRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        string $display
+    ): array {
+        $closingAdjustments = $this->buildRealEstateClosingDetailAdjustments($bookId, $periodFrom, $periodTo);
+
+        $rows = DB::table('account_titles as at')
+            ->leftJoin('journal_entry_lines as jel', 'jel.account_title_id', '=', 'at.id')
+            ->leftJoin('journal_entries as je', function ($join) use ($bookId, $periodFrom, $periodTo): void {
+                $join->on('je.id', '=', 'jel.journal_entry_id')
+                    ->where('je.book_id', '=', $bookId)
+                    ->where('je.status', '=', 'posted')
+                    ->whereDate('je.entry_date', '>=', $periodFrom)
+                    ->whereDate('je.entry_date', '<=', $periodTo);
+            })
+            ->where('at.book_id', $bookId)
+            ->whereIn('at.category', ['revenue', 'expense'])
+            ->select([
+                'at.id as account_title_id',
+                'at.account_code',
+                'at.name as account_name',
+                'at.category',
+                'at.normal_balance',
+                'at.real_estate_statement_category',
+                'at.sort_order',
+            ])
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'credit' THEN jel.amount ELSE 0 END), 0) as credit_total")
+            ->groupBy(
+                'at.id',
+                'at.account_code',
+                'at.name',
+                'at.category',
+                'at.normal_balance',
+                'at.real_estate_statement_category',
+                'at.sort_order'
+            )
+            ->orderBy('at.sort_order')
+            ->orderBy('at.account_code')
+            ->get()
+            ->map(function (object $row) use ($closingAdjustments): array {
+                $debitTotal = $this->normalizeAmount($row->debit_total ?? 0);
+                $creditTotal = $this->normalizeAmount($row->credit_total ?? 0);
+
+                $accountingAmount = (string) $row->normal_balance === 'debit'
+                    ? round($debitTotal - $creditTotal, 2)
+                    : round($creditTotal - $debitTotal, 2);
+
+                $statementCategory = $this->resolveRealEstateStatementCategory(
+                    (string) $row->category,
+                    (string) $row->account_name,
+                    $row->real_estate_statement_category !== null ? (string) $row->real_estate_statement_category : null
+                );
+
+                $closingAdjustment = $closingAdjustments[(int) $row->account_title_id] ?? null;
+                $adjustmentAmount = $closingAdjustment['adjustment_amount'] ?? 0.0;
+                $filingAmount = $statementCategory === 'none'
+                    ? 0.0
+                    : round($accountingAmount + $adjustmentAmount, 2);
+
+                return [
+                    'account_title_id' => (int) $row->account_title_id,
+                    'account_code' => (string) $row->account_code,
+                    'account_name' => (string) $row->account_name,
+                    'category' => (string) $row->category,
+                    'normal_balance' => (string) $row->normal_balance,
+                    'configured_statement_category' => (string) ($row->real_estate_statement_category ?: 'auto'),
+                    'statement_category' => $statementCategory,
+                    'debit_total' => $debitTotal,
+                    'credit_total' => $creditTotal,
+                    'accounting_amount' => $accountingAmount,
+                    'adjustment_amount' => $adjustmentAmount,
+                    'filing_amount' => $filingAmount,
+                    'needs_review' => $statementCategory === 'none' && abs((float) $accountingAmount) >= 0.005,
+                    'has_adjustment' => $closingAdjustment !== null ? 1.0 : 0.0,
+                ];
+            })
+            ->values()
+            ->all();
+
+        if ($display === 'non_zero') {
+            $rows = array_values(array_filter($rows, fn (array $row): bool => abs((float) $row['accounting_amount']) >= 0.005));
+        }
+
+        return $rows;
+    }
+
+    private function buildRealEstateClosingDetailCategoryRows(array $accountRows): array
+    {
+        return collect($accountRows)
+            ->groupBy('statement_category')
+            ->map(function ($rows, string $statementCategory): array {
+                $first = collect($rows)->first();
+                $category = (string) ($first['category'] ?? '');
+                $accountingAmount = round(
+                    collect($rows)->sum(fn (array $row): float => (float) $row['accounting_amount']),
+                    2
+                );
+                $adjustmentAmount = round(
+                    collect($rows)->sum(fn (array $row): float => (float) $row['adjustment_amount']),
+                    2
+                );
+                $filingAmount = $statementCategory === 'none'
+                    ? 0.0
+                    : round(
+                        collect($rows)->sum(fn (array $row): float => (float) $row['filing_amount']),
+                        2
+                    );
+
+                return [
+                    'statement_category' => $statementCategory,
+                    'category' => $category,
+                    'accounts_count' => collect($rows)->count(),
+                    'accounting_amount' => $accountingAmount,
+                    'adjustment_amount' => $adjustmentAmount,
+                    'filing_amount' => $filingAmount,
+                    'amount' => $filingAmount,
+                    'total_amount' => $filingAmount,
+                    'needs_review_count' => collect($rows)
+                        ->filter(fn (array $row): bool => (bool) $row['needs_review'])
+                        ->count(),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function buildRealEstateClosingDetailIncomeSourceRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo
+    ): array {
+        return DB::table('payment_schedules as ps')
+            ->join('payment_items as pi', 'pi.id', '=', 'ps.payment_item_id')
+            ->leftJoin('account_titles as at', 'at.id', '=', 'pi.account_title_id')
+            ->where('ps.book_id', $bookId)
+            ->where('ps.status', '<>', 'cancelled')
+            ->whereDate('ps.due_on', '>=', $periodFrom)
+            ->whereDate('ps.due_on', '<=', $periodTo)
+            ->select([
+                'pi.item_type',
+                'pi.item_code',
+                'pi.name as payment_item_name',
+                'at.account_code',
+                'at.name as account_name',
+            ])
+            ->selectRaw('COUNT(ps.id) as schedules_count')
+            ->selectRaw('COALESCE(SUM(ps.expected_amount), 0) as expected_total')
+            ->selectRaw('COALESCE(SUM(ps.received_amount), 0) as received_total')
+            ->selectRaw('COALESCE(SUM(GREATEST(ps.expected_amount - ps.received_amount, 0)), 0) as remaining_total')
+            ->groupBy('pi.item_type', 'pi.item_code', 'pi.name', 'at.account_code', 'at.name')
+            ->orderBy('pi.item_type')
+            ->orderBy('pi.item_code')
+            ->get()
+            ->map(function (object $row): array {
+                $statementCategory = $this->realEstateClosingPaymentItemTypeToStatementCategory((string) $row->item_type);
+
+                return [
+                    'item_type' => (string) $row->item_type,
+                    'statement_category' => $statementCategory,
+                    'item_code' => (string) ($row->item_code ?? ''),
+                    'payment_item_name' => (string) $row->payment_item_name,
+                    'account_code' => (string) ($row->account_code ?? ''),
+                    'account_name' => (string) ($row->account_name ?? ''),
+                    'schedules_count' => (int) $row->schedules_count,
+                    'expected_total' => $this->normalizeAmount($row->expected_total ?? 0),
+                    'received_total' => $this->normalizeAmount($row->received_total ?? 0),
+                    'remaining_total' => $this->normalizeAmount($row->remaining_total ?? 0),
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function buildRealEstateClosingDetailReconciliationRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        array $categoryRows
+    ): array {
+        $depreciationAccounting = $this->realEstateClosingDetailCategoryAmount($categoryRows, 'expense_depreciation');
+        $depreciationLedger = $this->calculateRealEstateClosingDetailDepreciationTotal($bookId, $periodFrom, $periodTo);
+
+        $interestAccounting = $this->realEstateClosingDetailCategoryAmount($categoryRows, 'expense_interest');
+        $interestLedger = $this->calculateRealEstateClosingDetailLoanInterestTotal($bookId, $periodFrom, $periodTo);
+
+        $rentalAccounting = $this->realEstateClosingDetailCategoryAmount($categoryRows, 'revenue_rent')
+            + $this->realEstateClosingDetailCategoryAmount($categoryRows, 'revenue_common_service')
+            + $this->realEstateClosingDetailCategoryAmount($categoryRows, 'revenue_parking');
+        $rentalSchedule = $this->calculateRealEstateClosingDetailRentalScheduleTotal($bookId, $periodFrom, $periodTo);
+
+        return [
+            $this->makeRealEstateClosingDetailReconciliationRow(
+                'rental_income',
+                '賃貸収入',
+                '仕訳上の賃貸系収入',
+                '入金予定・入金済額',
+                $rentalAccounting,
+                $rentalSchedule
+            ),
+            $this->makeRealEstateClosingDetailReconciliationRow(
+                'depreciation',
+                '減価償却費',
+                '仕訳上の減価償却費',
+                '固定資産台帳の当期償却費',
+                $depreciationAccounting,
+                $depreciationLedger
+            ),
+            $this->makeRealEstateClosingDetailReconciliationRow(
+                'loan_interest',
+                '借入金利子',
+                '仕訳上の借入金利子',
+                '借入金台帳の利息額',
+                $interestAccounting,
+                $interestLedger
+            ),
+        ];
+    }
+
+    private function makeRealEstateClosingDetailReconciliationRow(
+        string $reconciliationKey,
+        string $label,
+        string $accountingLabel,
+        string $ledgerLabel,
+        float $accountingAmount,
+        float $ledgerAmount
+    ): array {
+        $difference = round($accountingAmount - $ledgerAmount, 2);
+
+        return [
+            'reconciliation_key' => $reconciliationKey,
+            'label' => $label,
+            'accounting_label' => $accountingLabel,
+            'ledger_label' => $ledgerLabel,
+            'accounting_amount' => round($accountingAmount, 2),
+            'ledger_amount' => round($ledgerAmount, 2),
+            'difference' => $difference,
+            'amount' => $difference,
+            'total_amount' => $difference,
+            'status' => abs($difference) < 0.005 ? 'OK' : '確認',
+        ];
+    }
+
+    private function buildRealEstateClosingDetailAdjustments(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo
+    ): array {
+        return DB::table('real_estate_closing_adjustments')
+            ->where('book_id', $bookId)
+            ->whereDate('date_from', $periodFrom)
+            ->whereDate('date_to', $periodTo)
+            ->select('account_title_id')
+            ->selectRaw('COALESCE(SUM(adjustment_amount), 0) as adjustment_amount')
+            ->groupBy('account_title_id')
+            ->get()
+            ->mapWithKeys(fn (object $row): array => [
+                (int) $row->account_title_id => [
+                    'adjustment_amount' => $this->normalizeAmount($row->adjustment_amount ?? 0),
+                ],
+            ])
+            ->all();
+    }
+
+    private function calculateRealEstateClosingDetailRentalScheduleTotal(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo
+    ): float {
+        $query = DB::table('payment_schedules as ps')
+            ->join('payment_items as pi', 'pi.id', '=', 'ps.payment_item_id')
+            ->where('ps.book_id', $bookId)
+            ->where('ps.status', '<>', 'cancelled')
+            ->whereIn('pi.item_type', ['rent', 'common_service', 'parking'])
+            ->whereDate('ps.due_on', '>=', $periodFrom)
+            ->whereDate('ps.due_on', '<=', $periodTo)
+            ->selectRaw('COALESCE(SUM(ps.received_amount), 0) as received_total');
+
+        return $this->normalizeAmount($query->first()?->received_total ?? 0);
+    }
+
+    private function calculateRealEstateClosingDetailLoanInterestTotal(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo
+    ): float {
+        if (! DB::getSchemaBuilder()->hasTable('borrowing_repayments')) {
+            return 0.0;
+        }
+
+        $query = DB::table('borrowing_repayments as br')
+            ->join('borrowing_loans as bl', 'bl.id', '=', 'br.borrowing_loan_id')
+            ->where('bl.book_id', $bookId)
+            ->whereDate('br.due_on', '>=', $periodFrom)
+            ->whereDate('br.due_on', '<=', $periodTo)
+            ->selectRaw('COALESCE(SUM(br.interest_amount), 0) as interest_total');
+
+        return $this->normalizeAmount($query->first()?->interest_total ?? 0);
+    }
+
+    private function calculateRealEstateClosingDetailDepreciationTotal(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo
+    ): float {
+        $assets = DB::table('depreciable_assets')
+            ->where('book_id', $bookId)
+            ->where('status', 'active')
+            ->get();
+
+        $total = 0.0;
+
+        foreach ($assets as $asset) {
+            $total = round($total + $this->calculateRealEstateClosingDetailDepreciationAmount($asset, $periodFrom, $periodTo), 2);
+        }
+
+        return $total;
+    }
+
+    private function calculateRealEstateClosingDetailDepreciationAmount(
+        object $asset,
+        string $periodFrom,
+        string $periodTo
+    ): float {
+        $periodStart = new \DateTimeImmutable(substr($periodFrom, 0, 7) . '-01');
+        $periodEnd = new \DateTimeImmutable(substr($periodTo, 0, 7) . '-01');
+
+        if ($periodStart > $periodEnd) {
+            return 0.0;
+        }
+
+        $depreciationStartDate = $asset->depreciation_start_date ?? $asset->acquisition_date ?? null;
+
+        if ($depreciationStartDate === null || (string) $depreciationStartDate === '') {
+            return 0.0;
+        }
+
+        $depreciationStart = new \DateTimeImmutable(substr((string) $depreciationStartDate, 0, 7) . '-01');
+        $usableStart = $periodStart > $depreciationStart ? $periodStart : $depreciationStart;
+        $usableEnd = $periodEnd;
+
+        if ($usableStart > $usableEnd) {
+            return 0.0;
+        }
+
+        $acquisitionCost = (float) ($asset->acquisition_cost ?? 0);
+        $salvageValue = (float) ($asset->salvage_value ?? 0);
+        $businessUseRatio = (float) ($asset->business_use_ratio ?? 100) / 100;
+        $usefulLifeYears = max((int) ($asset->useful_life_years ?? 1), 1);
+        $depreciableBase = max($acquisitionCost - $salvageValue, 0);
+
+        if ($depreciableBase <= 0 || $businessUseRatio <= 0) {
+            return 0.0;
+        }
+
+        $annualDepreciation = round($depreciableBase / $usefulLifeYears, 2);
+        $monthsToPeriodStart = $this->realEstateClosingDetailMonthDiff($depreciationStart, $usableStart);
+        $monthsToPeriodEnd = $this->realEstateClosingDetailMonthDiff($depreciationStart, $usableEnd) + 1;
+        $maximumDepreciation = round($depreciableBase * $businessUseRatio, 2);
+
+        $depreciationBeforePeriod = min(
+            round($annualDepreciation * ($monthsToPeriodStart / 12) * $businessUseRatio, 2),
+            $maximumDepreciation
+        );
+
+        $depreciationThroughPeriodEnd = min(
+            round($annualDepreciation * ($monthsToPeriodEnd / 12) * $businessUseRatio, 2),
+            $maximumDepreciation
+        );
+
+        return max(round($depreciationThroughPeriodEnd - $depreciationBeforePeriod, 2), 0);
+    }
+
+    private function realEstateClosingDetailMonthDiff(\DateTimeImmutable $start, \DateTimeImmutable $end): int
+    {
+        return ((int) $end->format('Y') - (int) $start->format('Y')) * 12
+            + ((int) $end->format('n') - (int) $start->format('n'));
+    }
+
+    private function realEstateClosingDetailCategoryAmount(array $categoryRows, string $statementCategory): float
+    {
+        return round(
+            collect($categoryRows)
+                ->where('statement_category', $statementCategory)
+                ->sum(fn (array $row): float => (float) $row['filing_amount']),
+            2
+        );
+    }
+
+    private function realEstateClosingPaymentItemTypeToStatementCategory(string $itemType): string
+    {
+        return match ($itemType) {
+            'rent' => 'revenue_rent',
+            'common_service' => 'revenue_common_service',
+            'parking' => 'revenue_parking',
+            'key_money' => 'revenue_key_money',
+            default => 'revenue_other',
+        };
+    }
+
+    private function realEstateClosingDetailKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['statement_category']) && (string) $row['statement_category'] !== '') {
+            return 'statement_category:' . (string) $row['statement_category'];
+        }
+
+        if (isset($row['account_code']) && (string) $row['account_code'] !== '') {
+            return 'account:' . (string) $row['account_code'];
+        }
+
+        if (isset($row['reconciliation_key']) && (string) $row['reconciliation_key'] !== '') {
+            return 'reconciliation:' . (string) $row['reconciliation_key'];
+        }
+
+        if (isset($row['item_type']) && (string) $row['item_type'] !== '') {
+            return $this->realEstateClosingDetailIncomeSourceKey(
+                (string) $row['item_type'],
+                (string) ($row['item_code'] ?? ''),
+                (string) ($row['payment_item_name'] ?? '')
+            );
+        }
+
+        return '';
+    }
+
+    private function realEstateClosingDetailIncomeSourceKey(
+        string $itemType,
+        string $itemCode,
+        string $paymentItemName
+    ): string {
+        return 'income_source:' . $itemType . ':' . $itemCode . ':' . $paymentItemName;
     }
 
 
