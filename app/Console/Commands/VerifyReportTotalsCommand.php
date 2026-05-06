@@ -26,6 +26,7 @@ class VerifyReportTotalsCommand extends Command
         'expense_ledger',
         'general_ledger',
         'monthly_trend',
+        'payment_deposit_balance',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -43,6 +44,12 @@ class VerifyReportTotalsCommand extends Command
         'department_code',
         'department_name',
         'year_month',
+        'target_year_month',
+        'payment_schedule_id',
+        'payment_item_name',
+        'payment_schedule_status',
+        'due_on',
+        'display',
         'label',
         'category',
         'normal_balance',
@@ -187,6 +194,10 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'monthly_trend') {
             return $this->verifyMonthlyTrendCase($case, $failOnExtra);
+        }
+
+        if ($report === 'payment_deposit_balance') {
+            return $this->verifyPaymentDepositBalanceCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -2034,6 +2045,261 @@ class VerifyReportTotalsCommand extends Command
         }
 
         return $months;
+    }
+
+
+
+    private function verifyPaymentDepositBalanceCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $display = in_array((string) ($case['display'] ?? 'remaining'), ['remaining', 'all'], true)
+            ? (string) ($case['display'] ?? 'remaining')
+            : 'remaining';
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('表示: ' . $display);
+        $this->line('許容差額: ' . $this->formatAmount($tolerance));
+
+        $actualRows = $this->buildPaymentDepositBalanceActualRows($bookId, $periodFrom, $periodTo, $display, $case['expected']);
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedKeys = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $key = $this->paymentDepositBalanceKeyFromExpectedRow($expectedRow);
+
+            if ($key === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'payment_schedule_id または tenant_code/property_code/target_year_month/payment_item_name を指定してください。'];
+                continue;
+            }
+
+            $expectedKeys[] = $key;
+            $actualRow = $actualRows[$key] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $key, '行存在', 'あり', 'なし', '-', 'クラウド側に対象預り金残高の集計行がありません。'];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $key, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $key,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraKeys = array_values(array_diff(array_keys($actualRows), $expectedKeys));
+
+            foreach ($extraKeys as $extraKey) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraKey,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    '期待値にないクラウド側の預り金残高行があります。',
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
+        ];
+    }
+
+    private function buildPaymentDepositBalanceActualRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        string $display,
+        array $expectedRows
+    ): array {
+        $useScheduleIdKey = collect($expectedRows)
+            ->contains(fn ($row): bool => is_array($row)
+                && isset($row['payment_schedule_id'])
+                && (string) $row['payment_schedule_id'] !== ''
+            );
+
+        $depositSubQuery = DB::table('payment_reconciliation_actions')
+            ->select('source_payment_schedule_id')
+            ->selectRaw("COALESCE(SUM(CASE WHEN status = 'posted' AND action_type = 'overpayment_deposit' THEN amount ELSE 0 END), 0) as deposited_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN status = 'posted' AND action_type = 'deposit_application' THEN amount ELSE 0 END), 0) as applied_total")
+            ->where('book_id', $bookId)
+            ->whereIn('action_type', ['overpayment_deposit', 'deposit_application'])
+            ->groupBy('source_payment_schedule_id');
+
+        $query = DB::table('payment_schedules as ps')
+            ->leftJoinSub($depositSubQuery, 'deposit_totals', function ($join): void {
+                $join->on('deposit_totals.source_payment_schedule_id', '=', 'ps.id');
+            })
+            ->leftJoin('contract_tenants as ct', 'ct.id', '=', 'ps.contract_tenant_id')
+            ->leftJoin('rental_contracts as rc', 'rc.id', '=', 'ps.rental_contract_id')
+            ->leftJoin('properties as p', 'p.id', '=', 'rc.property_id')
+            ->leftJoin('property_units as pu', 'pu.id', '=', 'rc.property_unit_id')
+            ->leftJoin('payment_items as pi', 'pi.id', '=', 'ps.payment_item_id')
+            ->where('ps.book_id', $bookId)
+            ->whereRaw('COALESCE(deposit_totals.deposited_total, 0) > 0')
+            ->whereDate('ps.due_on', '>=', $periodFrom)
+            ->whereDate('ps.due_on', '<=', $periodTo)
+            ->select([
+                'ps.id as payment_schedule_id',
+                'ps.due_on',
+                'ps.target_year_month',
+                'ps.expected_amount',
+                'ps.received_amount',
+                'ps.status as payment_schedule_status',
+                'ct.tenant_code',
+                'ct.name as tenant_name',
+                'p.property_code',
+                'p.name as property_name',
+                'pu.unit_no',
+                'pi.name as payment_item_name',
+            ])
+            ->selectRaw('COALESCE(deposit_totals.deposited_total, 0) as deposited_total')
+            ->selectRaw('COALESCE(deposit_totals.applied_total, 0) as applied_total')
+            ->orderBy('ps.due_on')
+            ->orderBy('ps.id');
+
+        $actualRows = [];
+
+        $query->get()->each(function (object $row) use (&$actualRows, $display, $useScheduleIdKey): void {
+            $depositedTotal = $this->normalizeAmount($row->deposited_total ?? 0);
+            $appliedTotal = $this->normalizeAmount($row->applied_total ?? 0);
+            $remainingTotal = round($depositedTotal - $appliedTotal, 2);
+
+            if ($display === 'remaining' && abs($remainingTotal) < 0.005) {
+                return;
+            }
+
+            $actualRow = [
+                'payment_schedule_id' => (int) $row->payment_schedule_id,
+                'due_on' => (string) ($row->due_on ?? ''),
+                'target_year_month' => (string) ($row->target_year_month ?? ''),
+                'tenant_code' => (string) ($row->tenant_code ?? ''),
+                'tenant_name' => (string) ($row->tenant_name ?? ''),
+                'property_code' => (string) ($row->property_code ?? ''),
+                'property_name' => (string) ($row->property_name ?? ''),
+                'unit_no' => (string) ($row->unit_no ?? ''),
+                'payment_item_name' => (string) ($row->payment_item_name ?? ''),
+                'payment_schedule_status' => (string) ($row->payment_schedule_status ?? ''),
+                'expected_amount' => $this->normalizeAmount($row->expected_amount ?? 0),
+                'received_amount' => $this->normalizeAmount($row->received_amount ?? 0),
+                'deposited_total' => $depositedTotal,
+                'applied_total' => $appliedTotal,
+                'remaining_total' => $remainingTotal,
+                'total_amount' => $remainingTotal,
+            ];
+
+            $key = $useScheduleIdKey
+                ? 'schedule:' . (int) $row->payment_schedule_id
+                : $this->paymentDepositBalanceKey(
+                    (string) ($row->tenant_code ?? ''),
+                    (string) ($row->property_code ?? ''),
+                    (string) ($row->unit_no ?? ''),
+                    (string) ($row->target_year_month ?? ''),
+                    (string) ($row->payment_item_name ?? '')
+                );
+
+            $actualRows[$key] = $actualRow;
+        });
+
+        return $actualRows;
+    }
+
+    private function paymentDepositBalanceKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['payment_schedule_id']) && (string) $row['payment_schedule_id'] !== '') {
+            return 'schedule:' . (int) $row['payment_schedule_id'];
+        }
+
+        $tenantCode = (string) ($row['tenant_code'] ?? '');
+        $propertyCode = (string) ($row['property_code'] ?? '');
+        $unitNo = (string) ($row['unit_no'] ?? '');
+        $targetYearMonth = (string) ($row['target_year_month'] ?? '');
+        $paymentItemName = (string) ($row['payment_item_name'] ?? '');
+
+        if ($tenantCode === '' && $propertyCode === '' && $targetYearMonth === '' && $paymentItemName === '') {
+            return '';
+        }
+
+        return $this->paymentDepositBalanceKey($tenantCode, $propertyCode, $unitNo, $targetYearMonth, $paymentItemName);
+    }
+
+    private function paymentDepositBalanceKey(
+        string $tenantCode,
+        string $propertyCode,
+        string $unitNo,
+        string $targetYearMonth,
+        string $paymentItemName
+    ): string {
+        return 'tenant:' . $tenantCode
+            . '|property:' . $propertyCode
+            . '|unit:' . $unitNo
+            . '|ym:' . $targetYearMonth
+            . '|item:' . $paymentItemName;
     }
 
 
