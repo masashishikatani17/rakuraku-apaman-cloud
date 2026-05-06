@@ -9,6 +9,27 @@
             <p class="page-description">帳簿ごとに使用する部門を登録します。</p>
         </div>
         <div class="actions">
+@php
+                $parentBookId = request('book_id')
+                    ?? ($selectedBookId ?? null)
+                    ?? ($accountTitle->book_id ?? null)
+                    ?? ($journalDescription->book_id ?? null)
+                    ?? ($department->book_id ?? null)
+                    ?? ($propertyOwner->book_id ?? null)
+                    ?? ($propertyCategory->book_id ?? null)
+                    ?? ($property->book_id ?? null)
+                    ?? ($contractTenant->book_id ?? null)
+                    ?? ($paymentItem->book_id ?? null)
+                    ?? ($paymentAccount->book_id ?? null)
+                    ?? ($borrowingLoan->book_id ?? null)
+                    ?? ($journalEntry->book_id ?? null);
+            @endphp
+            <a
+                href="{{ route('master-menu.index', $parentBookId ? ['book_id' => $parentBookId] : []) }}"
+                class="button button-secondary"
+            >
+                マスタメニューへ戻る
+            </a>
             <a href="{{ route('departments.index') }}" class="button button-secondary">部門一覧へ戻る</a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>
