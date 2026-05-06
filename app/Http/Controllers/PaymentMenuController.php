@@ -46,18 +46,18 @@ class PaymentMenuController extends Controller
 
         return [
             [
-                'key' => 'master',
-                'title' => '入金マスタ',
-                'description' => '入金項目と入金口座の入口です。',
+                'key' => 'access_master_payment',
+                'title' => 'Access版マスター確認済み（入金基本）',
+                'description' => 'Access版 FN_マスター 直下で確認できた入金項目、入金口座等の導線です。Cloud版では入金管理メニューにも補助入口として残します。',
                 'items' => [
                     $this->menuItem('入金項目', 'payment-items.index', $bookParams),
-                    $this->menuItem('入金口座', 'payment-accounts.index', $bookParams),
+                    $this->menuItem('入金口座等', 'payment-accounts.index', $bookParams),
                 ],
             ],
             [
-                'key' => 'schedule_receipt',
-                'title' => '入金予定・入金実績',
-                'description' => '月次入金予定生成、入金予定、入金実績の入口です。',
+                'key' => 'cloud_schedule_receipt',
+                'title' => 'Access親導線未確認（入金予定・入金実績）',
+                'description' => '以下は既にCloud版に作成済みの入金予定・入金実績関連画面です。Access版の親フォーム導線を後続で確認します。',
                 'items' => [
                     $this->menuItem('月次入金予定生成', 'monthly-payment-schedules.create', $bookParams),
                     $this->menuItem('入金予定', 'payment-schedules.index', $bookParams),
@@ -66,9 +66,9 @@ class PaymentMenuController extends Controller
                 ],
             ],
             [
-                'key' => 'reconciliation',
-                'title' => '入金差額・預り金',
-                'description' => '入金差額チェック、差額処理、過入金預り、預り金充当の入口です。',
+                'key' => 'cloud_reconciliation',
+                'title' => 'Access親導線未確認（入金差額・預り金）',
+                'description' => '入金差額処理と預り金処理はCloud版に作成済みですが、Access版の親フォーム導線を確認してから正式分類します。',
                 'items' => [
                     $this->menuItem('入金差額チェック', 'payment-reconciliation-checks.index', $bookParams),
                     $this->menuItem('入金差額処理', 'payment-reconciliation-actions.index', $bookParams),
@@ -78,9 +78,9 @@ class PaymentMenuController extends Controller
                 ],
             ],
             [
-                'key' => 'reports',
-                'title' => '入金帳票',
-                'description' => '入金管理に関する確認帳票です。',
+                'key' => 'cloud_reports',
+                'title' => 'Access親導線未確認（入金帳票）',
+                'description' => '入金関連帳票はCloud版に作成済みです。Access版の帳票・印刷指定系フォームとの対応を後続で確認します。',
                 'items' => [
                     $this->menuItem('物件別入金一覧', 'reports.property-payments.index', $bookParams),
                     $this->menuItem('物件別年間収入', 'reports.property-annual-incomes.index', $bookParams),
@@ -90,9 +90,10 @@ class PaymentMenuController extends Controller
             [
                 'key' => 'return',
                 'title' => '戻る',
-                'description' => 'Access版のメインメニューへ戻る導線です。',
+                'description' => 'Access版の親メニューへ戻る導線です。入金基本マスタは FN_マスター 由来のため、マスタメニューへの戻りも残します。',
                 'items' => [
                     $this->menuItem('メインメニューへ戻る', 'main-menu.index', $bookParams),
+                    $this->menuItem('マスタメニューへ', 'master-menu.index', $bookParams),
                 ],
             ],
         ];
