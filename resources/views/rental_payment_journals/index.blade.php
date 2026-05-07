@@ -27,6 +27,12 @@
         </div>
         <div class="actions">
             <a
+                href="{{ route('payment-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                入金管理メニューへ戻る
+            </a>
+            <a
                 href="{{ $selectedBookId ? route('payment-receipts.index', ['book_id' => $selectedBookId]) : route('payment-receipts.index') }}"
                 class="button button-secondary"
             >

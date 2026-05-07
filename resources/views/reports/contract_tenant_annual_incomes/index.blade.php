@@ -19,6 +19,18 @@
             <p class="page-description">契約者ごとの月別収入・年間収入を確認します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('payment-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                入金管理メニューへ戻る
+            </a>
+            <a
+                href="{{ route('output-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                帳票・出力メニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a
                     href="{{ route('reports.property-annual-incomes.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"

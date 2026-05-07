@@ -36,6 +36,18 @@
             <p class="page-description">物件別損益に含まれるデータと、まだ物件未設定の収益・費用仕訳を確認します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('rental-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                賃貸管理メニューへ戻る
+            </a>
+            <a
+                href="{{ route('tax-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                決算・申告メニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a
                     href="{{ route('reports.property-owner-profit-losses.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"

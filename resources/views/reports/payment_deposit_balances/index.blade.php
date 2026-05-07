@@ -33,6 +33,12 @@
             <p class="page-description">過入金から預り金化した金額、充当済み金額、未充当残高を確認します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('payment-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                入金管理メニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a href="{{ route('payment-overpayment-deposits.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button button-secondary">過入金預り仕訳へ</a>
                 <a href="{{ route('payment-overpayment-deposit-applications.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button button-secondary">預り金充当仕訳へ</a>

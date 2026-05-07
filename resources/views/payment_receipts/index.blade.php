@@ -16,6 +16,12 @@
             <p class="page-description">入金予定に対して登録された入金実績を一覧表示します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('payment-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                入金管理メニューへ戻る
+            </a>
             <a href="{{ $selectedBookId ? route('payment-receipts.create', ['book_id' => $selectedBookId]) : route('payment-receipts.create') }}" class="button">入金を新規登録</a>
             <a
                 href="{{ $selectedBookId ? route('rental-payment-journals.index', ['book_id' => $selectedBookId]) : route('rental-payment-journals.index') }}"

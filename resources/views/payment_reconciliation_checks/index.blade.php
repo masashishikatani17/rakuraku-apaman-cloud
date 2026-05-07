@@ -35,6 +35,12 @@
             <p class="page-description">入金予定ごとの予定額・確定入金額・不足額・過入金を確認します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('payment-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                入金管理メニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a href="{{ route('payment-schedules.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">入金予定一覧へ</a>
                 <a href="{{ route('payment-receipts.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">入金一覧へ</a>

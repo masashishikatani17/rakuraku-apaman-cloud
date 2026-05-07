@@ -9,6 +9,18 @@
             <p class="page-description">賃貸入金・減価償却・借入返済の自動仕訳に、物件IDが入っているか確認・補正します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('rental-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                賃貸管理メニューへ戻る
+            </a>
+            <a
+                href="{{ route('tax-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                決算・申告メニューへ戻る
+            </a>
             <a href="{{ route('journal-entries.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">仕訳一覧へ</a>
             <a href="{{ route('reports.property-owner-profit-losses.index', $selectedBookId ? ['book_id' => $selectedBookId] : []) }}" class="button button-secondary">物件・所有者別損益へ</a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>

@@ -9,6 +9,12 @@
             <p class="page-description">予定額を超えて入金された金額を、収益から預り金へ振り替える仕訳を作成します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('payment-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                入金管理メニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a href="{{ route('payment-reconciliation-actions.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button button-secondary">入金差額処理へ</a>
                 <a href="{{ route('payment-reconciliation-checks.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button button-secondary">入金差額チェックへ</a>

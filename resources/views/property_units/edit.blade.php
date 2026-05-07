@@ -18,6 +18,12 @@
         </div>
         <div class="actions">
             <a
+                href="{{ route('rental-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                賃貸管理メニューへ戻る
+            </a>
+            <a
                 href="{{ route('property-units.index', ['book_id' => $selectedBookId, 'property_id' => $selectedPropertyId]) }}"
                 class="button button-secondary"
             >
