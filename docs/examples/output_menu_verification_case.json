@@ -1,0 +1,59 @@
+{
+  "case_id": "output_menu_001",
+  "title": "帳票・出力メニュー 基本ケース",
+  "report": "output_menu",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "menu_groups_count": 5,
+      "menu_items_count": 19,
+      "available_items_count": 19,
+      "missing_items_count": 0,
+      "total_amount": 19
+    },
+    {
+      "menu_group_key": "access_print_accounting",
+      "items_count": 6,
+      "available_items_count": 6,
+      "missing_items_count": 0,
+      "total_amount": 6
+    },
+    {
+      "menu_group_key": "access_print_closing",
+      "items_count": 4,
+      "available_items_count": 4,
+      "missing_items_count": 0,
+      "total_amount": 4
+    },
+    {
+      "menu_group_key": "access_print_rental",
+      "items_count": 6,
+      "available_items_count": 6,
+      "missing_items_count": 0,
+      "total_amount": 6
+    },
+    {
+      "menu_group_key": "cloud_export_deferred",
+      "items_count": 2,
+      "available_items_count": 2,
+      "missing_items_count": 0,
+      "total_amount": 2
+    },
+    {
+      "route_name": "csv-exports.index",
+      "available_items_count": 1,
+      "missing_items_count": 0,
+      "total_amount": 1
+    },
+    {
+      "route_name": "pdf-exports.index",
+      "available_items_count": 1,
+      "missing_items_count": 0,
+      "total_amount": 1
+    }
+  ]
+}
