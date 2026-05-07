@@ -17,6 +17,18 @@
             <p class="page-description">勘定科目の消費税区分と税率を、申告用集計の前に確認・一括補正します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('tax-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                決算・申告メニューへ戻る
+            </a>
+            <a
+                href="{{ route('accounting-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                会計管理メニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a href="{{ route('reports.consumption-tax-filing.index', ['book_id' => $selectedBookId, 'default_tax_rate' => $defaultTaxRate]) }}" class="button button-secondary">消費税申告用集計へ</a>
                 <a href="{{ route('reports.consumption-tax.index', ['book_id' => $selectedBookId, 'tax_rate' => $defaultTaxRate]) }}" class="button button-secondary">消費税集計へ</a>

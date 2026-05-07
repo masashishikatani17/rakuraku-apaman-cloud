@@ -18,6 +18,18 @@
             <p class="page-description">年度処理が終わった帳簿を締了にし、登録・修正・削除を止めます。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('data-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                データメニューへ戻る
+            </a>
+            <a
+                href="{{ route('utility-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                ユーティリティメニューへ戻る
+            </a>
             <a href="{{ route('closing.next-year-rollovers.index') }}" class="button button-secondary">年度繰越プレビューへ</a>
             <a href="{{ route('books.index') }}" class="button button-secondary">帳簿一覧へ戻る</a>
         </div>

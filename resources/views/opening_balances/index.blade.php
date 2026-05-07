@@ -22,6 +22,18 @@
             <p class="page-description">帳簿開始時点の資産・負債・純資産残高を登録します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('master-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                マスタメニューへ戻る
+            </a>
+            <a
+                href="{{ route('data-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                データメニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a
                     href="{{ route('reports.balance-sheets.index', ['book_id' => $selectedBookId, 'date_from' => $openingDate, 'date_to' => $openingDate]) }}"

@@ -22,6 +22,18 @@
             <p class="page-description">年度繰越で作成した翌期帳簿へ、物件・契約・入金マスタをコピーします。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('data-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                データメニューへ戻る
+            </a>
+            <a
+                href="{{ route('utility-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                ユーティリティメニューへ戻る
+            </a>
             @if ($sourceBookId)
                 <a href="{{ route('closing.next-year-rollover-creations.index', ['book_id' => $sourceBookId]) }}" class="button button-secondary">翌期帳簿作成へ</a>
                 <a href="{{ route('closing.next-year-rollovers.index', ['book_id' => $sourceBookId]) }}" class="button button-secondary">年度繰越プレビューへ</a>

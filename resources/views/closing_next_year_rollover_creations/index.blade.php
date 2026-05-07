@@ -16,6 +16,18 @@
             <p class="page-description">年度繰越プレビューをもとに、翌期帳簿と開始残高仕訳を作成します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('data-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                データメニューへ戻る
+            </a>
+            <a
+                href="{{ route('utility-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                ユーティリティメニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a href="{{ route('closing.next-year-rollovers.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button button-secondary">年度繰越プレビューへ</a>
                 <a href="{{ route('closing.next-year-rental-carryovers.index', ['source_book_id' => $selectedBookId]) }}" class="button button-secondary">賃貸データ引継ぎへ</a>

@@ -27,6 +27,18 @@
             <p class="page-description">青色申告決算書のPL/BSに載せる前段データを確認します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('tax-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                決算・申告メニューへ戻る
+            </a>
+            <a
+                href="{{ route('accounting-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                会計管理メニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a href="{{ route('reports.real-estate-income-statements.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button button-secondary">不動産所得集計へ</a>
                 <a href="{{ route('reports.real-estate-closing-details.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}" class="button">決算書内訳確認へ</a>
