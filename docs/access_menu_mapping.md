@@ -19,6 +19,8 @@
   - この文書。Access版フォーム導線とCloud版URLの対応方針をまとめる。
 - `docs/access_navigation_remaining_tasks.md`
   - Access親導線未確認の残件、Cloud補助メニューへ暫定整理した項目、次の確認対象をまとめる。
+- `docs/access_rental_payment_report_parent_recheck.md`
+  - 賃貸・入金・帳票系について、Accessフォーム定義から親フォームを再確認した結果をまとめる。
 
 ## ここまでの整理状況
 
