@@ -3,6 +3,8 @@
   "title": "退去精算 基本ケース",
   "report": "rental_move_out_settlement",
   "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
   "status": "all",
   "tolerance": 0,
   "expected": [

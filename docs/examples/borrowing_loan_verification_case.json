@@ -1,0 +1,54 @@
+{
+  "case_id": "borrowing_loan_001",
+  "title": "借入金台帳 基本ケース",
+  "report": "borrowing_loan",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "status": "active",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "loans_count": 1,
+      "principal_total": 1200000,
+      "remaining_principal_total": 1000000,
+      "period_principal_total": 200000,
+      "period_interest_total": 30000,
+      "period_total": 230000,
+      "journal_count": 0,
+      "total_amount": 230000
+    },
+    {
+      "loan_code": "L001",
+      "loan_name": "サンプル借入金",
+      "principal_amount": 1200000,
+      "annual_interest_rate": 2,
+      "term_months": 60,
+      "period_repayments_count": 12,
+      "period_principal_total": 200000,
+      "period_interest_total": 30000,
+      "period_total": 230000,
+      "remaining_principal_after_period": 1000000,
+      "journal_count": 0,
+      "total_amount": 230000
+    },
+    {
+      "key": "status:active",
+      "loans_count": 1,
+      "principal_total": 1200000,
+      "remaining_principal_total": 1000000,
+      "period_total": 230000,
+      "total_amount": 230000
+    },
+    {
+      "key": "repayment:1",
+      "borrowing_repayment_id": 1,
+      "period_no": 1,
+      "principal_amount": 16667,
+      "interest_amount": 2000,
+      "total_amount": 18667,
+      "remaining_principal_after": 1183333
+    }
+  ]
+}

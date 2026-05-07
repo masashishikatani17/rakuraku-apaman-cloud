@@ -1,0 +1,52 @@
+{
+  "case_id": "next_year_asset_loan_carryover_001",
+  "title": "翌期固定資産・借入金引継ぎ 基本ケース",
+  "report": "next_year_asset_loan_carryover",
+  "book_id": 1,
+  "source_book_id": 1,
+  "target_book_id": 2,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "copy_only_active": true,
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "source_assets_count": 1,
+      "source_loans_count": 1,
+      "source_repayments_count": 12,
+      "target_assets_count": 0,
+      "target_loans_count": 0,
+      "target_repayments_count": 0,
+      "target_has_data": 0,
+      "same_business_owner": 1,
+      "can_copy": 1,
+      "total_amount": 2
+    },
+    {
+      "key": "source",
+      "assets_count": 1,
+      "loans_count": 1,
+      "repayments_count": 12,
+      "total_amount": 2
+    },
+    {
+      "key": "target",
+      "assets_count": 0,
+      "loans_count": 0,
+      "repayments_count": 0,
+      "target_has_data": 0,
+      "total_amount": 0
+    },
+    {
+      "key": "source_asset_status:active",
+      "assets_count": 1,
+      "total_amount": 1
+    },
+    {
+      "key": "source_loan_status:active",
+      "loans_count": 1,
+      "total_amount": 1
+    }
+  ]
+}

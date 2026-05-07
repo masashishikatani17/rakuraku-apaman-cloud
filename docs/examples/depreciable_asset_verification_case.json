@@ -1,0 +1,47 @@
+{
+  "case_id": "depreciable_asset_001",
+  "title": "固定資産/減価償却 基本ケース",
+  "report": "depreciable_asset",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "status": "active",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "assets_count": 1,
+      "acquisition_cost_total": 1200000,
+      "depreciable_base_total": 1200000,
+      "period_depreciation_total": 120000,
+      "accumulated_depreciation_total": 120000,
+      "book_value_after_period_total": 1080000,
+      "journal_count": 0,
+      "total_amount": 120000
+    },
+    {
+      "asset_code": "A001",
+      "asset_name": "サンプル建物附属設備",
+      "acquisition_cost": 1200000,
+      "salvage_value": 0,
+      "useful_life_years": 10,
+      "business_use_ratio": 100,
+      "depreciable_base": 1200000,
+      "annual_depreciation_amount": 120000,
+      "period_months": 12,
+      "period_depreciation_amount": 120000,
+      "accumulated_depreciation_amount": 120000,
+      "book_value_after_period": 1080000,
+      "journal_count": 0,
+      "total_amount": 120000
+    },
+    {
+      "status": "active",
+      "assets_count": 1,
+      "acquisition_cost_total": 1200000,
+      "period_depreciation_total": 120000,
+      "book_value_after_period_total": 1080000,
+      "total_amount": 120000
+    }
+  ]
+}
