@@ -1,0 +1,50 @@
+{
+  "case_id": "property_owner_profit_loss_001",
+  "title": "物件・所有者別損益 基本ケース",
+  "report": "property_owner_profit_loss",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "display": "non_zero",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "property_rows_count": 1,
+      "owner_rows_count": 1,
+      "rental_expected_total": 1380000,
+      "rental_received_total": 1380000,
+      "rental_remaining_total": 0,
+      "depreciation_total": 0,
+      "loan_interest_total": 0,
+      "journal_profit_loss_total": 0,
+      "estimated_income_by_expected_total": 1380000,
+      "estimated_income_by_received_total": 1380000,
+      "total_amount": 1380000
+    },
+    {
+      "property_code": "P001",
+      "property_name": "サンプルマンション",
+      "rental_expected_total": 1380000,
+      "rental_received_total": 1380000,
+      "rental_remaining_total": 0,
+      "depreciation_total": 0,
+      "loan_interest_total": 0,
+      "journal_profit_loss_total": 0,
+      "estimated_income_by_expected": 1380000,
+      "estimated_income_by_received": 1380000,
+      "total_amount": 1380000
+    },
+    {
+      "owner_code": "O001",
+      "owner_name": "サンプル所有者",
+      "properties_count": 1,
+      "rental_expected_total": 1380000,
+      "rental_received_total": 1380000,
+      "depreciation_total": 0,
+      "loan_interest_total": 0,
+      "estimated_income_by_received": 1380000,
+      "total_amount": 1380000
+    }
+  ]
+}

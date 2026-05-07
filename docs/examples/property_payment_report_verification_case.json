@@ -1,0 +1,46 @@
+{
+  "case_id": "property_payment_report_001",
+  "title": "物件別入金一覧 基本ケース",
+  "report": "property_payment_report",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "status": "all",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "schedules_count": 12,
+      "expected_total": 1380000,
+      "received_total": 1380000,
+      "remaining_total": 0,
+      "paid_count": 12,
+      "total_amount": 1380000
+    },
+    {
+      "property_code": "P001",
+      "property_name": "サンプルマンション",
+      "schedules_count": 12,
+      "expected_total": 1380000,
+      "received_total": 1380000,
+      "remaining_total": 0,
+      "paid_count": 12,
+      "total_amount": 1380000
+    },
+    {
+      "status": "paid",
+      "schedules_count": 12,
+      "expected_total": 1380000,
+      "received_total": 1380000,
+      "remaining_total": 0,
+      "total_amount": 1380000
+    },
+    {
+      "payment_schedule_id": 1,
+      "expected_amount": 115000,
+      "received_amount": 115000,
+      "remaining_amount": 0,
+      "total_amount": 115000
+    }
+  ]
+}

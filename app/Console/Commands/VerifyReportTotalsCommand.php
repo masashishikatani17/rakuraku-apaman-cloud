@@ -38,6 +38,9 @@ class VerifyReportTotalsCommand extends Command
         'department_trial_balance',
         'sub_account_ledger',
         'sub_account_report',
+        'property_payment_report',
+        'property_ledger_report',
+        'property_owner_profit_loss',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -110,6 +113,18 @@ class VerifyReportTotalsCommand extends Command
         'sub_account_is_active',
         'sub_account_sort_order',
         'account_sort_order',
+        'property_id',
+        'property_category_name',
+        'property_is_active',
+        'property_sort_order',
+        'payment_account_name',
+        'contract_tenant_code',
+        'contract_tenant_name',
+        'is_active',
+        'active_filter',
+        'owner_id',
+        'owner_code',
+        'owner_name',
     ];
 
     public function handle(): int
@@ -294,6 +309,18 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'sub_account_report') {
             return $this->verifySubAccountReportCase($case, $failOnExtra);
+        }
+
+        if ($report === 'property_payment_report') {
+            return $this->verifyPropertyPaymentReportCase($case, $failOnExtra);
+        }
+
+        if ($report === 'property_ledger_report') {
+            return $this->verifyPropertyLedgerReportCase($case, $failOnExtra);
+        }
+
+        if ($report === 'property_owner_profit_loss') {
+            return $this->verifyPropertyOwnerProfitLossCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -7006,6 +7033,1027 @@ class VerifyReportTotalsCommand extends Command
         return [
             $balance,
             $normalBalance === 'debit' ? 'credit' : 'debit',
+        ];
+    }
+
+
+
+    private function verifyPropertyPaymentReportCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $status = (string) ($case['status'] ?? 'all');
+        $propertyId = isset($case['property_id']) && (string) $case['property_id'] !== ''
+            ? (int) $case['property_id']
+            : null;
+        $propertyCode = isset($case['property_code']) && (string) $case['property_code'] !== ''
+            ? (string) $case['property_code']
+            : null;
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('状態: ' . $status);
+        $this->line('物件ID: ' . ($propertyId !== null ? (string) $propertyId : 'all'));
+        $this->line('物件コード: ' . ($propertyCode !== null ? $propertyCode : 'all'));
+
+        $actualRows = $this->buildPropertyPaymentReportActualRows(
+            $bookId,
+            $periodFrom,
+            $periodTo,
+            $status,
+            $propertyId,
+            $propertyCode
+        );
+
+        return $this->verifyExpectedRowsByKey(
+            $case,
+            $actualRows,
+            fn (array $row): string => $this->propertyPaymentReportKeyFromExpectedRow($row),
+            'key、payment_schedule_id、property_code、property_id、または status を指定してください。',
+            'クラウド側に対象の物件別入金一覧行がありません。',
+            '期待値にないクラウド側の物件別入金一覧行があります。',
+            $failOnExtra
+        );
+    }
+
+    private function buildPropertyPaymentReportActualRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        string $status,
+        ?int $propertyId,
+        ?string $propertyCode
+    ): array {
+        $query = DB::table('payment_schedules as ps')
+            ->leftJoin('rental_contracts as rc', 'rc.id', '=', 'ps.rental_contract_id')
+            ->leftJoin('properties as p', 'p.id', '=', 'rc.property_id')
+            ->leftJoin('property_categories as pc', 'pc.id', '=', 'p.property_category_id')
+            ->leftJoin('property_units as pu', 'pu.id', '=', 'rc.property_unit_id')
+            ->leftJoin('contract_tenants as ct', 'ct.id', '=', 'ps.contract_tenant_id')
+            ->leftJoin('payment_items as pi', 'pi.id', '=', 'ps.payment_item_id')
+            ->leftJoin('payment_accounts as pa', 'pa.id', '=', 'ps.payment_account_id')
+            ->where('ps.book_id', $bookId)
+            ->whereDate('ps.due_on', '>=', $periodFrom)
+            ->whereDate('ps.due_on', '<=', $periodTo)
+            ->select([
+                'ps.id as payment_schedule_id',
+                'ps.due_on',
+                'ps.target_year_month',
+                'ps.status',
+                'ps.expected_amount',
+                'ps.received_amount',
+                'p.id as property_id',
+                'p.property_code',
+                'p.name as property_name',
+                'pc.name as property_category_name',
+                'pu.unit_no',
+                'ct.tenant_code',
+                'ct.name as tenant_name',
+                'pi.name as payment_item_name',
+                'pi.item_type',
+                'pa.name as payment_account_name',
+            ])
+            ->orderBy('ps.due_on')
+            ->orderBy('ps.rental_contract_id')
+            ->orderBy('ps.payment_item_id')
+            ->orderBy('ps.id');
+
+        if ($status !== 'all') {
+            $query->where('ps.status', $status);
+        }
+
+        if ($propertyId !== null) {
+            $query->where('p.id', $propertyId);
+        } elseif ($propertyCode !== null) {
+            $query->where('p.property_code', $propertyCode);
+        }
+
+        $actualRows = [
+            'summary' => $this->emptyPropertyPaymentAggregate('summary'),
+        ];
+
+        $query->get()->each(function (object $row) use (&$actualRows): void {
+            $scheduleRow = [
+                'payment_schedule_id' => (int) $row->payment_schedule_id,
+                'due_on' => (string) $row->due_on,
+                'target_year_month' => (string) ($row->target_year_month ?? ''),
+                'status' => (string) ($row->status ?? ''),
+                'property_id' => $row->property_id !== null ? (int) $row->property_id : null,
+                'property_code' => (string) ($row->property_code ?? ''),
+                'property_name' => (string) ($row->property_name ?? '物件未設定'),
+                'property_category_name' => (string) ($row->property_category_name ?? ''),
+                'unit_no' => (string) ($row->unit_no ?? ''),
+                'tenant_code' => (string) ($row->tenant_code ?? ''),
+                'tenant_name' => (string) ($row->tenant_name ?? ''),
+                'payment_item_name' => (string) ($row->payment_item_name ?? ''),
+                'payment_account_name' => (string) ($row->payment_account_name ?? ''),
+                'expected_amount' => $this->normalizeAmount($row->expected_amount ?? 0),
+                'received_amount' => $this->normalizeAmount($row->received_amount ?? 0),
+            ];
+
+            $scheduleRow['remaining_amount'] = round(max($scheduleRow['expected_amount'] - $scheduleRow['received_amount'], 0), 2);
+            $scheduleRow['remaining_total'] = $scheduleRow['remaining_amount'];
+            $scheduleRow['total_amount'] = $scheduleRow['expected_amount'];
+
+            $this->addPropertyPaymentAggregate($actualRows['summary'], $scheduleRow);
+
+            $propertyKey = $this->propertyReportPropertyKey(
+                $scheduleRow['property_id'],
+                $scheduleRow['property_code']
+            );
+
+            if (! isset($actualRows[$propertyKey])) {
+                $actualRows[$propertyKey] = $this->emptyPropertyPaymentAggregate($propertyKey, $scheduleRow);
+            }
+
+            $this->addPropertyPaymentAggregate($actualRows[$propertyKey], $scheduleRow);
+
+            $statusKey = 'status:' . $scheduleRow['status'];
+
+            if (! isset($actualRows[$statusKey])) {
+                $actualRows[$statusKey] = $this->emptyPropertyPaymentAggregate($statusKey);
+                $actualRows[$statusKey]['status'] = $scheduleRow['status'];
+            }
+
+            $this->addPropertyPaymentAggregate($actualRows[$statusKey], $scheduleRow);
+
+            $actualRows['schedule:' . $scheduleRow['payment_schedule_id']] = [
+                'key' => 'schedule:' . $scheduleRow['payment_schedule_id'],
+            ] + $scheduleRow;
+        });
+
+        foreach ($actualRows as $key => $row) {
+            if (array_key_exists('expected_total', $row)) {
+                $actualRows[$key]['remaining_total'] = round(max((float) $row['expected_total'] - (float) $row['received_total'], 0), 2);
+                $actualRows[$key]['total_amount'] = $actualRows[$key]['expected_total'];
+            }
+        }
+
+        return $actualRows;
+    }
+
+    private function emptyPropertyPaymentAggregate(string $key, ?array $source = null): array
+    {
+        return [
+            'key' => $key,
+            'property_id' => $source['property_id'] ?? null,
+            'property_code' => $source['property_code'] ?? null,
+            'property_name' => $source['property_name'] ?? null,
+            'property_category_name' => $source['property_category_name'] ?? null,
+            'schedules_count' => 0.0,
+            'expected_total' => 0.0,
+            'received_total' => 0.0,
+            'remaining_total' => 0.0,
+            'unpaid_count' => 0.0,
+            'partial_count' => 0.0,
+            'paid_count' => 0.0,
+            'cancelled_count' => 0.0,
+            'total_amount' => 0.0,
+        ];
+    }
+
+    private function addPropertyPaymentAggregate(array &$aggregate, array $scheduleRow): void
+    {
+        $aggregate['schedules_count']++;
+        $aggregate['expected_total'] = round((float) $aggregate['expected_total'] + (float) $scheduleRow['expected_amount'], 2);
+        $aggregate['received_total'] = round((float) $aggregate['received_total'] + (float) $scheduleRow['received_amount'], 2);
+
+        $status = (string) ($scheduleRow['status'] ?? '');
+
+        if ($status === 'unpaid') {
+            $aggregate['unpaid_count']++;
+        } elseif ($status === 'partial') {
+            $aggregate['partial_count']++;
+        } elseif ($status === 'paid') {
+            $aggregate['paid_count']++;
+        } elseif ($status === 'cancelled') {
+            $aggregate['cancelled_count']++;
+        }
+    }
+
+    private function propertyPaymentReportKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['payment_schedule_id']) && (string) $row['payment_schedule_id'] !== '') {
+            return 'schedule:' . (int) $row['payment_schedule_id'];
+        }
+
+        if (isset($row['property_code']) && (string) $row['property_code'] !== '') {
+            return 'property:' . (string) $row['property_code'];
+        }
+
+        if (isset($row['property_id']) && (string) $row['property_id'] !== '') {
+            return 'property_id:' . (int) $row['property_id'];
+        }
+
+        if (isset($row['status']) && (string) $row['status'] !== '') {
+            return 'status:' . (string) $row['status'];
+        }
+
+        return '';
+    }
+
+    private function verifyPropertyLedgerReportCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $activeFilter = in_array((string) ($case['is_active'] ?? $case['active_filter'] ?? 'active'), ['all', 'active', 'inactive'], true)
+            ? (string) ($case['is_active'] ?? $case['active_filter'] ?? 'active')
+            : 'active';
+        $propertyId = isset($case['property_id']) && (string) $case['property_id'] !== ''
+            ? (int) $case['property_id']
+            : null;
+        $propertyCode = isset($case['property_code']) && (string) $case['property_code'] !== ''
+            ? (string) $case['property_code']
+            : null;
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('物件ID: ' . ($propertyId !== null ? (string) $propertyId : 'all'));
+        $this->line('物件コード: ' . ($propertyCode !== null ? $propertyCode : 'all'));
+        $this->line('有効状態: ' . $activeFilter);
+
+        $actualRows = $this->buildPropertyLedgerReportActualRows(
+            $bookId,
+            $activeFilter,
+            $propertyId,
+            $propertyCode
+        );
+
+        return $this->verifyExpectedRowsByKey(
+            $case,
+            $actualRows,
+            fn (array $row): string => $this->propertyLedgerReportKeyFromExpectedRow($row),
+            'key、property_code、または property_id を指定してください。',
+            'クラウド側に対象の物件台帳行がありません。',
+            '期待値にないクラウド側の物件台帳行があります。',
+            $failOnExtra
+        );
+    }
+
+    private function buildPropertyLedgerReportActualRows(
+        int $bookId,
+        string $activeFilter,
+        ?int $propertyId,
+        ?string $propertyCode
+    ): array {
+        $unitSubQuery = DB::table('property_units')
+            ->select('property_id')
+            ->selectRaw('COUNT(*) as units_count')
+            ->selectRaw("SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active_units_count")
+            ->selectRaw("SUM(CASE WHEN unit_type = 'room' THEN 1 ELSE 0 END) as room_units_count")
+            ->selectRaw("SUM(CASE WHEN unit_type = 'parking' THEN 1 ELSE 0 END) as parking_units_count")
+            ->groupBy('property_id');
+
+        $contractSubQuery = DB::table('rental_contracts')
+            ->select('property_id')
+            ->selectRaw('COUNT(*) as contracts_count')
+            ->selectRaw("SUM(CASE WHEN contract_status = 'active' AND is_active = 1 THEN 1 ELSE 0 END) as active_contracts_count")
+            ->groupBy('property_id');
+
+        $paymentSubQuery = DB::table('payment_schedules as ps')
+            ->join('rental_contracts as rc', 'rc.id', '=', 'ps.rental_contract_id')
+            ->where('ps.book_id', $bookId)
+            ->select('rc.property_id')
+            ->selectRaw('COUNT(ps.id) as schedules_count')
+            ->selectRaw('COALESCE(SUM(ps.expected_amount), 0) as expected_total')
+            ->selectRaw('COALESCE(SUM(ps.received_amount), 0) as received_total')
+            ->selectRaw("SUM(CASE WHEN ps.status = 'unpaid' THEN 1 ELSE 0 END) as unpaid_count")
+            ->selectRaw("SUM(CASE WHEN ps.status = 'partial' THEN 1 ELSE 0 END) as partial_count")
+            ->selectRaw("SUM(CASE WHEN ps.status = 'paid' THEN 1 ELSE 0 END) as paid_count")
+            ->selectRaw("SUM(CASE WHEN ps.status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_count")
+            ->groupBy('rc.property_id');
+
+        $query = DB::table('properties as p')
+            ->leftJoin('property_categories as pc', 'pc.id', '=', 'p.property_category_id')
+            ->leftJoin('property_owners as po', 'po.id', '=', 'p.primary_owner_id')
+            ->leftJoinSub($unitSubQuery, 'unit_summary', function ($join): void {
+                $join->on('unit_summary.property_id', '=', 'p.id');
+            })
+            ->leftJoinSub($contractSubQuery, 'contract_summary', function ($join): void {
+                $join->on('contract_summary.property_id', '=', 'p.id');
+            })
+            ->leftJoinSub($paymentSubQuery, 'payment_summary', function ($join): void {
+                $join->on('payment_summary.property_id', '=', 'p.id');
+            })
+            ->where('p.book_id', $bookId)
+            ->select([
+                'p.id as property_id',
+                'p.property_code',
+                'p.name as property_name',
+                'p.is_active',
+                'p.sort_order',
+                'pc.name as property_category_name',
+                'po.owner_code',
+                'po.name as owner_name',
+            ])
+            ->selectRaw('COALESCE(unit_summary.units_count, 0) as units_count')
+            ->selectRaw('COALESCE(unit_summary.active_units_count, 0) as active_units_count')
+            ->selectRaw('COALESCE(unit_summary.room_units_count, 0) as room_units_count')
+            ->selectRaw('COALESCE(unit_summary.parking_units_count, 0) as parking_units_count')
+            ->selectRaw('COALESCE(contract_summary.contracts_count, 0) as contracts_count')
+            ->selectRaw('COALESCE(contract_summary.active_contracts_count, 0) as active_contracts_count')
+            ->selectRaw('COALESCE(payment_summary.schedules_count, 0) as schedules_count')
+            ->selectRaw('COALESCE(payment_summary.expected_total, 0) as expected_total')
+            ->selectRaw('COALESCE(payment_summary.received_total, 0) as received_total')
+            ->selectRaw('COALESCE(payment_summary.unpaid_count, 0) as unpaid_count')
+            ->selectRaw('COALESCE(payment_summary.partial_count, 0) as partial_count')
+            ->selectRaw('COALESCE(payment_summary.paid_count, 0) as paid_count')
+            ->selectRaw('COALESCE(payment_summary.cancelled_count, 0) as cancelled_count')
+            ->orderBy('p.sort_order')
+            ->orderBy('p.property_code')
+            ->orderBy('p.id');
+
+        if ($propertyId !== null) {
+            $query->where('p.id', $propertyId);
+        } elseif ($propertyCode !== null) {
+            $query->where('p.property_code', $propertyCode);
+        }
+
+        if ($activeFilter === 'active') {
+            $query->where('p.is_active', true);
+        } elseif ($activeFilter === 'inactive') {
+            $query->where('p.is_active', false);
+        }
+
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'properties_count' => 0.0,
+                'units_count' => 0.0,
+                'active_units_count' => 0.0,
+                'contracts_count' => 0.0,
+                'active_contracts_count' => 0.0,
+                'expected_total' => 0.0,
+                'received_total' => 0.0,
+                'remaining_total' => 0.0,
+                'total_amount' => 0.0,
+            ],
+        ];
+
+        $query->get()->each(function (object $row) use (&$actualRows): void {
+            $expectedTotal = $this->normalizeAmount($row->expected_total ?? 0);
+            $receivedTotal = $this->normalizeAmount($row->received_total ?? 0);
+            $remainingTotal = round(max($expectedTotal - $receivedTotal, 0), 2);
+
+            $propertyRow = [
+                'property_id' => (int) $row->property_id,
+                'property_code' => (string) ($row->property_code ?? ''),
+                'property_name' => (string) ($row->property_name ?? ''),
+                'property_category_name' => (string) ($row->property_category_name ?? ''),
+                'property_is_active' => (bool) $row->is_active,
+                'property_sort_order' => (int) ($row->sort_order ?? 999999),
+                'owner_code' => (string) ($row->owner_code ?? ''),
+                'owner_name' => (string) ($row->owner_name ?? ''),
+                'units_count' => (float) ($row->units_count ?? 0),
+                'active_units_count' => (float) ($row->active_units_count ?? 0),
+                'room_units_count' => (float) ($row->room_units_count ?? 0),
+                'parking_units_count' => (float) ($row->parking_units_count ?? 0),
+                'contracts_count' => (float) ($row->contracts_count ?? 0),
+                'active_contracts_count' => (float) ($row->active_contracts_count ?? 0),
+                'schedules_count' => (float) ($row->schedules_count ?? 0),
+                'expected_total' => $expectedTotal,
+                'received_total' => $receivedTotal,
+                'remaining_total' => $remainingTotal,
+                'unpaid_count' => (float) ($row->unpaid_count ?? 0),
+                'partial_count' => (float) ($row->partial_count ?? 0),
+                'paid_count' => (float) ($row->paid_count ?? 0),
+                'cancelled_count' => (float) ($row->cancelled_count ?? 0),
+                'total_amount' => $expectedTotal,
+            ];
+
+            $key = $this->propertyReportPropertyKey(
+                $propertyRow['property_id'],
+                $propertyRow['property_code']
+            );
+
+            $actualRows[$key] = ['key' => $key] + $propertyRow;
+
+            $actualRows['summary']['properties_count']++;
+            $actualRows['summary']['units_count'] += $propertyRow['units_count'];
+            $actualRows['summary']['active_units_count'] += $propertyRow['active_units_count'];
+            $actualRows['summary']['contracts_count'] += $propertyRow['contracts_count'];
+            $actualRows['summary']['active_contracts_count'] += $propertyRow['active_contracts_count'];
+            $actualRows['summary']['expected_total'] = round($actualRows['summary']['expected_total'] + $expectedTotal, 2);
+            $actualRows['summary']['received_total'] = round($actualRows['summary']['received_total'] + $receivedTotal, 2);
+        });
+
+        $actualRows['summary']['remaining_total'] = round(max(
+            (float) $actualRows['summary']['expected_total'] - (float) $actualRows['summary']['received_total'],
+            0
+        ), 2);
+        $actualRows['summary']['total_amount'] = $actualRows['summary']['expected_total'];
+
+        return $actualRows;
+    }
+
+    private function propertyLedgerReportKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['property_code']) && (string) $row['property_code'] !== '') {
+            return 'property:' . (string) $row['property_code'];
+        }
+
+        if (isset($row['property_id']) && (string) $row['property_id'] !== '') {
+            return 'property_id:' . (int) $row['property_id'];
+        }
+
+        return '';
+    }
+
+    private function verifyPropertyOwnerProfitLossCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $display = in_array((string) ($case['display'] ?? 'non_zero'), ['non_zero', 'all'], true)
+            ? (string) ($case['display'] ?? 'non_zero')
+            : 'non_zero';
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('表示: ' . $display);
+
+        $actualRows = $this->buildPropertyOwnerProfitLossActualRows($bookId, $periodFrom, $periodTo, $display);
+
+        return $this->verifyExpectedRowsByKey(
+            $case,
+            $actualRows,
+            fn (array $row): string => $this->propertyOwnerProfitLossKeyFromExpectedRow($row),
+            'key、property_code、property_id、owner_code、または owner_id を指定してください。',
+            'クラウド側に対象の物件・所有者別損益行がありません。',
+            '期待値にないクラウド側の物件・所有者別損益行があります。',
+            $failOnExtra
+        );
+    }
+
+    private function buildPropertyOwnerProfitLossActualRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        string $display
+    ): array {
+        $propertyRows = $this->buildPropertyOwnerProfitLossPropertyRows($bookId, $periodFrom, $periodTo, $display);
+        $ownerRows = [];
+
+        collect($propertyRows)
+            ->groupBy(fn (array $row): string => $this->propertyOwnerProfitLossOwnerKey($row['owner_id'], $row['owner_code']))
+            ->each(function ($rows, string $ownerKey) use (&$ownerRows): void {
+                $first = collect($rows)->first();
+
+                $ownerRows[$ownerKey] = [
+                    'key' => $ownerKey,
+                    'owner_id' => $first['owner_id'] ?? null,
+                    'owner_code' => $first['owner_code'] ?? null,
+                    'owner_name' => $first['owner_name'] ?? '所有者未設定',
+                    'properties_count' => collect($rows)->count(),
+                    'rental_expected_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['rental_expected_total']), 2),
+                    'rental_received_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['rental_received_total']), 2),
+                    'rental_remaining_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['rental_remaining_total']), 2),
+                    'depreciation_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['depreciation_total']), 2),
+                    'loan_interest_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['loan_interest_total']), 2),
+                    'journal_profit_loss_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['journal_profit_loss_total']), 2),
+                    'estimated_income_by_expected' => round(collect($rows)->sum(fn (array $row): float => (float) $row['estimated_income_by_expected']), 2),
+                    'estimated_income_by_received' => round(collect($rows)->sum(fn (array $row): float => (float) $row['estimated_income_by_received']), 2),
+                    'estimated_income_with_journal_by_expected' => round(collect($rows)->sum(fn (array $row): float => (float) $row['estimated_income_with_journal_by_expected']), 2),
+                    'estimated_income_with_journal_by_received' => round(collect($rows)->sum(fn (array $row): float => (float) $row['estimated_income_with_journal_by_received']), 2),
+                ];
+                $ownerRows[$ownerKey]['amount'] = $ownerRows[$ownerKey]['estimated_income_by_received'];
+                $ownerRows[$ownerKey]['total_amount'] = $ownerRows[$ownerKey]['estimated_income_by_received'];
+            });
+
+        $summary = [
+            'key' => 'summary',
+            'property_rows_count' => count($propertyRows),
+            'owner_rows_count' => count($ownerRows),
+            'rental_expected_total' => round(collect($propertyRows)->sum(fn (array $row): float => (float) $row['rental_expected_total']), 2),
+            'rental_received_total' => round(collect($propertyRows)->sum(fn (array $row): float => (float) $row['rental_received_total']), 2),
+            'rental_remaining_total' => round(collect($propertyRows)->sum(fn (array $row): float => (float) $row['rental_remaining_total']), 2),
+            'depreciation_total' => round(collect($propertyRows)->sum(fn (array $row): float => (float) $row['depreciation_total']), 2),
+            'loan_interest_total' => round(collect($propertyRows)->sum(fn (array $row): float => (float) $row['loan_interest_total']), 2),
+            'journal_profit_loss_total' => round(collect($propertyRows)->sum(fn (array $row): float => (float) $row['journal_profit_loss_total']), 2),
+            'estimated_income_by_expected_total' => round(collect($propertyRows)->sum(fn (array $row): float => (float) $row['estimated_income_by_expected']), 2),
+            'estimated_income_by_received_total' => round(collect($propertyRows)->sum(fn (array $row): float => (float) $row['estimated_income_by_received']), 2),
+            'estimated_income_with_journal_by_expected_total' => round(collect($propertyRows)->sum(fn (array $row): float => (float) $row['estimated_income_with_journal_by_expected']), 2),
+            'estimated_income_with_journal_by_received_total' => round(collect($propertyRows)->sum(fn (array $row): float => (float) $row['estimated_income_with_journal_by_received']), 2),
+        ];
+        $summary['amount'] = $summary['estimated_income_by_received_total'];
+        $summary['total_amount'] = $summary['estimated_income_by_received_total'];
+
+        $actualRows = [
+            'summary' => $summary,
+        ];
+
+        foreach ($ownerRows as $key => $row) {
+            $actualRows[$key] = $row;
+        }
+
+        foreach ($propertyRows as $propertyRow) {
+            $key = $this->propertyReportPropertyKey(
+                $propertyRow['property_id'],
+                $propertyRow['property_code']
+            );
+
+            $actualRows[$key] = ['key' => $key] + $propertyRow;
+        }
+
+        return $actualRows;
+    }
+
+    private function buildPropertyOwnerProfitLossPropertyRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        string $display
+    ): array {
+        $rows = [];
+
+        DB::table('properties as p')
+            ->leftJoin('property_categories as pc', 'pc.id', '=', 'p.property_category_id')
+            ->leftJoin('property_owners as po', 'po.id', '=', 'p.primary_owner_id')
+            ->where('p.book_id', $bookId)
+            ->select([
+                'p.id as property_id',
+                'p.property_code',
+                'p.name as property_name',
+                'p.sort_order',
+                'pc.name as property_category_name',
+                'po.id as owner_id',
+                'po.owner_code',
+                'po.name as owner_name',
+            ])
+            ->orderBy('p.sort_order')
+            ->orderBy('p.property_code')
+            ->orderBy('p.id')
+            ->get()
+            ->each(function (object $property) use (&$rows): void {
+                $rows[(string) $property->property_id] = $this->emptyPropertyOwnerProfitLossPropertyRow(
+                    $property->property_id !== null ? (int) $property->property_id : null,
+                    (string) ($property->property_code ?? ''),
+                    (string) ($property->property_name ?? '物件未設定'),
+                    (string) ($property->property_category_name ?? ''),
+                    $property->owner_id !== null ? (int) $property->owner_id : null,
+                    $property->owner_code !== null ? (string) $property->owner_code : null,
+                    $property->owner_name !== null ? (string) $property->owner_name : '所有者未設定',
+                    (int) ($property->sort_order ?? 999999)
+                );
+            });
+
+        $this->mergePropertyOwnerRentalIncomeRows($rows, $bookId, $periodFrom, $periodTo);
+        $this->mergePropertyOwnerDepreciationRows($rows, $bookId, $periodFrom, $periodTo);
+        $this->mergePropertyOwnerLoanRows($rows, $bookId, $periodFrom, $periodTo);
+        $this->mergePropertyOwnerJournalRows($rows, $bookId, $periodFrom, $periodTo);
+
+        $rows = collect($rows)
+            ->map(function (array $row): array {
+                $row['estimated_income_by_expected'] = round(
+                    (float) $row['rental_expected_total']
+                    - (float) $row['depreciation_total']
+                    - (float) $row['loan_interest_total'],
+                    2
+                );
+                $row['estimated_income_by_received'] = round(
+                    (float) $row['rental_received_total']
+                    - (float) $row['depreciation_total']
+                    - (float) $row['loan_interest_total'],
+                    2
+                );
+                $row['estimated_income_with_journal_by_expected'] = round(
+                    (float) $row['estimated_income_by_expected'] + (float) $row['journal_profit_loss_total'],
+                    2
+                );
+                $row['estimated_income_with_journal_by_received'] = round(
+                    (float) $row['estimated_income_by_received'] + (float) $row['journal_profit_loss_total'],
+                    2
+                );
+                $row['amount'] = $row['estimated_income_by_received'];
+                $row['total_amount'] = $row['estimated_income_by_received'];
+
+                return $row;
+            })
+            ->filter(function (array $row) use ($display): bool {
+                if ($display === 'all') {
+                    return true;
+                }
+
+                return abs((float) $row['rental_expected_total']) >= 0.005
+                    || abs((float) $row['rental_received_total']) >= 0.005
+                    || abs((float) $row['depreciation_total']) >= 0.005
+                    || abs((float) $row['loan_interest_total']) >= 0.005
+                    || abs((float) $row['journal_profit_loss_total']) >= 0.005
+                    || abs((float) $row['estimated_income_by_expected']) >= 0.005
+                    || abs((float) $row['estimated_income_by_received']) >= 0.005;
+            })
+            ->sortBy(fn (array $row): string => str_pad((string) $row['property_sort_order'], 10, '0', STR_PAD_LEFT) . '|' . (string) $row['property_code'])
+            ->values()
+            ->all();
+
+        return $rows;
+    }
+
+    private function emptyPropertyOwnerProfitLossPropertyRow(
+        ?int $propertyId,
+        string $propertyCode,
+        string $propertyName,
+        string $propertyCategoryName,
+        ?int $ownerId,
+        ?string $ownerCode,
+        string $ownerName,
+        int $sortOrder
+    ): array {
+        return [
+            'property_id' => $propertyId,
+            'property_code' => $propertyCode,
+            'property_name' => $propertyName,
+            'property_category_name' => $propertyCategoryName,
+            'property_sort_order' => $sortOrder,
+            'owner_id' => $ownerId,
+            'owner_code' => $ownerCode,
+            'owner_name' => $ownerName,
+            'rental_schedules_count' => 0.0,
+            'rental_expected_total' => 0.0,
+            'rental_received_total' => 0.0,
+            'rental_remaining_total' => 0.0,
+            'depreciable_assets_count' => 0.0,
+            'depreciation_total' => 0.0,
+            'loan_repayments_count' => 0.0,
+            'loan_principal_total' => 0.0,
+            'loan_interest_total' => 0.0,
+            'loan_payment_total' => 0.0,
+            'journal_lines_count' => 0.0,
+            'journal_revenue_total' => 0.0,
+            'journal_expense_total' => 0.0,
+            'journal_profit_loss_total' => 0.0,
+            'estimated_income_by_expected' => 0.0,
+            'estimated_income_by_received' => 0.0,
+            'estimated_income_with_journal_by_expected' => 0.0,
+            'estimated_income_with_journal_by_received' => 0.0,
+        ];
+    }
+
+    private function ensurePropertyOwnerProfitLossRow(array &$rows, ?int $propertyId): string
+    {
+        $key = $propertyId !== null ? (string) $propertyId : 'none';
+
+        if (! array_key_exists($key, $rows)) {
+            $rows[$key] = $this->emptyPropertyOwnerProfitLossPropertyRow(
+                null,
+                '',
+                '物件未設定',
+                '',
+                null,
+                null,
+                '所有者未設定',
+                999999
+            );
+        }
+
+        return $key;
+    }
+
+    private function mergePropertyOwnerRentalIncomeRows(array &$rows, int $bookId, string $periodFrom, string $periodTo): void
+    {
+        DB::table('payment_schedules as ps')
+            ->join('rental_contracts as rc', 'rc.id', '=', 'ps.rental_contract_id')
+            ->where('ps.book_id', $bookId)
+            ->where('ps.status', '<>', 'cancelled')
+            ->whereDate('ps.due_on', '>=', $periodFrom)
+            ->whereDate('ps.due_on', '<=', $periodTo)
+            ->select('rc.property_id')
+            ->selectRaw('COUNT(ps.id) as schedules_count')
+            ->selectRaw('COALESCE(SUM(ps.expected_amount), 0) as expected_total')
+            ->selectRaw('COALESCE(SUM(ps.received_amount), 0) as received_total')
+            ->selectRaw('COALESCE(SUM(GREATEST(ps.expected_amount - ps.received_amount, 0)), 0) as remaining_total')
+            ->groupBy('rc.property_id')
+            ->get()
+            ->each(function (object $row) use (&$rows): void {
+                $key = $this->ensurePropertyOwnerProfitLossRow($rows, $row->property_id !== null ? (int) $row->property_id : null);
+                $rows[$key]['rental_schedules_count'] = (float) ($row->schedules_count ?? 0);
+                $rows[$key]['rental_expected_total'] = $this->normalizeAmount($row->expected_total ?? 0);
+                $rows[$key]['rental_received_total'] = $this->normalizeAmount($row->received_total ?? 0);
+                $rows[$key]['rental_remaining_total'] = $this->normalizeAmount($row->remaining_total ?? 0);
+            });
+    }
+
+    private function mergePropertyOwnerDepreciationRows(array &$rows, int $bookId, string $periodFrom, string $periodTo): void
+    {
+        DB::table('depreciable_assets')
+            ->where('book_id', $bookId)
+            ->where('status', 'active')
+            ->get()
+            ->groupBy(fn (object $asset): string => $asset->property_id !== null ? (string) $asset->property_id : 'none')
+            ->each(function ($assets, string $propertyKey) use (&$rows, $periodFrom, $periodTo): void {
+                $key = $propertyKey === 'none'
+                    ? $this->ensurePropertyOwnerProfitLossRow($rows, null)
+                    : $this->ensurePropertyOwnerProfitLossRow($rows, (int) $propertyKey);
+
+                $rows[$key]['depreciable_assets_count'] = collect($assets)->count();
+                $rows[$key]['depreciation_total'] = round(
+                    collect($assets)->sum(fn (object $asset): float => $this->calculatePropertyOwnerProfitLossDepreciation($asset, $periodFrom, $periodTo)),
+                    2
+                );
+            });
+    }
+
+    private function mergePropertyOwnerLoanRows(array &$rows, int $bookId, string $periodFrom, string $periodTo): void
+    {
+        if (! DB::getSchemaBuilder()->hasTable('borrowing_repayments')) {
+            return;
+        }
+
+        DB::table('borrowing_repayments as br')
+            ->join('borrowing_loans as bl', 'bl.id', '=', 'br.borrowing_loan_id')
+            ->where('bl.book_id', $bookId)
+            ->where('bl.status', 'active')
+            ->whereDate('br.due_on', '>=', $periodFrom)
+            ->whereDate('br.due_on', '<=', $periodTo)
+            ->select('bl.property_id')
+            ->selectRaw('COUNT(br.id) as repayments_count')
+            ->selectRaw('COALESCE(SUM(br.principal_amount), 0) as principal_total')
+            ->selectRaw('COALESCE(SUM(br.interest_amount), 0) as interest_total')
+            ->selectRaw('COALESCE(SUM(br.total_amount), 0) as payment_total')
+            ->groupBy('bl.property_id')
+            ->get()
+            ->each(function (object $row) use (&$rows): void {
+                $key = $this->ensurePropertyOwnerProfitLossRow($rows, $row->property_id !== null ? (int) $row->property_id : null);
+                $rows[$key]['loan_repayments_count'] = (float) ($row->repayments_count ?? 0);
+                $rows[$key]['loan_principal_total'] = $this->normalizeAmount($row->principal_total ?? 0);
+                $rows[$key]['loan_interest_total'] = $this->normalizeAmount($row->interest_total ?? 0);
+                $rows[$key]['loan_payment_total'] = $this->normalizeAmount($row->payment_total ?? 0);
+            });
+    }
+
+    private function mergePropertyOwnerJournalRows(array &$rows, int $bookId, string $periodFrom, string $periodTo): void
+    {
+        DB::table('journal_entry_lines as jel')
+            ->join('journal_entries as je', 'je.id', '=', 'jel.journal_entry_id')
+            ->join('account_titles as at', 'at.id', '=', 'jel.account_title_id')
+            ->where('je.book_id', $bookId)
+            ->where('je.status', 'posted')
+            ->whereNotNull('jel.property_id')
+            ->whereIn('at.category', ['revenue', 'expense'])
+            ->whereNotIn('je.entry_type', ['rental_payment', 'depreciation', 'loan_repayment'])
+            ->whereDate('je.entry_date', '>=', $periodFrom)
+            ->whereDate('je.entry_date', '<=', $periodTo)
+            ->select('jel.property_id')
+            ->selectRaw('COUNT(jel.id) as lines_count')
+            ->selectRaw("
+                COALESCE(SUM(
+                    CASE
+                        WHEN at.category = 'revenue' AND at.normal_balance = jel.side THEN jel.amount
+                        WHEN at.category = 'revenue' AND at.normal_balance <> jel.side THEN -jel.amount
+                        ELSE 0
+                    END
+                ), 0) as revenue_total
+            ")
+            ->selectRaw("
+                COALESCE(SUM(
+                    CASE
+                        WHEN at.category = 'expense' AND at.normal_balance = jel.side THEN jel.amount
+                        WHEN at.category = 'expense' AND at.normal_balance <> jel.side THEN -jel.amount
+                        ELSE 0
+                    END
+                ), 0) as expense_total
+            ")
+            ->groupBy('jel.property_id')
+            ->get()
+            ->each(function (object $row) use (&$rows): void {
+                $key = $this->ensurePropertyOwnerProfitLossRow($rows, $row->property_id !== null ? (int) $row->property_id : null);
+                $revenueTotal = $this->normalizeAmount($row->revenue_total ?? 0);
+                $expenseTotal = $this->normalizeAmount($row->expense_total ?? 0);
+
+                $rows[$key]['journal_lines_count'] = (float) ($row->lines_count ?? 0);
+                $rows[$key]['journal_revenue_total'] = $revenueTotal;
+                $rows[$key]['journal_expense_total'] = $expenseTotal;
+                $rows[$key]['journal_profit_loss_total'] = round($revenueTotal - $expenseTotal, 2);
+            });
+    }
+
+    private function calculatePropertyOwnerProfitLossDepreciation(object $asset, string $periodFrom, string $periodTo): float
+    {
+        $periodStart = new \DateTimeImmutable(substr($periodFrom, 0, 7) . '-01');
+        $periodEnd = new \DateTimeImmutable(substr($periodTo, 0, 7) . '-01');
+
+        if ($periodStart > $periodEnd) {
+            return 0.0;
+        }
+
+        $depreciationStartDate = $asset->depreciation_start_date ?? $asset->acquisition_date ?? null;
+
+        if ($depreciationStartDate === null || (string) $depreciationStartDate === '') {
+            return 0.0;
+        }
+
+        $depreciationStart = new \DateTimeImmutable(substr((string) $depreciationStartDate, 0, 7) . '-01');
+        $usableStart = $periodStart > $depreciationStart ? $periodStart : $depreciationStart;
+        $usableEnd = $periodEnd;
+
+        if ($usableStart > $usableEnd) {
+            return 0.0;
+        }
+
+        $acquisitionCost = (float) ($asset->acquisition_cost ?? 0);
+        $salvageValue = (float) ($asset->salvage_value ?? 0);
+        $businessUseRatio = (float) ($asset->business_use_ratio ?? 100) / 100;
+        $usefulLifeYears = max((int) ($asset->useful_life_years ?? 1), 1);
+        $depreciableBase = max($acquisitionCost - $salvageValue, 0);
+
+        if ($depreciableBase <= 0 || $businessUseRatio <= 0) {
+            return 0.0;
+        }
+
+        $annualDepreciation = round($depreciableBase / $usefulLifeYears, 2);
+        $monthsToPeriodStart = $this->propertyOwnerProfitLossMonthDiff($depreciationStart, $usableStart);
+        $monthsToPeriodEnd = $this->propertyOwnerProfitLossMonthDiff($depreciationStart, $usableEnd) + 1;
+        $maximumDepreciation = round($depreciableBase * $businessUseRatio, 2);
+
+        $depreciationBeforePeriod = min(
+            round($annualDepreciation * ($monthsToPeriodStart / 12) * $businessUseRatio, 2),
+            $maximumDepreciation
+        );
+
+        $depreciationThroughPeriodEnd = min(
+            round($annualDepreciation * ($monthsToPeriodEnd / 12) * $businessUseRatio, 2),
+            $maximumDepreciation
+        );
+
+        return max(round($depreciationThroughPeriodEnd - $depreciationBeforePeriod, 2), 0);
+    }
+
+    private function propertyOwnerProfitLossMonthDiff(\DateTimeImmutable $start, \DateTimeImmutable $end): int
+    {
+        return ((int) $end->format('Y') - (int) $start->format('Y')) * 12
+            + ((int) $end->format('n') - (int) $start->format('n'));
+    }
+
+    private function propertyOwnerProfitLossKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['property_code']) && (string) $row['property_code'] !== '') {
+            return 'property:' . (string) $row['property_code'];
+        }
+
+        if (isset($row['property_id']) && (string) $row['property_id'] !== '') {
+            return 'property_id:' . (int) $row['property_id'];
+        }
+
+        if (isset($row['owner_code']) && (string) $row['owner_code'] !== '') {
+            return 'owner:' . (string) $row['owner_code'];
+        }
+
+        if (isset($row['owner_id']) && (string) $row['owner_id'] !== '') {
+            return 'owner_id:' . (int) $row['owner_id'];
+        }
+
+        return '';
+    }
+
+    private function propertyReportPropertyKey(?int $propertyId, ?string $propertyCode): string
+    {
+        if ($propertyCode !== null && $propertyCode !== '') {
+            return 'property:' . $propertyCode;
+        }
+
+        if ($propertyId !== null) {
+            return 'property_id:' . $propertyId;
+        }
+
+        return 'property:none';
+    }
+
+    private function propertyOwnerProfitLossOwnerKey(?int $ownerId, ?string $ownerCode): string
+    {
+        if ($ownerCode !== null && $ownerCode !== '') {
+            return 'owner:' . $ownerCode;
+        }
+
+        if ($ownerId !== null) {
+            return 'owner_id:' . $ownerId;
+        }
+
+        return 'owner:none';
+    }
+
+    private function verifyExpectedRowsByKey(
+        array $case,
+        array $actualRows,
+        callable $keyResolver,
+        string $emptyKeyMessage,
+        string $missingRowMessage,
+        string $extraRowMessage,
+        bool $failOnExtra
+    ): array {
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedKeys = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $key = (string) $keyResolver($expectedRow);
+
+            if ($key === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', $emptyKeyMessage];
+                continue;
+            }
+
+            $expectedKeys[] = $key;
+            $actualRow = $actualRows[$key] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $key, '行存在', 'あり', 'なし', '-', $missingRowMessage];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $key, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $key,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraKeys = array_values(array_diff(array_keys($actualRows), $expectedKeys));
+
+            foreach ($extraKeys as $extraKey) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraKey,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    $extraRowMessage,
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
         ];
     }
 
