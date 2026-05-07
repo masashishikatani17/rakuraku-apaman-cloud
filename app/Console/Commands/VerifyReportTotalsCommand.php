@@ -47,6 +47,9 @@ class VerifyReportTotalsCommand extends Command
         'depreciable_asset',
         'borrowing_loan',
         'next_year_asset_loan_carryover',
+        'csv_export',
+        'pdf_export',
+        'output_menu',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -175,6 +178,17 @@ class VerifyReportTotalsCommand extends Command
         'source_book_id',
         'target_book_id',
         'copy_only_active',
+        'export_type',
+        'export_type_label',
+        'report_type',
+        'report_type_label',
+        'menu_group_key',
+        'menu_group_title',
+        'route_name',
+        'route_label',
+        'path',
+        'paper_size',
+        'available',
     ];
 
     public function handle(): int
@@ -395,6 +409,18 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'next_year_asset_loan_carryover') {
             return $this->verifyNextYearAssetLoanCarryoverCase($case, $failOnExtra);
+        }
+
+        if ($report === 'csv_export') {
+            return $this->verifyCsvExportCase($case, $failOnExtra);
+        }
+
+        if ($report === 'pdf_export') {
+            return $this->verifyPdfExportCase($case, $failOnExtra);
+        }
+
+        if ($report === 'output_menu') {
+            return $this->verifyOutputMenuCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -9550,6 +9576,800 @@ class VerifyReportTotalsCommand extends Command
     {
         return ((int) $end->format('Y') - (int) $start->format('Y')) * 12
             + ((int) $end->format('n') - (int) $start->format('n'));
+    }
+
+
+
+    private function verifyCsvExportCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) ($case['period_from'] ?? $case['date_from'] ?? '');
+        $periodTo = (string) ($case['period_to'] ?? $case['date_to'] ?? '');
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . ($periodFrom !== '' ? $periodFrom : '指定なし') . ' 〜 ' . ($periodTo !== '' ? $periodTo : '指定なし'));
+
+        $actualRows = $this->buildCsvExportActualRows($bookId, $periodFrom !== '' ? $periodFrom : null, $periodTo !== '' ? $periodTo : null);
+
+        return $this->verifyExpectedRowsByKey(
+            $case,
+            $actualRows,
+            fn (array $row): string => $this->csvExportKeyFromExpectedRow($row),
+            'key または export_type を指定してください。',
+            'クラウド側に対象のCSV出力検証行がありません。',
+            '期待値にないクラウド側のCSV出力検証行があります。',
+            $failOnExtra
+        );
+    }
+
+    private function buildCsvExportActualRows(int $bookId, ?string $dateFrom, ?string $dateTo): array
+    {
+        $availableTypes = $this->csvExportAvailableTypes();
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'export_types_count' => count($availableTypes),
+                'rows_total' => 0.0,
+                'amount_total' => 0.0,
+                'debit_total' => 0.0,
+                'credit_total' => 0.0,
+                'expected_total' => 0.0,
+                'received_total' => 0.0,
+                'principal_total' => 0.0,
+                'acquisition_cost_total' => 0.0,
+                'total_amount' => 0.0,
+            ],
+        ];
+
+        foreach ($availableTypes as $exportType => $label) {
+            $stats = $this->csvExportStatsForType($exportType, $bookId, $dateFrom, $dateTo);
+            $row = array_merge([
+                'key' => 'export_type:' . $exportType,
+                'export_type' => $exportType,
+                'export_type_label' => $label,
+                'available' => 1.0,
+            ], $stats);
+
+            $actualRows['export_type:' . $exportType] = $row;
+
+            $actualRows['summary']['rows_total'] = round($actualRows['summary']['rows_total'] + (float) ($row['rows_count'] ?? 0), 2);
+            $actualRows['summary']['amount_total'] = round($actualRows['summary']['amount_total'] + (float) ($row['amount_total'] ?? 0), 2);
+            $actualRows['summary']['debit_total'] = round($actualRows['summary']['debit_total'] + (float) ($row['debit_total'] ?? 0), 2);
+            $actualRows['summary']['credit_total'] = round($actualRows['summary']['credit_total'] + (float) ($row['credit_total'] ?? 0), 2);
+            $actualRows['summary']['expected_total'] = round($actualRows['summary']['expected_total'] + (float) ($row['expected_total'] ?? 0), 2);
+            $actualRows['summary']['received_total'] = round($actualRows['summary']['received_total'] + (float) ($row['received_total'] ?? 0), 2);
+            $actualRows['summary']['principal_total'] = round($actualRows['summary']['principal_total'] + (float) ($row['principal_total'] ?? 0), 2);
+            $actualRows['summary']['acquisition_cost_total'] = round($actualRows['summary']['acquisition_cost_total'] + (float) ($row['acquisition_cost_total'] ?? 0), 2);
+        }
+
+        $actualRows['summary']['total_amount'] = $actualRows['summary']['rows_total'];
+
+        return $actualRows;
+    }
+
+    private function csvExportAvailableTypes(): array
+    {
+        $schema = DB::getSchemaBuilder();
+        $types = [];
+
+        if ($schema->hasTable('account_titles')) {
+            $types['account_titles'] = '勘定科目マスタ';
+        }
+
+        if (
+            $schema->hasTable('journal_entries')
+            && $schema->hasTable('journal_entry_lines')
+            && $schema->hasTable('account_titles')
+        ) {
+            $types['journal_entries'] = '仕訳明細';
+            $types['trial_balance'] = '残高試算表';
+        }
+
+        if ($schema->hasTable('payment_schedules')) {
+            $types['payment_schedules'] = '入金予定';
+        }
+
+        if ($schema->hasTable('payment_receipts')) {
+            $types['payment_receipts'] = '入金実績';
+        }
+
+        if ($schema->hasTable('properties')) {
+            $types['properties'] = '物件マスター';
+        }
+
+        if ($schema->hasTable('rental_contracts')) {
+            $types['rental_contracts'] = '賃貸条件';
+        }
+
+        if ($schema->hasTable('depreciable_assets')) {
+            $types['depreciable_assets'] = '固定資産・減価償却';
+        }
+
+        if ($schema->hasTable('borrowing_loans') && $schema->hasTable('borrowing_repayments')) {
+            $types['borrowing_loans'] = '借入金台帳';
+        }
+
+        return $types;
+    }
+
+    private function csvExportStatsForType(string $exportType, int $bookId, ?string $dateFrom, ?string $dateTo): array
+    {
+        return match ($exportType) {
+            'account_titles' => $this->csvAccountTitleStats($bookId),
+            'journal_entries' => $this->csvJournalEntryStats($bookId, $dateFrom, $dateTo),
+            'trial_balance' => $this->csvTrialBalanceStats($bookId, $dateFrom, $dateTo),
+            'payment_schedules' => $this->csvPaymentScheduleStats($bookId, $dateFrom, $dateTo),
+            'payment_receipts' => $this->csvPaymentReceiptStats($bookId, $dateFrom, $dateTo),
+            'properties' => $this->csvPropertyStats($bookId),
+            'rental_contracts' => $this->csvRentalContractStats($bookId),
+            'depreciable_assets' => $this->csvDepreciableAssetStats($bookId),
+            'borrowing_loans' => $this->csvBorrowingLoanStats($bookId, $dateFrom, $dateTo),
+            default => ['rows_count' => 0.0, 'total_amount' => 0.0],
+        };
+    }
+
+    private function csvAccountTitleStats(int $bookId): array
+    {
+        return [
+            'rows_count' => (float) DB::table('account_titles')->where('book_id', $bookId)->count(),
+            'total_amount' => (float) DB::table('account_titles')->where('book_id', $bookId)->count(),
+        ];
+    }
+
+    private function csvJournalEntryStats(int $bookId, ?string $dateFrom, ?string $dateTo): array
+    {
+        $query = DB::table('journal_entry_lines as jel')
+            ->join('journal_entries as je', 'je.id', '=', 'jel.journal_entry_id')
+            ->where('je.book_id', $bookId);
+
+        $this->csvApplyDateRange($query, 'je.entry_date', $dateFrom, $dateTo);
+
+        $summary = $query
+            ->selectRaw('COUNT(*) as rows_count')
+            ->selectRaw('COUNT(DISTINCT je.id) as entries_count')
+            ->selectRaw("COALESCE(SUM(CASE WHEN jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN jel.side = 'credit' THEN jel.amount ELSE 0 END), 0) as credit_total")
+            ->first();
+
+        $debitTotal = $this->normalizeAmount($summary->debit_total ?? 0);
+        $creditTotal = $this->normalizeAmount($summary->credit_total ?? 0);
+
+        return [
+            'rows_count' => (float) ($summary->rows_count ?? 0),
+            'entries_count' => (float) ($summary->entries_count ?? 0),
+            'debit_total' => $debitTotal,
+            'credit_total' => $creditTotal,
+            'difference' => round($debitTotal - $creditTotal, 2),
+            'total_amount' => round($debitTotal + $creditTotal, 2),
+        ];
+    }
+
+    private function csvTrialBalanceStats(int $bookId, ?string $dateFrom, ?string $dateTo): array
+    {
+        $rows = $this->pdfAccountRows(
+            $bookId,
+            ['asset', 'liability', 'equity', 'revenue', 'expense'],
+            $dateFrom,
+            $dateTo,
+            'all'
+        );
+
+        $debitTotal = round($rows->sum(fn (array $row): float => (float) $row['debit_total']), 2);
+        $creditTotal = round($rows->sum(fn (array $row): float => (float) $row['credit_total']), 2);
+
+        return [
+            'rows_count' => $rows->count(),
+            'debit_total' => $debitTotal,
+            'credit_total' => $creditTotal,
+            'difference' => round($debitTotal - $creditTotal, 2),
+            'total_amount' => round($debitTotal + $creditTotal, 2),
+        ];
+    }
+
+    private function csvPaymentScheduleStats(int $bookId, ?string $dateFrom, ?string $dateTo): array
+    {
+        $query = DB::table('payment_schedules')->where('book_id', $bookId);
+        $this->csvApplyDateRange($query, 'due_on', $dateFrom, $dateTo);
+
+        $summary = $query
+            ->selectRaw('COUNT(*) as rows_count')
+            ->selectRaw('COALESCE(SUM(expected_amount), 0) as expected_total')
+            ->selectRaw('COALESCE(SUM(received_amount), 0) as received_total')
+            ->first();
+
+        $expectedTotal = $this->normalizeAmount($summary->expected_total ?? 0);
+        $receivedTotal = $this->normalizeAmount($summary->received_total ?? 0);
+
+        return [
+            'rows_count' => (float) ($summary->rows_count ?? 0),
+            'expected_total' => $expectedTotal,
+            'received_total' => $receivedTotal,
+            'remaining_total' => round(max($expectedTotal - $receivedTotal, 0), 2),
+            'total_amount' => $expectedTotal,
+        ];
+    }
+
+    private function csvPaymentReceiptStats(int $bookId, ?string $dateFrom, ?string $dateTo): array
+    {
+        $query = DB::table('payment_receipts')->where('book_id', $bookId);
+        $this->csvApplyDateRange($query, 'received_on', $dateFrom, $dateTo);
+
+        $summary = $query
+            ->selectRaw('COUNT(*) as rows_count')
+            ->selectRaw('COALESCE(SUM(amount), 0) as amount_total')
+            ->first();
+
+        return [
+            'rows_count' => (float) ($summary->rows_count ?? 0),
+            'amount_total' => $this->normalizeAmount($summary->amount_total ?? 0),
+            'total_amount' => $this->normalizeAmount($summary->amount_total ?? 0),
+        ];
+    }
+
+    private function csvPropertyStats(int $bookId): array
+    {
+        $summary = DB::table('properties')
+            ->where('book_id', $bookId)
+            ->selectRaw('COUNT(*) as rows_count')
+            ->selectRaw('COALESCE(SUM(land_area_sqm), 0) as land_area_total')
+            ->selectRaw('COALESCE(SUM(building_area_sqm), 0) as building_area_total')
+            ->first();
+
+        return [
+            'rows_count' => (float) ($summary->rows_count ?? 0),
+            'land_area_total' => $this->normalizeAmount($summary->land_area_total ?? 0),
+            'building_area_total' => $this->normalizeAmount($summary->building_area_total ?? 0),
+            'total_amount' => (float) ($summary->rows_count ?? 0),
+        ];
+    }
+
+    private function csvRentalContractStats(int $bookId): array
+    {
+        $summary = DB::table('rental_contracts')
+            ->where('book_id', $bookId)
+            ->selectRaw('COUNT(*) as rows_count')
+            ->selectRaw('COALESCE(SUM(rent_amount), 0) as rent_total')
+            ->selectRaw('COALESCE(SUM(common_service_fee), 0) as common_service_fee_total')
+            ->selectRaw('COALESCE(SUM(parking_fee), 0) as parking_fee_total')
+            ->selectRaw('COALESCE(SUM(other_monthly_fee), 0) as other_monthly_fee_total')
+            ->selectRaw('COALESCE(SUM(deposit_amount), 0) as deposit_total')
+            ->selectRaw('COALESCE(SUM(key_money_amount), 0) as key_money_total')
+            ->selectRaw('COALESCE(SUM(guarantee_deposit_amount), 0) as guarantee_deposit_total')
+            ->first();
+
+        $monthlyTotal = round(
+            $this->normalizeAmount($summary->rent_total ?? 0)
+            + $this->normalizeAmount($summary->common_service_fee_total ?? 0)
+            + $this->normalizeAmount($summary->parking_fee_total ?? 0)
+            + $this->normalizeAmount($summary->other_monthly_fee_total ?? 0),
+            2
+        );
+
+        return [
+            'rows_count' => (float) ($summary->rows_count ?? 0),
+            'rent_total' => $this->normalizeAmount($summary->rent_total ?? 0),
+            'common_service_fee_total' => $this->normalizeAmount($summary->common_service_fee_total ?? 0),
+            'parking_fee_total' => $this->normalizeAmount($summary->parking_fee_total ?? 0),
+            'other_monthly_fee_total' => $this->normalizeAmount($summary->other_monthly_fee_total ?? 0),
+            'monthly_total' => $monthlyTotal,
+            'deposit_total' => $this->normalizeAmount($summary->deposit_total ?? 0),
+            'key_money_total' => $this->normalizeAmount($summary->key_money_total ?? 0),
+            'guarantee_deposit_total' => $this->normalizeAmount($summary->guarantee_deposit_total ?? 0),
+            'total_amount' => $monthlyTotal,
+        ];
+    }
+
+    private function csvDepreciableAssetStats(int $bookId): array
+    {
+        $summary = DB::table('depreciable_assets')
+            ->where('book_id', $bookId)
+            ->selectRaw('COUNT(*) as rows_count')
+            ->selectRaw('COALESCE(SUM(acquisition_cost), 0) as acquisition_cost_total')
+            ->selectRaw('COALESCE(SUM(salvage_value), 0) as salvage_value_total')
+            ->first();
+
+        return [
+            'rows_count' => (float) ($summary->rows_count ?? 0),
+            'acquisition_cost_total' => $this->normalizeAmount($summary->acquisition_cost_total ?? 0),
+            'salvage_value_total' => $this->normalizeAmount($summary->salvage_value_total ?? 0),
+            'total_amount' => $this->normalizeAmount($summary->acquisition_cost_total ?? 0),
+        ];
+    }
+
+    private function csvBorrowingLoanStats(int $bookId, ?string $dateFrom, ?string $dateTo): array
+    {
+        $loanSummary = DB::table('borrowing_loans')
+            ->where('book_id', $bookId)
+            ->selectRaw('COUNT(*) as rows_count')
+            ->selectRaw('COALESCE(SUM(principal_amount), 0) as principal_total')
+            ->first();
+
+        $repaymentQuery = DB::table('borrowing_repayments as br')
+            ->join('borrowing_loans as bl', 'bl.id', '=', 'br.borrowing_loan_id')
+            ->where('bl.book_id', $bookId);
+
+        $this->csvApplyDateRange($repaymentQuery, 'br.due_on', $dateFrom, $dateTo);
+
+        $repaymentSummary = $repaymentQuery
+            ->selectRaw('COUNT(*) as repayment_rows_count')
+            ->selectRaw('COALESCE(SUM(br.principal_amount), 0) as period_principal_total')
+            ->selectRaw('COALESCE(SUM(br.interest_amount), 0) as period_interest_total')
+            ->selectRaw('COALESCE(SUM(br.total_amount), 0) as period_total')
+            ->first();
+
+        return [
+            'rows_count' => (float) ($loanSummary->rows_count ?? 0),
+            'repayment_rows_count' => (float) ($repaymentSummary->repayment_rows_count ?? 0),
+            'principal_total' => $this->normalizeAmount($loanSummary->principal_total ?? 0),
+            'period_principal_total' => $this->normalizeAmount($repaymentSummary->period_principal_total ?? 0),
+            'period_interest_total' => $this->normalizeAmount($repaymentSummary->period_interest_total ?? 0),
+            'period_total' => $this->normalizeAmount($repaymentSummary->period_total ?? 0),
+            'total_amount' => $this->normalizeAmount($repaymentSummary->period_total ?? 0),
+        ];
+    }
+
+    private function csvApplyDateRange($query, string $column, ?string $dateFrom, ?string $dateTo): void
+    {
+        if (! empty($dateFrom)) {
+            $query->whereDate($column, '>=', $dateFrom);
+        }
+
+        if (! empty($dateTo)) {
+            $query->whereDate($column, '<=', $dateTo);
+        }
+    }
+
+    private function csvExportKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['export_type']) && (string) $row['export_type'] !== '') {
+            return 'export_type:' . (string) $row['export_type'];
+        }
+
+        return '';
+    }
+
+    private function verifyPdfExportCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) ($case['period_from'] ?? $case['date_from'] ?? '');
+        $periodTo = (string) ($case['period_to'] ?? $case['date_to'] ?? '');
+        $display = in_array((string) ($case['display'] ?? 'non_zero'), ['non_zero', 'all'], true)
+            ? (string) ($case['display'] ?? 'non_zero')
+            : 'non_zero';
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . ($periodFrom !== '' ? $periodFrom : '指定なし') . ' 〜 ' . ($periodTo !== '' ? $periodTo : '指定なし'));
+        $this->line('表示: ' . $display);
+
+        $actualRows = $this->buildPdfExportActualRows($bookId, $periodFrom !== '' ? $periodFrom : null, $periodTo !== '' ? $periodTo : null, $display);
+
+        return $this->verifyExpectedRowsByKey(
+            $case,
+            $actualRows,
+            fn (array $row): string => $this->pdfExportKeyFromExpectedRow($row),
+            'key または report_type を指定してください。',
+            'クラウド側に対象のPDF出力検証行がありません。',
+            '期待値にないクラウド側のPDF出力検証行があります。',
+            $failOnExtra
+        );
+    }
+
+    private function buildPdfExportActualRows(int $bookId, ?string $dateFrom, ?string $dateTo, string $display): array
+    {
+        $reportTypes = [
+            'income_statement' => '損益計算書',
+            'balance_sheet' => '貸借対照表',
+            'trial_balance' => '残高試算表',
+            'journal_diary' => '仕訳日記帳',
+            'real_estate_income' => '不動産所得決算書集計',
+        ];
+
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'report_types_count' => count($reportTypes),
+                'rows_total' => 0.0,
+                'debit_total' => 0.0,
+                'credit_total' => 0.0,
+                'total_amount' => 0.0,
+            ],
+        ];
+
+        foreach ($reportTypes as $reportType => $label) {
+            $stats = $this->pdfExportStatsForType($reportType, $bookId, $dateFrom, $dateTo, $display);
+            $row = array_merge([
+                'key' => 'report_type:' . $reportType,
+                'report_type' => $reportType,
+                'report_type_label' => $label,
+            ], $stats);
+
+            $actualRows['report_type:' . $reportType] = $row;
+            $actualRows['summary']['rows_total'] = round($actualRows['summary']['rows_total'] + (float) ($row['rows_count'] ?? 0), 2);
+            $actualRows['summary']['debit_total'] = round($actualRows['summary']['debit_total'] + (float) ($row['debit_total'] ?? 0), 2);
+            $actualRows['summary']['credit_total'] = round($actualRows['summary']['credit_total'] + (float) ($row['credit_total'] ?? 0), 2);
+            $actualRows['summary']['total_amount'] = round($actualRows['summary']['total_amount'] + (float) ($row['total_amount'] ?? 0), 2);
+        }
+
+        return $actualRows;
+    }
+
+    private function pdfExportStatsForType(string $reportType, int $bookId, ?string $dateFrom, ?string $dateTo, string $display): array
+    {
+        return match ($reportType) {
+            'income_statement' => $this->pdfIncomeStatementStats($bookId, $dateFrom, $dateTo, $display),
+            'balance_sheet' => $this->pdfBalanceSheetStats($bookId, $dateFrom, $dateTo, $display),
+            'trial_balance' => $this->pdfTrialBalanceStats($bookId, $dateFrom, $dateTo, $display),
+            'journal_diary' => $this->pdfJournalDiaryStats($bookId, $dateFrom, $dateTo),
+            'real_estate_income' => $this->pdfRealEstateIncomeStats($bookId, $dateFrom, $dateTo, $display),
+            default => ['rows_count' => 0.0, 'total_amount' => 0.0],
+        };
+    }
+
+    private function pdfIncomeStatementStats(int $bookId, ?string $dateFrom, ?string $dateTo, string $display): array
+    {
+        $rows = $this->pdfAccountRows($bookId, ['revenue', 'expense'], $dateFrom, $dateTo, $display);
+        $revenueTotal = round($rows->where('category', 'revenue')->sum(fn (array $row): float => (float) $row['amount']), 2);
+        $expenseTotal = round($rows->where('category', 'expense')->sum(fn (array $row): float => (float) $row['amount']), 2);
+
+        return [
+            'rows_count' => $rows->count(),
+            'revenue_total' => $revenueTotal,
+            'expense_total' => $expenseTotal,
+            'profit_loss_total' => round($revenueTotal - $expenseTotal, 2),
+            'total_amount' => round($revenueTotal - $expenseTotal, 2),
+        ];
+    }
+
+    private function pdfBalanceSheetStats(int $bookId, ?string $dateFrom, ?string $dateTo, string $display): array
+    {
+        $rows = $this->pdfAccountRows($bookId, ['asset', 'liability', 'equity'], null, $dateTo, $display);
+        $incomeStats = $this->pdfIncomeStatementStats($bookId, $dateFrom, $dateTo, 'all');
+
+        $assetTotal = round($rows->where('category', 'asset')->sum(fn (array $row): float => (float) $row['amount']), 2);
+        $liabilityTotal = round($rows->where('category', 'liability')->sum(fn (array $row): float => (float) $row['amount']), 2);
+        $equityTotal = round($rows->where('category', 'equity')->sum(fn (array $row): float => (float) $row['amount']), 2);
+        $currentProfitLoss = round((float) $incomeStats['profit_loss_total'], 2);
+        $netAssetsTotal = round($equityTotal + $currentProfitLoss, 2);
+        $liabilityEquityTotal = round($liabilityTotal + $netAssetsTotal, 2);
+
+        return [
+            'rows_count' => $rows->count(),
+            'asset_total' => $assetTotal,
+            'liability_total' => $liabilityTotal,
+            'equity_total' => $equityTotal,
+            'current_profit_loss' => $currentProfitLoss,
+            'net_assets_total' => $netAssetsTotal,
+            'liability_equity_total' => $liabilityEquityTotal,
+            'balance_difference' => round($assetTotal - $liabilityEquityTotal, 2),
+            'total_amount' => $assetTotal,
+        ];
+    }
+
+    private function pdfTrialBalanceStats(int $bookId, ?string $dateFrom, ?string $dateTo, string $display): array
+    {
+        $rows = $this->pdfAccountRows($bookId, ['asset', 'liability', 'equity', 'revenue', 'expense'], $dateFrom, $dateTo, $display);
+        $debitTotal = round($rows->sum(fn (array $row): float => (float) $row['debit_total']), 2);
+        $creditTotal = round($rows->sum(fn (array $row): float => (float) $row['credit_total']), 2);
+
+        return [
+            'rows_count' => $rows->count(),
+            'debit_total' => $debitTotal,
+            'credit_total' => $creditTotal,
+            'difference' => round($debitTotal - $creditTotal, 2),
+            'total_amount' => round($debitTotal + $creditTotal, 2),
+        ];
+    }
+
+    private function pdfJournalDiaryStats(int $bookId, ?string $dateFrom, ?string $dateTo): array
+    {
+        $entryQuery = DB::table('journal_entries')
+            ->where('book_id', $bookId);
+
+        $this->csvApplyDateRange($entryQuery, 'entry_date', $dateFrom, $dateTo);
+
+        $lineQuery = DB::table('journal_entry_lines as jel')
+            ->join('journal_entries as je', 'je.id', '=', 'jel.journal_entry_id')
+            ->where('je.book_id', $bookId);
+
+        $this->csvApplyDateRange($lineQuery, 'je.entry_date', $dateFrom, $dateTo);
+
+        $lineSummary = $lineQuery
+            ->selectRaw('COUNT(*) as lines_count')
+            ->selectRaw("COALESCE(SUM(CASE WHEN jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN jel.side = 'credit' THEN jel.amount ELSE 0 END), 0) as credit_total")
+            ->first();
+
+        $debitTotal = $this->normalizeAmount($lineSummary->debit_total ?? 0);
+        $creditTotal = $this->normalizeAmount($lineSummary->credit_total ?? 0);
+
+        return [
+            'rows_count' => (float) $entryQuery->count(),
+            'entries_count' => (float) $entryQuery->count(),
+            'lines_count' => (float) ($lineSummary->lines_count ?? 0),
+            'debit_total' => $debitTotal,
+            'credit_total' => $creditTotal,
+            'difference' => round($debitTotal - $creditTotal, 2),
+            'total_amount' => round($debitTotal + $creditTotal, 2),
+        ];
+    }
+
+    private function pdfRealEstateIncomeStats(int $bookId, ?string $dateFrom, ?string $dateTo, string $display): array
+    {
+        $incomeStats = $this->pdfIncomeStatementStats($bookId, $dateFrom, $dateTo, $display);
+
+        $query = DB::table('payment_schedules')
+            ->where('book_id', $bookId)
+            ->where('status', '<>', 'cancelled');
+
+        $this->csvApplyDateRange($query, 'due_on', $dateFrom, $dateTo);
+
+        $rentalSummary = $query
+            ->selectRaw('COUNT(*) as schedules_count')
+            ->selectRaw('COALESCE(SUM(expected_amount), 0) as expected_total')
+            ->selectRaw('COALESCE(SUM(received_amount), 0) as received_total')
+            ->first();
+
+        $expectedTotal = $this->normalizeAmount($rentalSummary->expected_total ?? 0);
+        $receivedTotal = $this->normalizeAmount($rentalSummary->received_total ?? 0);
+
+        return [
+            'rows_count' => $incomeStats['rows_count'],
+            'schedules_count' => (float) ($rentalSummary->schedules_count ?? 0),
+            'revenue_total' => $incomeStats['revenue_total'],
+            'expense_total' => $incomeStats['expense_total'],
+            'real_estate_income_total' => $incomeStats['profit_loss_total'],
+            'rental_expected_total' => $expectedTotal,
+            'rental_received_total' => $receivedTotal,
+            'rental_remaining_total' => round($expectedTotal - $receivedTotal, 2),
+            'total_amount' => $incomeStats['profit_loss_total'],
+        ];
+    }
+
+    private function pdfAccountRows(int $bookId, array $categories, ?string $dateFrom, ?string $dateTo, string $display)
+    {
+        $query = DB::table('account_titles as at')
+            ->leftJoin('journal_entry_lines as jel', 'jel.account_title_id', '=', 'at.id')
+            ->leftJoin('journal_entries as je', function ($join) use ($bookId, $dateFrom, $dateTo): void {
+                $join->on('je.id', '=', 'jel.journal_entry_id')
+                    ->where('je.book_id', '=', $bookId)
+                    ->where('je.status', '=', 'posted');
+
+                if (! empty($dateFrom)) {
+                    $join->whereDate('je.entry_date', '>=', $dateFrom);
+                }
+
+                if (! empty($dateTo)) {
+                    $join->whereDate('je.entry_date', '<=', $dateTo);
+                }
+            })
+            ->where('at.book_id', $bookId)
+            ->whereIn('at.category', $categories)
+            ->select([
+                'at.id as account_title_id',
+                'at.account_code',
+                'at.name as account_name',
+                'at.category',
+                'at.normal_balance',
+                'at.is_active',
+                'at.sort_order',
+            ])
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'credit' THEN jel.amount ELSE 0 END), 0) as credit_total")
+            ->groupBy(
+                'at.id',
+                'at.account_code',
+                'at.name',
+                'at.category',
+                'at.normal_balance',
+                'at.is_active',
+                'at.sort_order'
+            )
+            ->orderBy('at.sort_order')
+            ->orderBy('at.account_code')
+            ->orderBy('at.id');
+
+        return $query
+            ->get()
+            ->map(function (object $row): array {
+                $debitTotal = $this->normalizeAmount($row->debit_total ?? 0);
+                $creditTotal = $this->normalizeAmount($row->credit_total ?? 0);
+                $amount = (string) $row->normal_balance === 'debit'
+                    ? round($debitTotal - $creditTotal, 2)
+                    : round($creditTotal - $debitTotal, 2);
+
+                return [
+                    'account_title_id' => (int) $row->account_title_id,
+                    'account_code' => (string) $row->account_code,
+                    'account_name' => (string) $row->account_name,
+                    'category' => (string) $row->category,
+                    'normal_balance' => (string) $row->normal_balance,
+                    'debit_total' => $debitTotal,
+                    'credit_total' => $creditTotal,
+                    'amount' => $amount,
+                ];
+            })
+            ->filter(function (array $row) use ($display): bool {
+                if ($display === 'all') {
+                    return true;
+                }
+
+                return abs((float) $row['debit_total']) >= 0.005
+                    || abs((float) $row['credit_total']) >= 0.005
+                    || abs((float) $row['amount']) >= 0.005;
+            })
+            ->values();
+    }
+
+    private function pdfExportKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['report_type']) && (string) $row['report_type'] !== '') {
+            return 'report_type:' . (string) $row['report_type'];
+        }
+
+        return '';
+    }
+
+    private function verifyOutputMenuCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = isset($case['book_id']) && (string) $case['book_id'] !== ''
+            ? (int) $case['book_id']
+            : null;
+
+        $this->line('帳簿ID: ' . ($bookId !== null ? (string) $bookId : '未指定'));
+
+        $actualRows = $this->buildOutputMenuActualRows($bookId);
+
+        return $this->verifyExpectedRowsByKey(
+            $case,
+            $actualRows,
+            fn (array $row): string => $this->outputMenuKeyFromExpectedRow($row),
+            'key、menu_group_key、または route_name を指定してください。',
+            'クラウド側に対象の出力メニュー検証行がありません。',
+            '期待値にないクラウド側の出力メニュー検証行があります。',
+            $failOnExtra
+        );
+    }
+
+    private function buildOutputMenuActualRows(?int $bookId): array
+    {
+        $groups = $this->outputMenuGroups();
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'menu_groups_count' => count($groups),
+                'menu_items_count' => 0.0,
+                'available_items_count' => 0.0,
+                'missing_items_count' => 0.0,
+                'total_amount' => 0.0,
+            ],
+        ];
+
+        foreach ($groups as $group) {
+            $itemsCount = count($group['items']);
+            $availableCount = 0;
+
+            foreach ($group['items'] as $item) {
+                $routeName = $item['route_name'];
+                $available = \Illuminate\Support\Facades\Route::has($routeName);
+
+                if ($available) {
+                    $availableCount++;
+                }
+
+                $routeKey = 'route:' . $routeName;
+                $actualRows[$routeKey] = [
+                    'key' => $routeKey,
+                    'menu_group_key' => $group['key'],
+                    'menu_group_title' => $group['title'],
+                    'route_name' => $routeName,
+                    'route_label' => $item['label'],
+                    'available' => $available ? 1.0 : 0.0,
+                    'items_count' => 1.0,
+                    'available_items_count' => $available ? 1.0 : 0.0,
+                    'missing_items_count' => $available ? 0.0 : 1.0,
+                    'total_amount' => $available ? 1.0 : 0.0,
+                ];
+            }
+
+            $groupKey = 'group:' . $group['key'];
+            $actualRows[$groupKey] = [
+                'key' => $groupKey,
+                'menu_group_key' => $group['key'],
+                'menu_group_title' => $group['title'],
+                'items_count' => (float) $itemsCount,
+                'available_items_count' => (float) $availableCount,
+                'missing_items_count' => (float) ($itemsCount - $availableCount),
+                'total_amount' => (float) $availableCount,
+            ];
+
+            $actualRows['summary']['menu_items_count'] += $itemsCount;
+            $actualRows['summary']['available_items_count'] += $availableCount;
+            $actualRows['summary']['missing_items_count'] += ($itemsCount - $availableCount);
+        }
+
+        $actualRows['summary']['total_amount'] = $actualRows['summary']['available_items_count'];
+
+        return $actualRows;
+    }
+
+    private function outputMenuGroups(): array
+    {
+        return [
+            [
+                'key' => 'access_print_accounting',
+                'title' => 'Access印刷フォーム確認済み（会計帳票）',
+                'items' => [
+                    ['label' => '仕訳日記帳', 'route_name' => 'journal-diaries.index'],
+                    ['label' => '総勘定元帳', 'route_name' => 'general-ledgers.index'],
+                    ['label' => '残高試算表', 'route_name' => 'trial-balances.index'],
+                    ['label' => '月次推移表', 'route_name' => 'reports.monthly-trends.index'],
+                    ['label' => '損益計算書', 'route_name' => 'reports.income-statements.index'],
+                    ['label' => '貸借対照表', 'route_name' => 'reports.balance-sheets.index'],
+                ],
+            ],
+            [
+                'key' => 'access_print_closing',
+                'title' => 'Access印刷フォーム確認済み（決算書系）',
+                'items' => [
+                    ['label' => '不動産所得決算書内訳確認', 'route_name' => 'reports.real-estate-closing-details.index'],
+                    ['label' => '青色申告決算書プレビュー', 'route_name' => 'reports.blue-return-statement-previews.index'],
+                    ['label' => '白色収支内訳書プレビュー', 'route_name' => 'reports.white-return-statement-previews.index'],
+                    ['label' => '消費税申告用集計', 'route_name' => 'reports.consumption-tax-filing.index'],
+                ],
+            ],
+            [
+                'key' => 'access_print_rental',
+                'title' => 'Access印刷フォーム確認済み（賃貸・入金帳票候補）',
+                'items' => [
+                    ['label' => '物件別入金一覧', 'route_name' => 'reports.property-payments.index'],
+                    ['label' => '物件別年間収入', 'route_name' => 'reports.property-annual-incomes.index'],
+                    ['label' => '契約者別年間収入', 'route_name' => 'reports.contract-tenant-annual-incomes.index'],
+                    ['label' => '物件台帳', 'route_name' => 'reports.property-ledgers.index'],
+                    ['label' => '賃貸条件一覧', 'route_name' => 'reports.rental-contracts.index'],
+                    ['label' => '空室・入退去予定', 'route_name' => 'reports.occupancy-statuses.index'],
+                ],
+            ],
+            [
+                'key' => 'cloud_export_deferred',
+                'title' => 'Access親導線未確認（Cloud側CSV/PDF出力・後回し）',
+                'items' => [
+                    ['label' => 'CSV出力', 'route_name' => 'csv-exports.index'],
+                    ['label' => 'PDF出力', 'route_name' => 'pdf-exports.index'],
+                ],
+            ],
+            [
+                'key' => 'return',
+                'title' => '戻る',
+                'items' => [
+                    ['label' => 'メインメニューへ戻る', 'route_name' => 'main-menu.index'],
+                ],
+            ],
+        ];
+    }
+
+    private function outputMenuKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['menu_group_key']) && (string) $row['menu_group_key'] !== '') {
+            return 'group:' . (string) $row['menu_group_key'];
+        }
+
+        if (isset($row['route_name']) && (string) $row['route_name'] !== '') {
+            return 'route:' . (string) $row['route_name'];
+        }
+
+        return '';
     }
 
 

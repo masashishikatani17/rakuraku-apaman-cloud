@@ -1,0 +1,37 @@
+{
+  "case_id": "pdf_export_001",
+  "title": "PDF出力 基本ケース",
+  "report": "pdf_export",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "display": "non_zero",
+  "paper_size": "a4_portrait",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "report_types_count": 5
+    },
+    {
+      "report_type": "trial_balance",
+      "debit_total": 100000,
+      "credit_total": 100000,
+      "difference": 0
+    },
+    {
+      "report_type": "journal_diary",
+      "entries_count": 1,
+      "lines_count": 2,
+      "debit_total": 100000,
+      "credit_total": 100000,
+      "difference": 0
+    },
+    {
+      "report_type": "real_estate_income",
+      "rental_expected_total": 100000,
+      "rental_received_total": 0,
+      "rental_remaining_total": 100000
+    }
+  ]
+}

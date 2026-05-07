@@ -1,0 +1,35 @@
+{
+  "case_id": "csv_export_001",
+  "title": "CSV出力 基本ケース",
+  "report": "csv_export",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "export_types_count": 9
+    },
+    {
+      "export_type": "journal_entries",
+      "entries_count": 1,
+      "rows_count": 2,
+      "debit_total": 100000,
+      "credit_total": 100000,
+      "difference": 0
+    },
+    {
+      "export_type": "payment_schedules",
+      "rows_count": 1,
+      "expected_total": 100000,
+      "received_total": 0,
+      "remaining_total": 100000,
+      "total_amount": 100000
+    },
+    {
+      "export_type": "properties",
+      "rows_count": 1
+    }
+  ]
+}
