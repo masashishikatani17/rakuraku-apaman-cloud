@@ -44,6 +44,9 @@ class VerifyReportTotalsCommand extends Command
         'payment_reconciliation_check',
         'payment_reconciliation_action',
         'rental_move_out_settlement',
+        'depreciable_asset',
+        'borrowing_loan',
+        'next_year_asset_loan_carryover',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -143,6 +146,35 @@ class VerifyReportTotalsCommand extends Command
         'action_on',
         'settlement_on',
         'move_out_on',
+        'depreciable_asset_id',
+        'asset_code',
+        'asset_name',
+        'acquisition_date',
+        'depreciation_start_date',
+        'depreciation_method',
+        'asset_account_code',
+        'asset_account_name',
+        'accumulated_depreciation_account_code',
+        'accumulated_depreciation_account_name',
+        'depreciation_expense_account_code',
+        'depreciation_expense_account_name',
+        'borrowing_loan_id',
+        'borrowing_repayment_id',
+        'loan_code',
+        'loan_name',
+        'lender_name',
+        'borrowed_on',
+        'repayment_start_date',
+        'repayment_method',
+        'period_no',
+        'principal_account_code',
+        'principal_account_name',
+        'interest_expense_account_code',
+        'interest_expense_account_name',
+        'payment_account_code',
+        'source_book_id',
+        'target_book_id',
+        'copy_only_active',
     ];
 
     public function handle(): int
@@ -351,6 +383,18 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'rental_move_out_settlement') {
             return $this->verifyRentalMoveOutSettlementCase($case, $failOnExtra);
+        }
+
+        if ($report === 'depreciable_asset') {
+            return $this->verifyDepreciableAssetCase($case, $failOnExtra);
+        }
+
+        if ($report === 'borrowing_loan') {
+            return $this->verifyBorrowingLoanCase($case, $failOnExtra);
+        }
+
+        if ($report === 'next_year_asset_loan_carryover') {
+            return $this->verifyNextYearAssetLoanCarryoverCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -8809,6 +8853,703 @@ class VerifyReportTotalsCommand extends Command
         }
 
         return '';
+    }
+
+
+
+    private function verifyDepreciableAssetCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $status = in_array((string) ($case['status'] ?? 'active'), ['all', 'active', 'disposed'], true)
+            ? (string) ($case['status'] ?? 'active')
+            : 'active';
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('状態: ' . $status);
+
+        $actualRows = $this->buildDepreciableAssetActualRows($bookId, $periodFrom, $periodTo, $status);
+
+        return $this->verifyExpectedRowsByKey(
+            $case,
+            $actualRows,
+            fn (array $row): string => $this->depreciableAssetKeyFromExpectedRow($row),
+            'key、asset_code、property_code、または status を指定してください。',
+            'クラウド側に対象の固定資産/減価償却行がありません。',
+            '期待値にないクラウド側の固定資産/減価償却行があります。',
+            $failOnExtra
+        );
+    }
+
+    private function buildDepreciableAssetActualRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        string $status
+    ): array {
+        $query = DB::table('depreciable_assets as da')
+            ->leftJoin('properties as p', 'p.id', '=', 'da.property_id')
+            ->leftJoin('departments as d', 'd.id', '=', 'da.department_id')
+            ->leftJoin('account_titles as asset_at', 'asset_at.id', '=', 'da.asset_account_title_id')
+            ->leftJoin('account_titles as accum_at', 'accum_at.id', '=', 'da.accumulated_depreciation_account_title_id')
+            ->leftJoin('account_titles as expense_at', 'expense_at.id', '=', 'da.depreciation_expense_account_title_id')
+            ->where('da.book_id', $bookId)
+            ->select([
+                'da.id as depreciable_asset_id',
+                'da.asset_code',
+                'da.name as asset_name',
+                'da.acquisition_date',
+                'da.depreciation_start_date',
+                'da.acquisition_cost',
+                'da.salvage_value',
+                'da.useful_life_years',
+                'da.depreciation_method',
+                'da.business_use_ratio',
+                'da.status',
+                'p.id as property_id',
+                'p.property_code',
+                'p.name as property_name',
+                'd.id as department_id',
+                'd.department_code',
+                'd.name as department_name',
+                'asset_at.account_code as asset_account_code',
+                'asset_at.name as asset_account_name',
+                'accum_at.account_code as accumulated_depreciation_account_code',
+                'accum_at.name as accumulated_depreciation_account_name',
+                'expense_at.account_code as depreciation_expense_account_code',
+                'expense_at.name as depreciation_expense_account_name',
+            ])
+            ->orderBy('da.asset_code')
+            ->orderBy('da.id');
+
+        if ($status !== 'all') {
+            $query->where('da.status', $status);
+        }
+
+        $assetRows = $query
+            ->get()
+            ->map(function (object $asset) use ($bookId, $periodFrom, $periodTo): array {
+                $depreciation = $this->calculateVerificationDepreciationForAsset($asset, $periodFrom, $periodTo);
+                $voucherNo = 'DEP' . (new \DateTimeImmutable($periodTo))->format('ymd') . '-' . (int) $asset->depreciable_asset_id;
+                $journalEntryId = DB::table('journal_entries')
+                    ->where('book_id', $bookId)
+                    ->where('entry_type', 'depreciation')
+                    ->where('voucher_no', $voucherNo)
+                    ->value('id');
+
+                return [
+                    'depreciable_asset_id' => (int) $asset->depreciable_asset_id,
+                    'asset_code' => (string) $asset->asset_code,
+                    'asset_name' => (string) $asset->asset_name,
+                    'status' => (string) $asset->status,
+                    'property_id' => $asset->property_id !== null ? (int) $asset->property_id : null,
+                    'property_code' => (string) ($asset->property_code ?? ''),
+                    'property_name' => (string) ($asset->property_name ?? ''),
+                    'department_id' => $asset->department_id !== null ? (int) $asset->department_id : null,
+                    'department_code' => (string) ($asset->department_code ?? ''),
+                    'department_name' => (string) ($asset->department_name ?? ''),
+                    'asset_account_code' => (string) ($asset->asset_account_code ?? ''),
+                    'asset_account_name' => (string) ($asset->asset_account_name ?? ''),
+                    'accumulated_depreciation_account_code' => (string) ($asset->accumulated_depreciation_account_code ?? ''),
+                    'accumulated_depreciation_account_name' => (string) ($asset->accumulated_depreciation_account_name ?? ''),
+                    'depreciation_expense_account_code' => (string) ($asset->depreciation_expense_account_code ?? ''),
+                    'depreciation_expense_account_name' => (string) ($asset->depreciation_expense_account_name ?? ''),
+                    'acquisition_date' => (string) ($asset->acquisition_date ?? ''),
+                    'depreciation_start_date' => (string) ($asset->depreciation_start_date ?? ''),
+                    'acquisition_cost' => $this->normalizeAmount($asset->acquisition_cost ?? 0),
+                    'salvage_value' => $this->normalizeAmount($asset->salvage_value ?? 0),
+                    'useful_life_years' => (float) ($asset->useful_life_years ?? 0),
+                    'business_use_ratio' => $this->normalizeAmount($asset->business_use_ratio ?? 0),
+                    'depreciable_base' => $depreciation['depreciable_base'],
+                    'annual_depreciation_amount' => $depreciation['annual_depreciation_amount'],
+                    'period_months' => (float) $depreciation['period_months'],
+                    'period_depreciation_amount' => $depreciation['period_depreciation_amount'],
+                    'accumulated_depreciation_amount' => $depreciation['accumulated_depreciation_amount'],
+                    'book_value_after_period' => $depreciation['book_value_after_period'],
+                    'journal_entry_id' => $journalEntryId !== null ? (int) $journalEntryId : null,
+                    'journal_count' => $journalEntryId !== null ? 1.0 : 0.0,
+                    'voucher_no' => $voucherNo,
+                    'amount' => $depreciation['period_depreciation_amount'],
+                    'total_amount' => $depreciation['period_depreciation_amount'],
+                ];
+            })
+            ->values();
+
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'assets_count' => $assetRows->count(),
+                'acquisition_cost_total' => round($assetRows->sum(fn (array $row): float => (float) $row['acquisition_cost']), 2),
+                'depreciable_base_total' => round($assetRows->sum(fn (array $row): float => (float) $row['depreciable_base']), 2),
+                'period_depreciation_total' => round($assetRows->sum(fn (array $row): float => (float) $row['period_depreciation_amount']), 2),
+                'accumulated_depreciation_total' => round($assetRows->sum(fn (array $row): float => (float) $row['accumulated_depreciation_amount']), 2),
+                'book_value_after_period_total' => round($assetRows->sum(fn (array $row): float => (float) $row['book_value_after_period']), 2),
+                'journal_count' => round($assetRows->sum(fn (array $row): float => (float) $row['journal_count']), 2),
+                'total_amount' => round($assetRows->sum(fn (array $row): float => (float) $row['period_depreciation_amount']), 2),
+            ],
+        ];
+
+        $assetRows->groupBy('status')->each(function ($rows, string $status) use (&$actualRows): void {
+            $actualRows['status:' . $status] = [
+                'key' => 'status:' . $status,
+                'status' => $status,
+                'assets_count' => collect($rows)->count(),
+                'acquisition_cost_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['acquisition_cost']), 2),
+                'period_depreciation_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['period_depreciation_amount']), 2),
+                'book_value_after_period_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['book_value_after_period']), 2),
+                'total_amount' => round(collect($rows)->sum(fn (array $row): float => (float) $row['period_depreciation_amount']), 2),
+            ];
+        });
+
+        $assetRows->groupBy('property_code')->each(function ($rows, string $propertyCode) use (&$actualRows): void {
+            if ($propertyCode === '') {
+                return;
+            }
+
+            $first = collect($rows)->first();
+
+            $actualRows['property:' . $propertyCode] = [
+                'key' => 'property:' . $propertyCode,
+                'property_code' => $propertyCode,
+                'property_name' => (string) ($first['property_name'] ?? ''),
+                'assets_count' => collect($rows)->count(),
+                'acquisition_cost_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['acquisition_cost']), 2),
+                'period_depreciation_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['period_depreciation_amount']), 2),
+                'book_value_after_period_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['book_value_after_period']), 2),
+                'total_amount' => round(collect($rows)->sum(fn (array $row): float => (float) $row['period_depreciation_amount']), 2),
+            ];
+        });
+
+        foreach ($assetRows as $row) {
+            $actualRows['asset:' . $row['asset_code']] = ['key' => 'asset:' . $row['asset_code']] + $row;
+        }
+
+        return $actualRows;
+    }
+
+    private function calculateVerificationDepreciationForAsset(object $asset, string $periodFrom, string $periodTo): array
+    {
+        $periodStart = new \DateTimeImmutable(substr($periodFrom, 0, 7) . '-01');
+        $periodEnd = new \DateTimeImmutable(substr($periodTo, 0, 7) . '-01');
+
+        if ($periodStart > $periodEnd) {
+            return $this->emptyVerificationDepreciation();
+        }
+
+        $depreciationStartDate = $asset->depreciation_start_date ?? $asset->acquisition_date ?? null;
+
+        if ($depreciationStartDate === null || (string) $depreciationStartDate === '') {
+            return $this->emptyVerificationDepreciation();
+        }
+
+        $depreciationStart = new \DateTimeImmutable(substr((string) $depreciationStartDate, 0, 7) . '-01');
+        $usableStart = $periodStart > $depreciationStart ? $periodStart : $depreciationStart;
+        $usableEnd = $periodEnd;
+
+        if ($usableStart > $usableEnd) {
+            return $this->emptyVerificationDepreciation();
+        }
+
+        $acquisitionCost = (float) ($asset->acquisition_cost ?? 0);
+        $salvageValue = (float) ($asset->salvage_value ?? 0);
+        $businessUseRatio = (float) ($asset->business_use_ratio ?? 100) / 100;
+        $usefulLifeYears = max((int) ($asset->useful_life_years ?? 1), 1);
+        $depreciableBase = max($acquisitionCost - $salvageValue, 0);
+
+        if ($depreciableBase <= 0 || $businessUseRatio <= 0) {
+            return $this->emptyVerificationDepreciation();
+        }
+
+        $annualDepreciation = round($depreciableBase / $usefulLifeYears, 2);
+        $periodMonths = $this->assetLoanMonthDiff($usableStart, $usableEnd) + 1;
+        $monthsToPeriodStart = $this->assetLoanMonthDiff($depreciationStart, $usableStart);
+        $monthsToPeriodEnd = $this->assetLoanMonthDiff($depreciationStart, $usableEnd) + 1;
+        $maximumDepreciation = round($depreciableBase * $businessUseRatio, 2);
+
+        $depreciationBeforePeriod = min(
+            round($annualDepreciation * ($monthsToPeriodStart / 12) * $businessUseRatio, 2),
+            $maximumDepreciation
+        );
+
+        $depreciationThroughPeriodEnd = min(
+            round($annualDepreciation * ($monthsToPeriodEnd / 12) * $businessUseRatio, 2),
+            $maximumDepreciation
+        );
+
+        $periodDepreciation = max(round($depreciationThroughPeriodEnd - $depreciationBeforePeriod, 2), 0);
+        $bookValueAfterPeriod = max(round($acquisitionCost - $depreciationThroughPeriodEnd, 2), 0);
+
+        return [
+            'depreciable_base' => round($depreciableBase, 2),
+            'annual_depreciation_amount' => $annualDepreciation,
+            'period_months' => $periodMonths,
+            'period_depreciation_amount' => $periodDepreciation,
+            'accumulated_depreciation_amount' => round($depreciationThroughPeriodEnd, 2),
+            'book_value_after_period' => $bookValueAfterPeriod,
+        ];
+    }
+
+    private function emptyVerificationDepreciation(): array
+    {
+        return [
+            'depreciable_base' => 0.0,
+            'annual_depreciation_amount' => 0.0,
+            'period_months' => 0,
+            'period_depreciation_amount' => 0.0,
+            'accumulated_depreciation_amount' => 0.0,
+            'book_value_after_period' => 0.0,
+        ];
+    }
+
+    private function depreciableAssetKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['asset_code']) && (string) $row['asset_code'] !== '') {
+            return 'asset:' . (string) $row['asset_code'];
+        }
+
+        if (isset($row['property_code']) && (string) $row['property_code'] !== '') {
+            return 'property:' . (string) $row['property_code'];
+        }
+
+        if (isset($row['status']) && (string) $row['status'] !== '') {
+            return 'status:' . (string) $row['status'];
+        }
+
+        return '';
+    }
+
+    private function verifyBorrowingLoanCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $status = in_array((string) ($case['status'] ?? 'active'), ['all', 'active', 'paid_off'], true)
+            ? (string) ($case['status'] ?? 'active')
+            : 'active';
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('状態: ' . $status);
+
+        $actualRows = $this->buildBorrowingLoanActualRows($bookId, $periodFrom, $periodTo, $status);
+
+        return $this->verifyExpectedRowsByKey(
+            $case,
+            $actualRows,
+            fn (array $row): string => $this->borrowingLoanKeyFromExpectedRow($row),
+            'key、loan_code、borrowing_repayment_id、property_code、または status を指定してください。',
+            'クラウド側に対象の借入金台帳行がありません。',
+            '期待値にないクラウド側の借入金台帳行があります。',
+            $failOnExtra
+        );
+    }
+
+    private function buildBorrowingLoanActualRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        string $status
+    ): array {
+        $query = DB::table('borrowing_loans as bl')
+            ->leftJoin('properties as p', 'p.id', '=', 'bl.property_id')
+            ->leftJoin('departments as d', 'd.id', '=', 'bl.department_id')
+            ->leftJoin('account_titles as principal_at', 'principal_at.id', '=', 'bl.principal_account_title_id')
+            ->leftJoin('account_titles as interest_at', 'interest_at.id', '=', 'bl.interest_expense_account_title_id')
+            ->leftJoin('account_titles as payment_at', 'payment_at.id', '=', 'bl.payment_account_title_id')
+            ->where('bl.book_id', $bookId)
+            ->select([
+                'bl.id as borrowing_loan_id',
+                'bl.loan_code',
+                'bl.name as loan_name',
+                'bl.lender_name',
+                'bl.borrowed_on',
+                'bl.principal_amount',
+                'bl.annual_interest_rate',
+                'bl.term_months',
+                'bl.repayment_start_date',
+                'bl.monthly_repayment_day',
+                'bl.repayment_method',
+                'bl.status',
+                'p.id as property_id',
+                'p.property_code',
+                'p.name as property_name',
+                'd.id as department_id',
+                'd.department_code',
+                'd.name as department_name',
+                'principal_at.account_code as principal_account_code',
+                'principal_at.name as principal_account_name',
+                'interest_at.account_code as interest_expense_account_code',
+                'interest_at.name as interest_expense_account_name',
+                'payment_at.account_code as payment_account_code',
+                'payment_at.name as payment_account_name',
+            ])
+            ->orderBy('bl.loan_code')
+            ->orderBy('bl.id');
+
+        if ($status !== 'all') {
+            $query->where('bl.status', $status);
+        }
+
+        $loanRows = collect();
+        $repaymentRows = collect();
+
+        $query->get()->each(function (object $loan) use (&$loanRows, &$repaymentRows, $periodFrom, $periodTo): void {
+            $periodRepayments = DB::table('borrowing_repayments as br')
+                ->leftJoin('journal_entries as je', 'je.id', '=', 'br.journal_entry_id')
+                ->where('br.borrowing_loan_id', (int) $loan->borrowing_loan_id)
+                ->whereDate('br.due_on', '>=', $periodFrom)
+                ->whereDate('br.due_on', '<=', $periodTo)
+                ->select([
+                    'br.id as borrowing_repayment_id',
+                    'br.period_no',
+                    'br.due_on',
+                    'br.principal_amount',
+                    'br.interest_amount',
+                    'br.total_amount',
+                    'br.remaining_principal_after',
+                    'br.status',
+                    'br.journal_entry_id',
+                    'je.voucher_no',
+                ])
+                ->orderBy('br.due_on')
+                ->orderBy('br.period_no')
+                ->orderBy('br.id')
+                ->get();
+
+            $lastRepayment = DB::table('borrowing_repayments')
+                ->where('borrowing_loan_id', (int) $loan->borrowing_loan_id)
+                ->whereDate('due_on', '<=', $periodTo)
+                ->orderByDesc('due_on')
+                ->orderByDesc('period_no')
+                ->orderByDesc('id')
+                ->first();
+
+            $remainingPrincipalAfterPeriod = $lastRepayment !== null
+                ? $this->normalizeAmount($lastRepayment->remaining_principal_after ?? 0)
+                : $this->normalizeAmount($loan->principal_amount ?? 0);
+
+            $periodPrincipalTotal = round($periodRepayments->sum(fn (object $row): float => (float) $row->principal_amount), 2);
+            $periodInterestTotal = round($periodRepayments->sum(fn (object $row): float => (float) $row->interest_amount), 2);
+            $periodTotal = round($periodRepayments->sum(fn (object $row): float => (float) $row->total_amount), 2);
+            $journalCount = $periodRepayments->filter(fn (object $row): bool => $row->journal_entry_id !== null)->count();
+
+            $loanRow = [
+                'borrowing_loan_id' => (int) $loan->borrowing_loan_id,
+                'loan_code' => (string) $loan->loan_code,
+                'loan_name' => (string) $loan->loan_name,
+                'lender_name' => (string) ($loan->lender_name ?? ''),
+                'borrowed_on' => (string) ($loan->borrowed_on ?? ''),
+                'principal_amount' => $this->normalizeAmount($loan->principal_amount ?? 0),
+                'annual_interest_rate' => $this->normalizeAmount($loan->annual_interest_rate ?? 0),
+                'term_months' => (float) ($loan->term_months ?? 0),
+                'repayment_start_date' => (string) ($loan->repayment_start_date ?? ''),
+                'monthly_repayment_day' => (float) ($loan->monthly_repayment_day ?? 0),
+                'repayment_method' => (string) ($loan->repayment_method ?? ''),
+                'status' => (string) $loan->status,
+                'property_id' => $loan->property_id !== null ? (int) $loan->property_id : null,
+                'property_code' => (string) ($loan->property_code ?? ''),
+                'property_name' => (string) ($loan->property_name ?? ''),
+                'department_id' => $loan->department_id !== null ? (int) $loan->department_id : null,
+                'department_code' => (string) ($loan->department_code ?? ''),
+                'department_name' => (string) ($loan->department_name ?? ''),
+                'principal_account_code' => (string) ($loan->principal_account_code ?? ''),
+                'principal_account_name' => (string) ($loan->principal_account_name ?? ''),
+                'interest_expense_account_code' => (string) ($loan->interest_expense_account_code ?? ''),
+                'interest_expense_account_name' => (string) ($loan->interest_expense_account_name ?? ''),
+                'payment_account_code' => (string) ($loan->payment_account_code ?? ''),
+                'payment_account_name' => (string) ($loan->payment_account_name ?? ''),
+                'period_repayments_count' => $periodRepayments->count(),
+                'period_principal_total' => $periodPrincipalTotal,
+                'period_interest_total' => $periodInterestTotal,
+                'period_total' => $periodTotal,
+                'remaining_principal_after_period' => $remainingPrincipalAfterPeriod,
+                'journal_count' => (float) $journalCount,
+                'amount' => $periodTotal,
+                'total_amount' => $periodTotal,
+            ];
+
+            $loanRows->push($loanRow);
+
+            foreach ($periodRepayments as $repayment) {
+                $repaymentRows->push([
+                    'borrowing_repayment_id' => (int) $repayment->borrowing_repayment_id,
+                    'borrowing_loan_id' => (int) $loan->borrowing_loan_id,
+                    'loan_code' => (string) $loan->loan_code,
+                    'loan_name' => (string) $loan->loan_name,
+                    'period_no' => (float) $repayment->period_no,
+                    'due_on' => (string) ($repayment->due_on ?? ''),
+                    'principal_amount' => $this->normalizeAmount($repayment->principal_amount ?? 0),
+                    'interest_amount' => $this->normalizeAmount($repayment->interest_amount ?? 0),
+                    'total_amount' => $this->normalizeAmount($repayment->total_amount ?? 0),
+                    'remaining_principal_after' => $this->normalizeAmount($repayment->remaining_principal_after ?? 0),
+                    'status' => (string) ($repayment->status ?? ''),
+                    'journal_entry_id' => $repayment->journal_entry_id !== null ? (int) $repayment->journal_entry_id : null,
+                    'voucher_no' => (string) ($repayment->voucher_no ?? ''),
+                    'amount' => $this->normalizeAmount($repayment->total_amount ?? 0),
+                ]);
+            }
+        });
+
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'loans_count' => $loanRows->count(),
+                'principal_total' => round($loanRows->sum(fn (array $row): float => (float) $row['principal_amount']), 2),
+                'remaining_principal_total' => round($loanRows->sum(fn (array $row): float => (float) $row['remaining_principal_after_period']), 2),
+                'period_principal_total' => round($repaymentRows->sum(fn (array $row): float => (float) $row['principal_amount']), 2),
+                'period_interest_total' => round($repaymentRows->sum(fn (array $row): float => (float) $row['interest_amount']), 2),
+                'period_total' => round($repaymentRows->sum(fn (array $row): float => (float) $row['total_amount']), 2),
+                'journal_count' => $repaymentRows->filter(fn (array $row): bool => $row['journal_entry_id'] !== null)->count(),
+                'total_amount' => round($repaymentRows->sum(fn (array $row): float => (float) $row['total_amount']), 2),
+            ],
+        ];
+
+        $loanRows->groupBy('status')->each(function ($rows, string $status) use (&$actualRows): void {
+            $actualRows['status:' . $status] = [
+                'key' => 'status:' . $status,
+                'status' => $status,
+                'loans_count' => collect($rows)->count(),
+                'principal_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['principal_amount']), 2),
+                'remaining_principal_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['remaining_principal_after_period']), 2),
+                'period_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['period_total']), 2),
+                'total_amount' => round(collect($rows)->sum(fn (array $row): float => (float) $row['period_total']), 2),
+            ];
+        });
+
+        $loanRows->groupBy('property_code')->each(function ($rows, string $propertyCode) use (&$actualRows): void {
+            if ($propertyCode === '') {
+                return;
+            }
+
+            $first = collect($rows)->first();
+
+            $actualRows['property:' . $propertyCode] = [
+                'key' => 'property:' . $propertyCode,
+                'property_code' => $propertyCode,
+                'property_name' => (string) ($first['property_name'] ?? ''),
+                'loans_count' => collect($rows)->count(),
+                'principal_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['principal_amount']), 2),
+                'remaining_principal_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['remaining_principal_after_period']), 2),
+                'period_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['period_total']), 2),
+                'total_amount' => round(collect($rows)->sum(fn (array $row): float => (float) $row['period_total']), 2),
+            ];
+        });
+
+        foreach ($loanRows as $row) {
+            $actualRows['loan:' . $row['loan_code']] = ['key' => 'loan:' . $row['loan_code']] + $row;
+        }
+
+        foreach ($repaymentRows as $row) {
+            $actualRows['repayment:' . (int) $row['borrowing_repayment_id']] = [
+                'key' => 'repayment:' . (int) $row['borrowing_repayment_id'],
+            ] + $row;
+        }
+
+        return $actualRows;
+    }
+
+    private function borrowingLoanKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['loan_code']) && (string) $row['loan_code'] !== '') {
+            return 'loan:' . (string) $row['loan_code'];
+        }
+
+        if (isset($row['borrowing_repayment_id']) && (string) $row['borrowing_repayment_id'] !== '') {
+            return 'repayment:' . (int) $row['borrowing_repayment_id'];
+        }
+
+        if (isset($row['property_code']) && (string) $row['property_code'] !== '') {
+            return 'property:' . (string) $row['property_code'];
+        }
+
+        if (isset($row['status']) && (string) $row['status'] !== '') {
+            return 'status:' . (string) $row['status'];
+        }
+
+        return '';
+    }
+
+    private function verifyNextYearAssetLoanCarryoverCase(array $case, bool $failOnExtra): array
+    {
+        $sourceBookId = isset($case['source_book_id']) && (string) $case['source_book_id'] !== ''
+            ? (int) $case['source_book_id']
+            : (int) $case['book_id'];
+        $targetBookId = isset($case['target_book_id']) && (string) $case['target_book_id'] !== ''
+            ? (int) $case['target_book_id']
+            : null;
+        $copyOnlyActive = array_key_exists('copy_only_active', $case)
+            ? (bool) $case['copy_only_active']
+            : true;
+
+        $this->line('移行元帳簿ID: ' . $sourceBookId);
+        $this->line('移行先帳簿ID: ' . ($targetBookId !== null ? (string) $targetBookId : '未指定'));
+        $this->line('有効データのみ: ' . ($copyOnlyActive ? 'yes' : 'no'));
+
+        $actualRows = $this->buildNextYearAssetLoanCarryoverActualRows(
+            $sourceBookId,
+            $targetBookId,
+            $copyOnlyActive
+        );
+
+        return $this->verifyExpectedRowsByKey(
+            $case,
+            $actualRows,
+            fn (array $row): string => $this->nextYearAssetLoanCarryoverKeyFromExpectedRow($row),
+            'key を指定してください。summary、source、target、source_status:active などを指定できます。',
+            'クラウド側に対象の翌期固定資産・借入金引継ぎ行がありません。',
+            '期待値にないクラウド側の翌期固定資産・借入金引継ぎ行があります。',
+            $failOnExtra
+        );
+    }
+
+    private function buildNextYearAssetLoanCarryoverActualRows(
+        int $sourceBookId,
+        ?int $targetBookId,
+        bool $copyOnlyActive
+    ): array {
+        $targetBook = $targetBookId !== null
+            ? DB::table('books')->where('id', $targetBookId)->first()
+            : null;
+        $sourceBook = DB::table('books')->where('id', $sourceBookId)->first();
+        $targetStartDate = $targetBook?->period_start_date !== null
+            ? (string) $targetBook->period_start_date
+            : null;
+
+        $sourceAssetsQuery = DB::table('depreciable_assets')->where('book_id', $sourceBookId);
+        $sourceLoansQuery = DB::table('borrowing_loans')->where('book_id', $sourceBookId);
+
+        if ($copyOnlyActive) {
+            $sourceAssetsQuery->where('status', 'active');
+            $sourceLoansQuery->where('status', 'active');
+        }
+
+        $sourceAssetIds = (clone $sourceAssetsQuery)->pluck('id');
+        $sourceLoanIds = (clone $sourceLoansQuery)->pluck('id');
+
+        $sourceRepaymentsQuery = DB::table('borrowing_repayments')
+            ->whereIn('borrowing_loan_id', $sourceLoanIds)
+            ->whereNull('journal_entry_id')
+            ->where('status', '<>', 'journaled');
+
+        if ($targetStartDate !== null) {
+            $sourceRepaymentsQuery->whereDate('due_on', '>=', $targetStartDate);
+        }
+
+        $targetAssetsCount = $targetBookId !== null
+            ? DB::table('depreciable_assets')->where('book_id', $targetBookId)->count()
+            : 0;
+        $targetLoansCount = $targetBookId !== null
+            ? DB::table('borrowing_loans')->where('book_id', $targetBookId)->count()
+            : 0;
+        $targetRepaymentsCount = $targetBookId !== null
+            ? DB::table('borrowing_repayments as br')
+                ->join('borrowing_loans as bl', 'bl.id', '=', 'br.borrowing_loan_id')
+                ->where('bl.book_id', $targetBookId)
+                ->count()
+            : 0;
+
+        $targetHasData = ($targetAssetsCount + $targetLoansCount) > 0;
+        $sameBusinessOwner = $sourceBook !== null
+            && $targetBook !== null
+            && (int) $sourceBook->business_owner_id === (int) $targetBook->business_owner_id;
+        $canCopy = $sourceBook !== null
+            && $targetBook !== null
+            && $sourceBookId !== $targetBookId
+            && $sameBusinessOwner
+            && ! $targetHasData;
+
+        $sourceAssetsCount = (clone $sourceAssetsQuery)->count();
+        $sourceLoansCount = (clone $sourceLoansQuery)->count();
+        $sourceRepaymentsCount = $sourceLoanIds->isNotEmpty()
+            ? $sourceRepaymentsQuery->count()
+            : 0;
+
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'source_book_id' => $sourceBookId,
+                'target_book_id' => $targetBookId,
+                'copy_only_active' => $copyOnlyActive ? 1.0 : 0.0,
+                'source_assets_count' => (float) $sourceAssetsCount,
+                'source_loans_count' => (float) $sourceLoansCount,
+                'source_repayments_count' => (float) $sourceRepaymentsCount,
+                'target_assets_count' => (float) $targetAssetsCount,
+                'target_loans_count' => (float) $targetLoansCount,
+                'target_repayments_count' => (float) $targetRepaymentsCount,
+                'target_has_data' => $targetHasData ? 1.0 : 0.0,
+                'same_business_owner' => $sameBusinessOwner ? 1.0 : 0.0,
+                'can_copy' => $canCopy ? 1.0 : 0.0,
+                'total_amount' => (float) ($sourceAssetsCount + $sourceLoansCount),
+            ],
+            'source' => [
+                'key' => 'source',
+                'source_book_id' => $sourceBookId,
+                'assets_count' => (float) $sourceAssetsCount,
+                'loans_count' => (float) $sourceLoansCount,
+                'repayments_count' => (float) $sourceRepaymentsCount,
+                'total_amount' => (float) ($sourceAssetsCount + $sourceLoansCount),
+            ],
+            'target' => [
+                'key' => 'target',
+                'target_book_id' => $targetBookId,
+                'assets_count' => (float) $targetAssetsCount,
+                'loans_count' => (float) $targetLoansCount,
+                'repayments_count' => (float) $targetRepaymentsCount,
+                'target_has_data' => $targetHasData ? 1.0 : 0.0,
+                'total_amount' => (float) ($targetAssetsCount + $targetLoansCount),
+            ],
+        ];
+
+        foreach (['active', 'disposed'] as $status) {
+            $actualRows['source_asset_status:' . $status] = [
+                'key' => 'source_asset_status:' . $status,
+                'status' => $status,
+                'assets_count' => (float) DB::table('depreciable_assets')
+                    ->where('book_id', $sourceBookId)
+                    ->where('status', $status)
+                    ->count(),
+            ];
+            $actualRows['source_asset_status:' . $status]['total_amount'] = $actualRows['source_asset_status:' . $status]['assets_count'];
+        }
+
+        foreach (['active', 'paid_off'] as $status) {
+            $actualRows['source_loan_status:' . $status] = [
+                'key' => 'source_loan_status:' . $status,
+                'status' => $status,
+                'loans_count' => (float) DB::table('borrowing_loans')
+                    ->where('book_id', $sourceBookId)
+                    ->where('status', $status)
+                    ->count(),
+            ];
+            $actualRows['source_loan_status:' . $status]['total_amount'] = $actualRows['source_loan_status:' . $status]['loans_count'];
+        }
+
+        return $actualRows;
+    }
+
+    private function nextYearAssetLoanCarryoverKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        return '';
+    }
+
+    private function assetLoanMonthDiff(\DateTimeImmutable $start, \DateTimeImmutable $end): int
+    {
+        return ((int) $end->format('Y') - (int) $start->format('Y')) * 12
+            + ((int) $end->format('n') - (int) $start->format('n'));
     }
 
 
