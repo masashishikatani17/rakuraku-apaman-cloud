@@ -17,6 +17,18 @@
             <p class="page-description">翌期帳簿へ固定資産台帳と借入金台帳をコピーします。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('data-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                データメニューへ戻る
+            </a>
+            <a
+                href="{{ route('utility-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                ユーティリティメニューへ戻る
+            </a>
             @if ($sourceBookId)
                 <a href="{{ route('closing.next-year-rental-carryovers.index', ['source_book_id' => $sourceBookId, 'target_book_id' => $targetBookId]) }}" class="button button-secondary">賃貸データ引継ぎへ</a>
                 <a href="{{ route('closing.next-year-payment-schedule-builds.index', ['book_id' => $targetBookId ?: $sourceBookId]) }}" class="button button-secondary">翌期入金予定生成へ</a>

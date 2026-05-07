@@ -27,6 +27,18 @@
             <p class="page-description">消費税区分・税率ごとに、課税売上・課税仕入・対象外候補を確認します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('tax-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                決算・申告メニューへ戻る
+            </a>
+            <a
+                href="{{ route('accounting-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                会計管理メニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a href="{{ route('reports.consumption-tax.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'tax_rate' => $defaultTaxRate, 'amount_mode' => $amountMode]) }}" class="button button-secondary">消費税集計へ</a>
                 <a href="{{ route('consumption-tax-settlement-journals.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo, 'tax_rate' => $defaultTaxRate, 'amount_mode' => $amountMode]) }}" class="button button-secondary">消費税精算仕訳へ</a>
