@@ -17,6 +17,8 @@
   - Accessフォーム定義から、フォーム名、ボタンCaption、OnClick、OpenForm先を抽出した一次メモ。
 - `docs/access_menu_mapping.md`
   - この文書。Access版フォーム導線とCloud版URLの対応方針をまとめる。
+- `docs/access_navigation_remaining_tasks.md`
+  - Access親導線未確認の残件、Cloud補助メニューへ暫定整理した項目、次の確認対象をまとめる。
 
 ## ここまでの整理状況
 
