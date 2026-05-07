@@ -17,6 +17,12 @@
             <p class="page-description">物件の中の部屋・区画を登録します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('rental-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                賃貸管理メニューへ戻る
+            </a>
             <a href="{{ route('property-units.index') }}" class="button button-secondary">部屋・区画一覧へ戻る</a>
             <a href="{{ route('properties.index') }}" class="button button-secondary">物件一覧へ戻る</a>
         </div>

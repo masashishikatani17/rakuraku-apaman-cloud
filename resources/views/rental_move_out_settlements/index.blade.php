@@ -9,6 +9,12 @@
             <p class="page-description">敷金・保証金・原状回復費などの退去精算を一覧確認します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('rental-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                賃貸管理メニューへ戻る
+            </a>
             <a href="{{ $selectedBookId ? route('rental-move-out-settlements.create', ['book_id' => $selectedBookId]) : route('rental-move-out-settlements.create') }}" class="button">退去精算を登録</a>
             <a href="{{ $selectedBookId ? route('rental-contract-move-outs.index', ['book_id' => $selectedBookId]) : route('rental-contract-move-outs.index') }}" class="button button-secondary">退去処理へ</a>
             <a href="{{ $selectedBookId ? route('reports.rental-contracts.index', ['book_id' => $selectedBookId]) : route('reports.rental-contracts.index') }}" class="button button-secondary">賃貸条件一覧へ</a>

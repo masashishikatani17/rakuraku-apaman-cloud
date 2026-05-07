@@ -41,6 +41,12 @@
             <p class="page-description">退去精算の内訳、返還額・追加請求額、作成済み仕訳を確認します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('rental-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                賃貸管理メニューへ戻る
+            </a>
             <a href="{{ route('rental-move-out-settlements.index', ['book_id' => $settlement->book_id]) }}" class="button button-secondary">退去精算一覧へ戻る</a>
             <a href="{{ route('rental-move-out-settlements.edit', $settlement) }}" class="button button-secondary">退去精算を修正</a>
             @if ($settlement->journalEntry)

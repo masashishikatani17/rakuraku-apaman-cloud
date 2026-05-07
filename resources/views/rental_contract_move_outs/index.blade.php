@@ -24,6 +24,12 @@
             <p class="page-description">賃貸条件を終了し、退去後の未入金予定を安全に取消します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('rental-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                賃貸管理メニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a href="{{ route('reports.rental-contracts.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">賃貸条件一覧へ</a>
                 <a href="{{ route('payment-schedules.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">入金予定一覧へ</a>

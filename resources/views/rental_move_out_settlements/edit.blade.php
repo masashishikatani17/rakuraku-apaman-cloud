@@ -9,6 +9,12 @@
             <p class="page-description">登録済みの退去精算を修正します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('rental-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                賃貸管理メニューへ戻る
+            </a>
             <a href="{{ route('rental-move-out-settlements.index', ['book_id' => $selectedBookId]) }}" class="button button-secondary">退去精算一覧へ戻る</a>
             <a href="{{ route('rental-contract-move-outs.index', ['book_id' => $selectedBookId, 'rental_contract_id' => $settlement->rental_contract_id]) }}" class="button button-secondary">退去処理へ</a>
         </div>

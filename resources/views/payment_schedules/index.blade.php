@@ -18,6 +18,12 @@
             <p class="page-description">契約者ごとの入金予定を一覧表示します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('payment-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                入金管理メニューへ戻る
+            </a>
             <a href="{{ $selectedBookId ? route('payment-schedules.create', ['book_id' => $selectedBookId]) : route('payment-schedules.create') }}" class="button">入金予定を新規登録</a>
             <a
                 href="{{ $selectedBookId ? route('monthly-payment-schedules.create', ['book_id' => $selectedBookId]) : route('monthly-payment-schedules.create') }}"
