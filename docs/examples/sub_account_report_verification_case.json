@@ -1,0 +1,48 @@
+{
+  "case_id": "sub_account_report_001",
+  "title": "補助科目一覧/補助残高 基本ケース",
+  "report": "sub_account_report",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "account_code": "102",
+  "account_name": "普通預金",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "sub_accounts_count": 1,
+      "accounts_count": 1,
+      "debit_total": 1380000,
+      "credit_total": 500000,
+      "difference": 880000,
+      "amount": 880000,
+      "total_amount": 880000
+    },
+    {
+      "account_code": "102",
+      "account_name": "普通預金",
+      "sub_accounts_count": 1,
+      "debit_total": 1380000,
+      "credit_total": 500000,
+      "ending_debit": 880000,
+      "ending_credit": 0,
+      "ending_balance": 880000,
+      "difference": 880000,
+      "amount": 880000,
+      "total_amount": 880000
+    },
+    {
+      "account_code": "102",
+      "sub_account_code": "普通001",
+      "sub_account_name": "普通預金サンプル",
+      "debit_total": 1380000,
+      "credit_total": 500000,
+      "ending_balance": 880000,
+      "ending_debit": 880000,
+      "ending_credit": 0,
+      "amount": 880000,
+      "total_amount": 880000
+    }
+  ]
+}
