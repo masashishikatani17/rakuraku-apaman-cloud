@@ -24,6 +24,12 @@
             <p class="page-description">登録済の仕訳を勘定科目ごとに集計する初版です。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('output-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                帳票・出力メニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a
                     href="{{ route('opening-balances.index', ['book_id' => $selectedBookId, 'opening_date' => $dateFrom]) }}"

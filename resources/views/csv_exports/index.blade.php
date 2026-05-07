@@ -9,6 +9,18 @@
             <p class="page-description">帳簿データ、仕訳、試算表、入金、物件、固定資産などをCSVで出力します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('utility-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                ユーティリティメニューへ戻る
+            </a>
+            <a
+                href="{{ route('output-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                帳票・出力メニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a
                     href="{{ route('journal-entries.index', ['book_id' => $selectedBookId]) }}"

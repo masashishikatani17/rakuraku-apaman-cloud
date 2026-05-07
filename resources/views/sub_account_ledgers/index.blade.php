@@ -23,6 +23,18 @@
             <p class="page-description">補助科目ごとの仕訳明細と残高を確認します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('accounting-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                会計管理メニューへ戻る
+            </a>
+            <a
+                href="{{ route('output-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                帳票・出力メニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a
                     href="{{ route('reports.sub-accounts.index', ['book_id' => $selectedBookId, 'date_from' => $dateFrom, 'date_to' => $dateTo]) }}"

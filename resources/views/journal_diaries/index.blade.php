@@ -29,6 +29,12 @@
             <p class="page-description">登録済みの仕訳を日付順に確認します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ route('output-menu.index', array_filter(['book_id' => ($selectedBookId ?? request('book_id') ?? request('source_book_id'))], fn ($value) => $value !== null && $value !== '')) }}"
+                class="button button-secondary"
+            >
+                帳票・出力メニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a
                     href="{{ route('journal-entries.create', ['book_id' => $selectedBookId]) }}"
