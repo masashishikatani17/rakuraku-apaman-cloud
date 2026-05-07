@@ -17,6 +17,12 @@
             <p class="page-description">固定資産を登録し、指定期間の減価償却費を計算して仕訳を作成します。</p>
         </div>
         <div class="actions">
+            <a
+                href="{{ (isset($selectedBookId) && $selectedBookId) ? route('tax-menu.index', ['book_id' => $selectedBookId]) : route('tax-menu.index') }}"
+                class="button button-secondary"
+            >
+                決算・申告メニューへ戻る
+            </a>
             @if ($selectedBookId)
                 <a
                     href="{{ route('depreciable-assets.create', ['book_id' => $selectedBookId]) }}"

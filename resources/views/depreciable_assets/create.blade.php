@@ -10,6 +10,12 @@
         </div>
         <div class="actions">
             <a
+                href="{{ (isset($selectedBookId) && $selectedBookId) ? route('tax-menu.index', ['book_id' => $selectedBookId]) : route('tax-menu.index') }}"
+                class="button button-secondary"
+            >
+                決算・申告メニューへ戻る
+            </a>
+            <a
                 href="{{ $selectedBookId ? route('depreciable-assets.index', ['book_id' => $selectedBookId]) : route('depreciable-assets.index') }}"
                 class="button button-secondary"
             >
