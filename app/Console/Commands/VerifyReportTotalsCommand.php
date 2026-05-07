@@ -37,6 +37,7 @@ class VerifyReportTotalsCommand extends Command
         'balance_sheet',
         'department_trial_balance',
         'sub_account_ledger',
+        'sub_account_report',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -106,6 +107,9 @@ class VerifyReportTotalsCommand extends Command
         'counterpart_labels',
         'line_note',
         'running_balance_side',
+        'sub_account_is_active',
+        'sub_account_sort_order',
+        'account_sort_order',
     ];
 
     public function handle(): int
@@ -286,6 +290,10 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'sub_account_ledger') {
             return $this->verifySubAccountLedgerCase($case, $failOnExtra);
+        }
+
+        if ($report === 'sub_account_report') {
+            return $this->verifySubAccountReportCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -6639,6 +6647,351 @@ class VerifyReportTotalsCommand extends Command
     }
 
     private function subAccountLedgerNormalizeBalance(float $rawBalance, string $normalBalance): array
+    {
+        $balance = round(abs($rawBalance), 2);
+
+        if ($balance < 0.005) {
+            return [0.0, null];
+        }
+
+        if ($rawBalance > 0) {
+            return [$balance, $normalBalance];
+        }
+
+        return [
+            $balance,
+            $normalBalance === 'debit' ? 'credit' : 'debit',
+        ];
+    }
+
+
+
+    private function verifySubAccountReportCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $accountTitleId = isset($case['account_title_id']) && (string) $case['account_title_id'] !== ''
+            ? (int) $case['account_title_id']
+            : null;
+        $accountCode = isset($case['account_code']) && (string) $case['account_code'] !== ''
+            ? (string) $case['account_code']
+            : null;
+        $tolerance = $this->normalizeAmount($case['tolerance'] ?? 0);
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('勘定科目ID: ' . ($accountTitleId !== null ? (string) $accountTitleId : 'all'));
+        $this->line('勘定科目コード: ' . ($accountCode !== null ? $accountCode : 'all'));
+        $this->line('許容差額: ' . $this->formatAmount($tolerance));
+
+        $actualRows = $this->buildSubAccountReportActualRows(
+            $bookId,
+            $periodFrom,
+            $periodTo,
+            $accountTitleId,
+            $accountCode
+        );
+
+        $comparisonRows = [];
+        $okCount = 0;
+        $ngCount = 0;
+        $expectedKeys = [];
+
+        foreach ($case['expected'] as $expectedRow) {
+            if (! is_array($expectedRow)) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'expected の各行はオブジェクトにしてください。'];
+                continue;
+            }
+
+            $key = $this->subAccountReportKeyFromExpectedRow($expectedRow);
+
+            if ($key === '') {
+                $ngCount++;
+                $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', 'key、account_code、または account_code + sub_account_code を指定してください。'];
+                continue;
+            }
+
+            $expectedKeys[] = $key;
+            $actualRow = $actualRows[$key] ?? null;
+
+            if ($actualRow === null) {
+                $ngCount++;
+                $comparisonRows[] = ['NG', $key, '行存在', 'あり', 'なし', '-', 'クラウド側に対象の補助科目一覧/補助残高行がありません。'];
+                continue;
+            }
+
+            foreach ($expectedRow as $field => $expectedValue) {
+                if (in_array($field, self::IDENTITY_FIELDS, true)) {
+                    continue;
+                }
+
+                if (! $this->isComparableAmount($expectedValue)) {
+                    continue;
+                }
+
+                if (! array_key_exists($field, $actualRow)) {
+                    $ngCount++;
+                    $comparisonRows[] = ['NG', $key, $field, $this->stringify($expectedValue), '項目なし', '-', 'クラウド側の比較項目がありません。'];
+                    continue;
+                }
+
+                $expectedAmount = $this->normalizeAmount($expectedValue);
+                $actualAmount = $this->normalizeAmount($actualRow[$field]);
+                $diff = round($actualAmount - $expectedAmount, 2);
+                $rowTolerance = array_key_exists('tolerance', $expectedRow)
+                    ? $this->normalizeAmount($expectedRow['tolerance'])
+                    : $tolerance;
+                $ok = abs($diff) <= $rowTolerance;
+
+                if ($ok) {
+                    $okCount++;
+                } else {
+                    $ngCount++;
+                }
+
+                $comparisonRows[] = [
+                    $ok ? 'OK' : 'NG',
+                    $key,
+                    $field,
+                    $this->formatAmount($expectedAmount),
+                    $this->formatAmount($actualAmount),
+                    $this->formatAmount($diff),
+                    $ok ? '' : '差額が許容範囲を超えています。',
+                ];
+            }
+        }
+
+        if ($failOnExtra) {
+            $extraKeys = array_values(array_diff(array_keys($actualRows), $expectedKeys));
+
+            foreach ($extraKeys as $extraKey) {
+                $ngCount++;
+                $comparisonRows[] = [
+                    'NG',
+                    $extraKey,
+                    '追加行',
+                    'なし',
+                    'あり',
+                    '-',
+                    '期待値にないクラウド側の補助科目一覧/補助残高行があります。',
+                ];
+            }
+        }
+
+        if ($comparisonRows === []) {
+            $ngCount++;
+            $comparisonRows[] = ['NG', '-', '-', '-', '-', '-', '比較対象がありません。expected を確認してください。'];
+        }
+
+        $this->table(
+            ['判定', 'キー', '項目', '期待値', '実績値', '差額', '内容'],
+            $comparisonRows
+        );
+
+        $this->line('結果: ' . ($ngCount === 0 ? 'OK' : 'NG') . ' / OK ' . $okCount . ' 件 / NG ' . $ngCount . ' 件');
+
+        return [
+            'ok_count' => $okCount,
+            'ng_count' => $ngCount,
+        ];
+    }
+
+    private function buildSubAccountReportActualRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        ?int $accountTitleId,
+        ?string $accountCode
+    ): array {
+        $query = DB::table('sub_account_titles as sat')
+            ->join('account_titles as at', 'at.id', '=', 'sat.account_title_id')
+            ->leftJoin('journal_entry_lines as jel', 'jel.sub_account_title_id', '=', 'sat.id')
+            ->leftJoin('journal_entries as je', function ($join) use ($bookId, $periodFrom, $periodTo): void {
+                $join->on('je.id', '=', 'jel.journal_entry_id')
+                    ->where('je.book_id', '=', $bookId)
+                    ->where('je.status', '=', 'posted')
+                    ->whereDate('je.entry_date', '>=', $periodFrom)
+                    ->whereDate('je.entry_date', '<=', $periodTo);
+            })
+            ->where('at.book_id', $bookId)
+            ->select([
+                'sat.id as sub_account_title_id',
+                'sat.sub_account_code',
+                'sat.name as sub_account_name',
+                'sat.is_active as sub_account_is_active',
+                'sat.sort_order as sub_account_sort_order',
+                'at.id as account_title_id',
+                'at.account_code',
+                'at.name as account_name',
+                'at.category',
+                'at.normal_balance',
+                'at.sort_order as account_sort_order',
+            ])
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'debit' THEN jel.amount ELSE 0 END), 0) as debit_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN je.id IS NOT NULL AND jel.side = 'credit' THEN jel.amount ELSE 0 END), 0) as credit_total")
+            ->groupBy(
+                'sat.id',
+                'sat.sub_account_code',
+                'sat.name',
+                'sat.is_active',
+                'sat.sort_order',
+                'at.id',
+                'at.account_code',
+                'at.name',
+                'at.category',
+                'at.normal_balance',
+                'at.sort_order'
+            )
+            ->orderBy('at.sort_order')
+            ->orderBy('at.account_code')
+            ->orderBy('sat.sort_order')
+            ->orderBy('sat.sub_account_code');
+
+        if ($accountTitleId !== null) {
+            $query->where('at.id', $accountTitleId);
+        } elseif ($accountCode !== null) {
+            $query->where('at.account_code', $accountCode);
+        }
+
+        $subAccountRows = $query
+            ->get()
+            ->map(function (object $row): array {
+                $debitTotal = $this->normalizeAmount($row->debit_total ?? 0);
+                $creditTotal = $this->normalizeAmount($row->credit_total ?? 0);
+                $normalBalance = (string) $row->normal_balance;
+
+                $rawBalance = $normalBalance === 'debit'
+                    ? round($debitTotal - $creditTotal, 2)
+                    : round($creditTotal - $debitTotal, 2);
+
+                [$endingBalance, $endingBalanceSide] = $this->subAccountReportNormalizeBalance(
+                    $rawBalance,
+                    $normalBalance
+                );
+
+                return [
+                    'sub_account_title_id' => (int) $row->sub_account_title_id,
+                    'sub_account_code' => (string) $row->sub_account_code,
+                    'sub_account_name' => (string) $row->sub_account_name,
+                    'sub_account_is_active' => (bool) $row->sub_account_is_active,
+                    'sub_account_sort_order' => (int) $row->sub_account_sort_order,
+                    'account_title_id' => (int) $row->account_title_id,
+                    'account_code' => (string) $row->account_code,
+                    'account_name' => (string) $row->account_name,
+                    'category' => (string) $row->category,
+                    'normal_balance' => $normalBalance,
+                    'account_sort_order' => (int) $row->account_sort_order,
+                    'debit_total' => $debitTotal,
+                    'credit_total' => $creditTotal,
+                    'debit_amount' => $debitTotal,
+                    'credit_amount' => $creditTotal,
+                    'ending_balance' => $endingBalance,
+                    'ending_balance_side' => $endingBalanceSide,
+                    'ending_debit' => $endingBalanceSide === 'debit' ? $endingBalance : 0.0,
+                    'ending_credit' => $endingBalanceSide === 'credit' ? $endingBalance : 0.0,
+                    'amount' => $endingBalance,
+                    'total_amount' => $endingBalance,
+                ];
+            })
+            ->values()
+            ->all();
+
+        $debitTotal = round(
+            collect($subAccountRows)->sum(fn (array $row): float => (float) $row['debit_total']),
+            2
+        );
+        $creditTotal = round(
+            collect($subAccountRows)->sum(fn (array $row): float => (float) $row['credit_total']),
+            2
+        );
+
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'sub_accounts_count' => count($subAccountRows),
+                'accounts_count' => collect($subAccountRows)->pluck('account_title_id')->unique()->count(),
+                'debit_total' => $debitTotal,
+                'credit_total' => $creditTotal,
+                'difference' => round($debitTotal - $creditTotal, 2),
+                'amount' => round($debitTotal - $creditTotal, 2),
+                'total_amount' => round($debitTotal - $creditTotal, 2),
+            ],
+        ];
+
+        collect($subAccountRows)
+            ->groupBy('account_code')
+            ->each(function ($rows, string $accountCode) use (&$actualRows): void {
+                $first = collect($rows)->first();
+                $debitTotal = round(collect($rows)->sum(fn (array $row): float => (float) $row['debit_total']), 2);
+                $creditTotal = round(collect($rows)->sum(fn (array $row): float => (float) $row['credit_total']), 2);
+                $endingDebit = round(collect($rows)->sum(fn (array $row): float => (float) $row['ending_debit']), 2);
+                $endingCredit = round(collect($rows)->sum(fn (array $row): float => (float) $row['ending_credit']), 2);
+
+                $actualRows['account:' . $accountCode] = [
+                    'key' => 'account:' . $accountCode,
+                    'account_title_id' => (int) ($first['account_title_id'] ?? 0),
+                    'account_code' => $accountCode,
+                    'account_name' => (string) ($first['account_name'] ?? ''),
+                    'category' => (string) ($first['category'] ?? ''),
+                    'normal_balance' => (string) ($first['normal_balance'] ?? ''),
+                    'sub_accounts_count' => collect($rows)->count(),
+                    'debit_total' => $debitTotal,
+                    'credit_total' => $creditTotal,
+                    'ending_debit' => $endingDebit,
+                    'ending_credit' => $endingCredit,
+                    'ending_balance' => round($endingDebit + $endingCredit, 2),
+                    'difference' => round($debitTotal - $creditTotal, 2),
+                    'amount' => round($endingDebit + $endingCredit, 2),
+                    'total_amount' => round($endingDebit + $endingCredit, 2),
+                ];
+            });
+
+        foreach ($subAccountRows as $row) {
+            $key = $this->subAccountReportSubAccountKey(
+                (string) $row['account_code'],
+                (string) $row['sub_account_code']
+            );
+
+            $actualRows[$key] = $row + [
+                'key' => $key,
+            ];
+        }
+
+        return $actualRows;
+    }
+
+    private function subAccountReportKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (
+            isset($row['account_code'], $row['sub_account_code'])
+            && (string) $row['account_code'] !== ''
+            && (string) $row['sub_account_code'] !== ''
+        ) {
+            return $this->subAccountReportSubAccountKey(
+                (string) $row['account_code'],
+                (string) $row['sub_account_code']
+            );
+        }
+
+        if (isset($row['account_code']) && (string) $row['account_code'] !== '') {
+            return 'account:' . (string) $row['account_code'];
+        }
+
+        return '';
+    }
+
+    private function subAccountReportSubAccountKey(string $accountCode, string $subAccountCode): string
+    {
+        return 'sub_account:' . $accountCode . '|' . $subAccountCode;
+    }
+
+    private function subAccountReportNormalizeBalance(float $rawBalance, string $normalBalance): array
     {
         $balance = round(abs($rawBalance), 2);
 
