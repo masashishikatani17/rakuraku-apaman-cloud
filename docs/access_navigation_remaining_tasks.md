@@ -71,6 +71,18 @@
 | resources/views/sub_account_titles/index.blade.php | 補助科目一覧 | 5 |
 | resources/views/welcome.blade.php | — | 2 |
 
+## Access再確認メモの反映
+
+`docs/access_rental_payment_report_parent_recheck.md` で、賃貸・入金・帳票系のAccess親導線を再確認した。
+
+現時点の結論:
+
+- `/payment-menu`、`/rental-menu`、`/output-menu` はAccess正式親メニューではなく、Cloud補助メニューとして維持する。
+- `FN_通常入金一覧` は `FN_会計管理` との関係が強いが、`FN_会計管理` 側の Caption と OpenForm先に食い違いがあるため、別途重点確認する。
+- 帳票系は `BackForm` で元画面へ戻るものが多いため、Cloud版では元画面と補助メニューの両方を残し、正式親が確定したものから整理する。
+- 契約者台帳、所有者、物件、物件区分、入金項目、入金口座等は、引き続き `FN_マスター` 由来として扱う。
+
+
 ## 次に実施する確認
 
 1. Accessフォーム定義から、賃貸・入金・帳票・物件別損益系の親フォームを再抽出する。
