@@ -1,0 +1,33 @@
+{
+  "case_id": "payment_reconciliation_action_001",
+  "title": "入金差額処理一覧 基本ケース",
+  "report": "payment_reconciliation_action",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "shortage_count": 1,
+      "shortage_total": 100000,
+      "overpayment_count": 0,
+      "overpayment_total": 0,
+      "actions_count": 0,
+      "posted_actions_count": 0,
+      "cancelled_actions_count": 0,
+      "action_amount_total": 0,
+      "total_amount": 100000
+    },
+    {
+      "key": "shortage_schedule:1",
+      "payment_schedule_id": 1,
+      "expected_amount": 100000,
+      "confirmed_received_amount": 0,
+      "remaining_amount": 100000,
+      "shortage_carryover_amount": 0,
+      "remaining_after_carryover": 100000,
+      "total_amount": 100000
+    }
+  ]
+}

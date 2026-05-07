@@ -1,0 +1,50 @@
+{
+  "case_id": "rental_move_out_settlement_001",
+  "title": "退去精算 基本ケース",
+  "report": "rental_move_out_settlement",
+  "book_id": 1,
+  "status": "all",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "rows_count": 1,
+      "draft_count": 1,
+      "confirmed_count": 0,
+      "cancelled_count": 0,
+      "deposit_total": 100000,
+      "charge_total": 30000,
+      "refund_total": 70000,
+      "additional_billing_total": 0,
+      "journal_created_count": 0,
+      "total_amount": 100000
+    },
+    {
+      "status": "draft",
+      "rows_count": 1,
+      "deposit_total": 100000,
+      "charge_total": 30000,
+      "refund_total": 70000,
+      "additional_billing_total": 0,
+      "total_amount": 100000
+    },
+    {
+      "rental_move_out_settlement_id": 1,
+      "deposit_amount": 100000,
+      "guarantee_deposit_amount": 0,
+      "prepaid_rent_amount": 0,
+      "deposit_total": 100000,
+      "unpaid_rent_amount": 0,
+      "restoration_cost_amount": 30000,
+      "cleaning_cost_amount": 0,
+      "key_replacement_cost_amount": 0,
+      "other_charge_amount": 0,
+      "refund_transfer_fee_amount": 0,
+      "charge_total": 30000,
+      "refund_amount": 70000,
+      "additional_billing_amount": 0,
+      "journal_created_count": 0,
+      "total_amount": 100000
+    }
+  ]
+}
