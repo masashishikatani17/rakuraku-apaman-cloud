@@ -41,6 +41,9 @@ class VerifyReportTotalsCommand extends Command
         'property_payment_report',
         'property_ledger_report',
         'property_owner_profit_loss',
+        'payment_reconciliation_check',
+        'payment_reconciliation_action',
+        'rental_move_out_settlement',
     ];
 
     private const IDENTITY_FIELDS = [
@@ -125,6 +128,21 @@ class VerifyReportTotalsCommand extends Command
         'owner_id',
         'owner_code',
         'owner_name',
+        'payment_receipt_id',
+        'payment_reconciliation_action_id',
+        'source_payment_schedule_id',
+        'target_payment_schedule_id',
+        'created_payment_schedule_id',
+        'rental_contract_id',
+        'rental_move_out_settlement_id',
+        'reconciliation_status',
+        'reconciliation_status_label',
+        'action_type',
+        'action_type_label',
+        'status_label',
+        'action_on',
+        'settlement_on',
+        'move_out_on',
     ];
 
     public function handle(): int
@@ -321,6 +339,18 @@ class VerifyReportTotalsCommand extends Command
 
         if ($report === 'property_owner_profit_loss') {
             return $this->verifyPropertyOwnerProfitLossCase($case, $failOnExtra);
+        }
+
+        if ($report === 'payment_reconciliation_check') {
+            return $this->verifyPaymentReconciliationCheckCase($case, $failOnExtra);
+        }
+
+        if ($report === 'payment_reconciliation_action') {
+            return $this->verifyPaymentReconciliationActionCase($case, $failOnExtra);
+        }
+
+        if ($report === 'rental_move_out_settlement') {
+            return $this->verifyRentalMoveOutSettlementCase($case, $failOnExtra);
         }
 
         throw new RuntimeException('未対応の帳票種別です: ' . $report);
@@ -8055,6 +8085,730 @@ class VerifyReportTotalsCommand extends Command
             'ok_count' => $okCount,
             'ng_count' => $ngCount,
         ];
+    }
+
+
+
+    private function verifyPaymentReconciliationCheckCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+        $reconciliationStatus = in_array((string) ($case['reconciliation_status'] ?? 'all'), ['all', 'unpaid', 'shortage', 'exact', 'overpaid', 'cancelled'], true)
+            ? (string) ($case['reconciliation_status'] ?? 'all')
+            : 'all';
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+        $this->line('照合状態: ' . $reconciliationStatus);
+
+        $actualRows = $this->buildPaymentReconciliationCheckActualRows(
+            $bookId,
+            $periodFrom,
+            $periodTo,
+            $reconciliationStatus
+        );
+
+        return $this->verifyExpectedRowsByKey(
+            $case,
+            $actualRows,
+            fn (array $row): string => $this->paymentReconciliationCheckKeyFromExpectedRow($row),
+            'key、payment_schedule_id、reconciliation_status、property_code、tenant_code のいずれかを指定してください。',
+            'クラウド側に対象の入金差額チェック行がありません。',
+            '期待値にないクラウド側の入金差額チェック行があります。',
+            $failOnExtra
+        );
+    }
+
+    private function buildPaymentReconciliationCheckActualRows(
+        int $bookId,
+        string $periodFrom,
+        string $periodTo,
+        string $reconciliationStatus
+    ): array {
+        $receiptTotalsSubQuery = DB::table('payment_receipts')
+            ->select('payment_schedule_id')
+            ->selectRaw("COALESCE(SUM(CASE WHEN status = 'confirmed' THEN amount ELSE 0 END), 0) as confirmed_received_total")
+            ->selectRaw("COUNT(CASE WHEN status = 'confirmed' THEN 1 END) as confirmed_receipts_count")
+            ->groupBy('payment_schedule_id');
+
+        $outgoingActionsSubQuery = DB::table('payment_reconciliation_actions')
+            ->select('source_payment_schedule_id')
+            ->selectRaw("COALESCE(SUM(CASE WHEN status = 'posted' AND action_type = 'overpayment_application' THEN amount ELSE 0 END), 0) as outgoing_application_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN status = 'posted' AND action_type = 'shortage_carryover' THEN amount ELSE 0 END), 0) as shortage_carryover_total")
+            ->groupBy('source_payment_schedule_id');
+
+        $rows = DB::table('payment_schedules as ps')
+            ->leftJoinSub($receiptTotalsSubQuery, 'receipt_totals', function ($join): void {
+                $join->on('receipt_totals.payment_schedule_id', '=', 'ps.id');
+            })
+            ->leftJoinSub($outgoingActionsSubQuery, 'outgoing_actions', function ($join): void {
+                $join->on('outgoing_actions.source_payment_schedule_id', '=', 'ps.id');
+            })
+            ->leftJoin('rental_contracts as rc', 'rc.id', '=', 'ps.rental_contract_id')
+            ->leftJoin('properties as p', 'p.id', '=', 'rc.property_id')
+            ->leftJoin('property_units as pu', 'pu.id', '=', 'rc.property_unit_id')
+            ->leftJoin('contract_tenants as ct', 'ct.id', '=', 'ps.contract_tenant_id')
+            ->leftJoin('payment_items as pi', 'pi.id', '=', 'ps.payment_item_id')
+            ->leftJoin('payment_accounts as pa', 'pa.id', '=', 'ps.payment_account_id')
+            ->where('ps.book_id', $bookId)
+            ->whereDate('ps.due_on', '>=', $periodFrom)
+            ->whereDate('ps.due_on', '<=', $periodTo)
+            ->select([
+                'ps.id as payment_schedule_id',
+                'ps.due_on',
+                'ps.target_year_month',
+                'ps.status as payment_schedule_status',
+                'ps.expected_amount',
+                'ps.received_amount',
+                'p.property_code',
+                'p.name as property_name',
+                'pu.unit_no',
+                'ct.tenant_code',
+                'ct.name as tenant_name',
+                'pi.name as payment_item_name',
+                'pa.name as payment_account_name',
+            ])
+            ->selectRaw('COALESCE(receipt_totals.confirmed_received_total, 0) as confirmed_received_total')
+            ->selectRaw('COALESCE(receipt_totals.confirmed_receipts_count, 0) as confirmed_receipts_count')
+            ->selectRaw('COALESCE(outgoing_actions.outgoing_application_total, 0) as outgoing_application_total')
+            ->selectRaw('COALESCE(outgoing_actions.shortage_carryover_total, 0) as shortage_carryover_total')
+            ->orderBy('ps.due_on')
+            ->orderBy('ps.id')
+            ->get()
+            ->map(function (object $row): array {
+                $expectedAmount = $this->normalizeAmount($row->expected_amount ?? 0);
+                $scheduleReceivedAmount = $this->normalizeAmount($row->received_amount ?? 0);
+                $confirmedReceivedAmount = $this->normalizeAmount($row->confirmed_received_total ?? 0);
+                $outgoingApplicationAmount = $this->normalizeAmount($row->outgoing_application_total ?? 0);
+                $shortageCarryoverAmount = $this->normalizeAmount($row->shortage_carryover_total ?? 0);
+                $netReceivedAmount = round(max($confirmedReceivedAmount - $outgoingApplicationAmount, 0), 2);
+                $differenceAmount = round($netReceivedAmount - $expectedAmount, 2);
+                $remainingAmount = round(max($expectedAmount - $netReceivedAmount - $shortageCarryoverAmount, 0), 2);
+                $overpaidAmount = round(max($netReceivedAmount - $expectedAmount, 0), 2);
+                $status = $this->resolvePaymentReconciliationStatus(
+                    (string) ($row->payment_schedule_status ?? ''),
+                    $expectedAmount,
+                    $confirmedReceivedAmount
+                );
+
+                return [
+                    'payment_schedule_id' => (int) $row->payment_schedule_id,
+                    'due_on' => (string) ($row->due_on ?? ''),
+                    'target_year_month' => (string) ($row->target_year_month ?? ''),
+                    'property_code' => (string) ($row->property_code ?? ''),
+                    'property_name' => (string) ($row->property_name ?? ''),
+                    'unit_no' => (string) ($row->unit_no ?? ''),
+                    'tenant_code' => (string) ($row->tenant_code ?? ''),
+                    'tenant_name' => (string) ($row->tenant_name ?? ''),
+                    'payment_item_name' => (string) ($row->payment_item_name ?? ''),
+                    'payment_account_name' => (string) ($row->payment_account_name ?? ''),
+                    'expected_amount' => $expectedAmount,
+                    'schedule_received_amount' => $scheduleReceivedAmount,
+                    'confirmed_received_amount' => $confirmedReceivedAmount,
+                    'outgoing_application_amount' => $outgoingApplicationAmount,
+                    'shortage_carryover_amount' => $shortageCarryoverAmount,
+                    'net_received_amount' => $netReceivedAmount,
+                    'difference_amount' => $differenceAmount,
+                    'remaining_amount' => $remainingAmount,
+                    'overpaid_amount' => $overpaidAmount,
+                    'payment_schedule_status' => (string) ($row->payment_schedule_status ?? ''),
+                    'reconciliation_status' => $status,
+                    'confirmed_receipts_count' => (float) ($row->confirmed_receipts_count ?? 0),
+                    'amount_mismatch' => abs($scheduleReceivedAmount - $confirmedReceivedAmount) >= 0.005 ? 1.0 : 0.0,
+                    'total_amount' => abs($differenceAmount),
+                ];
+            })
+            ->filter(fn (array $row): bool => $reconciliationStatus === 'all' || $row['reconciliation_status'] === $reconciliationStatus)
+            ->values();
+
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'rows_count' => $rows->count(),
+                'unpaid_count' => $rows->where('reconciliation_status', 'unpaid')->count(),
+                'shortage_count' => $rows->where('reconciliation_status', 'shortage')->count(),
+                'exact_count' => $rows->where('reconciliation_status', 'exact')->count(),
+                'overpaid_count' => $rows->where('reconciliation_status', 'overpaid')->count(),
+                'cancelled_count' => $rows->where('reconciliation_status', 'cancelled')->count(),
+                'expected_total' => round($rows->sum(fn (array $row): float => (float) $row['expected_amount']), 2),
+                'received_total' => round($rows->sum(fn (array $row): float => (float) $row['confirmed_received_amount']), 2),
+                'remaining_total' => round($rows->sum(fn (array $row): float => (float) $row['remaining_amount']), 2),
+                'overpaid_total' => round($rows->sum(fn (array $row): float => (float) $row['overpaid_amount']), 2),
+                'mismatch_count' => $rows->where('amount_mismatch', 1.0)->count(),
+                'total_amount' => round($rows->sum(fn (array $row): float => abs((float) $row['difference_amount'])), 2),
+            ],
+        ];
+
+        $rows->groupBy('reconciliation_status')->each(function ($statusRows, string $status) use (&$actualRows): void {
+            $actualRows['status:' . $status] = [
+                'key' => 'status:' . $status,
+                'reconciliation_status' => $status,
+                'rows_count' => collect($statusRows)->count(),
+                'expected_total' => round(collect($statusRows)->sum(fn (array $row): float => (float) $row['expected_amount']), 2),
+                'received_total' => round(collect($statusRows)->sum(fn (array $row): float => (float) $row['confirmed_received_amount']), 2),
+                'remaining_total' => round(collect($statusRows)->sum(fn (array $row): float => (float) $row['remaining_amount']), 2),
+                'overpaid_total' => round(collect($statusRows)->sum(fn (array $row): float => (float) $row['overpaid_amount']), 2),
+                'total_amount' => round(collect($statusRows)->sum(fn (array $row): float => abs((float) $row['difference_amount'])), 2),
+            ];
+        });
+
+        $rows->groupBy('property_code')->each(function ($propertyRows, string $propertyCode) use (&$actualRows): void {
+            if ($propertyCode === '') {
+                return;
+            }
+
+            $first = collect($propertyRows)->first();
+
+            $actualRows['property:' . $propertyCode] = [
+                'key' => 'property:' . $propertyCode,
+                'property_code' => $propertyCode,
+                'property_name' => (string) ($first['property_name'] ?? ''),
+                'rows_count' => collect($propertyRows)->count(),
+                'expected_total' => round(collect($propertyRows)->sum(fn (array $row): float => (float) $row['expected_amount']), 2),
+                'received_total' => round(collect($propertyRows)->sum(fn (array $row): float => (float) $row['confirmed_received_amount']), 2),
+                'remaining_total' => round(collect($propertyRows)->sum(fn (array $row): float => (float) $row['remaining_amount']), 2),
+                'overpaid_total' => round(collect($propertyRows)->sum(fn (array $row): float => (float) $row['overpaid_amount']), 2),
+                'total_amount' => round(collect($propertyRows)->sum(fn (array $row): float => abs((float) $row['difference_amount'])), 2),
+            ];
+        });
+
+        $rows->groupBy('tenant_code')->each(function ($tenantRows, string $tenantCode) use (&$actualRows): void {
+            if ($tenantCode === '') {
+                return;
+            }
+
+            $first = collect($tenantRows)->first();
+
+            $actualRows['tenant:' . $tenantCode] = [
+                'key' => 'tenant:' . $tenantCode,
+                'tenant_code' => $tenantCode,
+                'tenant_name' => (string) ($first['tenant_name'] ?? ''),
+                'rows_count' => collect($tenantRows)->count(),
+                'expected_total' => round(collect($tenantRows)->sum(fn (array $row): float => (float) $row['expected_amount']), 2),
+                'received_total' => round(collect($tenantRows)->sum(fn (array $row): float => (float) $row['confirmed_received_amount']), 2),
+                'remaining_total' => round(collect($tenantRows)->sum(fn (array $row): float => (float) $row['remaining_amount']), 2),
+                'overpaid_total' => round(collect($tenantRows)->sum(fn (array $row): float => (float) $row['overpaid_amount']), 2),
+                'total_amount' => round(collect($tenantRows)->sum(fn (array $row): float => abs((float) $row['difference_amount'])), 2),
+            ];
+        });
+
+        foreach ($rows as $row) {
+            $key = 'schedule:' . (int) $row['payment_schedule_id'];
+            $actualRows[$key] = ['key' => $key] + $row;
+        }
+
+        return $actualRows;
+    }
+
+    private function paymentReconciliationCheckKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['payment_schedule_id']) && (string) $row['payment_schedule_id'] !== '') {
+            return 'schedule:' . (int) $row['payment_schedule_id'];
+        }
+
+        if (isset($row['reconciliation_status']) && (string) $row['reconciliation_status'] !== '') {
+            return 'status:' . (string) $row['reconciliation_status'];
+        }
+
+        if (isset($row['property_code']) && (string) $row['property_code'] !== '') {
+            return 'property:' . (string) $row['property_code'];
+        }
+
+        if (isset($row['tenant_code']) && (string) $row['tenant_code'] !== '') {
+            return 'tenant:' . (string) $row['tenant_code'];
+        }
+
+        return '';
+    }
+
+    private function resolvePaymentReconciliationStatus(string $scheduleStatus, float $expectedAmount, float $confirmedReceivedAmount): string
+    {
+        if ($scheduleStatus === 'cancelled') {
+            return 'cancelled';
+        }
+
+        if ($confirmedReceivedAmount <= 0) {
+            return 'unpaid';
+        }
+
+        if ($confirmedReceivedAmount < $expectedAmount) {
+            return 'shortage';
+        }
+
+        if ($confirmedReceivedAmount > $expectedAmount) {
+            return 'overpaid';
+        }
+
+        return 'exact';
+    }
+
+    private function verifyPaymentReconciliationActionCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $periodFrom = (string) $case['period_from'];
+        $periodTo = (string) $case['period_to'];
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('期間: ' . $periodFrom . ' 〜 ' . $periodTo);
+
+        $actualRows = $this->buildPaymentReconciliationActionActualRows($bookId, $periodFrom, $periodTo);
+
+        return $this->verifyExpectedRowsByKey(
+            $case,
+            $actualRows,
+            fn (array $row): string => $this->paymentReconciliationActionKeyFromExpectedRow($row),
+            'key、payment_reconciliation_action_id、payment_schedule_id、action_type、status のいずれかを指定してください。',
+            'クラウド側に対象の入金差額処理行がありません。',
+            '期待値にないクラウド側の入金差額処理行があります。',
+            $failOnExtra
+        );
+    }
+
+    private function buildPaymentReconciliationActionActualRows(int $bookId, string $periodFrom, string $periodTo): array
+    {
+        $candidateRows = $this->buildPaymentReconciliationActionCandidateRows($bookId, $periodFrom, $periodTo);
+        $actionRows = $this->buildPaymentReconciliationPostedActionRows($bookId, $periodFrom, $periodTo);
+
+        $shortageRows = $candidateRows->filter(fn (array $row): bool => (float) $row['remaining_after_carryover'] > 0)->values();
+        $overpaymentRows = $candidateRows->filter(fn (array $row): bool => (float) $row['overpaid_after_application'] > 0)->values();
+
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'shortage_count' => $shortageRows->count(),
+                'shortage_total' => round($shortageRows->sum(fn (array $row): float => (float) $row['remaining_after_carryover']), 2),
+                'overpayment_count' => $overpaymentRows->count(),
+                'overpayment_total' => round($overpaymentRows->sum(fn (array $row): float => (float) $row['overpaid_after_application']), 2),
+                'actions_count' => $actionRows->count(),
+                'posted_actions_count' => $actionRows->where('status', 'posted')->count(),
+                'cancelled_actions_count' => $actionRows->where('status', 'cancelled')->count(),
+                'action_amount_total' => round($actionRows->sum(fn (array $row): float => (float) $row['amount']), 2),
+                'total_amount' => round($shortageRows->sum(fn (array $row): float => (float) $row['remaining_after_carryover']) + $overpaymentRows->sum(fn (array $row): float => (float) $row['overpaid_after_application']), 2),
+            ],
+        ];
+
+        $actionRows->groupBy('action_type')->each(function ($rows, string $actionType) use (&$actualRows): void {
+            $actualRows['action_type:' . $actionType] = [
+                'key' => 'action_type:' . $actionType,
+                'action_type' => $actionType,
+                'actions_count' => collect($rows)->count(),
+                'posted_actions_count' => collect($rows)->where('status', 'posted')->count(),
+                'cancelled_actions_count' => collect($rows)->where('status', 'cancelled')->count(),
+                'amount_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['amount']), 2),
+                'total_amount' => round(collect($rows)->sum(fn (array $row): float => (float) $row['amount']), 2),
+            ];
+        });
+
+        $actionRows->groupBy('status')->each(function ($rows, string $status) use (&$actualRows): void {
+            $actualRows['status:' . $status] = [
+                'key' => 'status:' . $status,
+                'status' => $status,
+                'actions_count' => collect($rows)->count(),
+                'amount_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['amount']), 2),
+                'total_amount' => round(collect($rows)->sum(fn (array $row): float => (float) $row['amount']), 2),
+            ];
+        });
+
+        foreach ($shortageRows as $row) {
+            $actualRows['shortage_schedule:' . (int) $row['payment_schedule_id']] = [
+                'key' => 'shortage_schedule:' . (int) $row['payment_schedule_id'],
+            ] + $row;
+        }
+
+        foreach ($overpaymentRows as $row) {
+            $actualRows['overpayment_schedule:' . (int) $row['payment_schedule_id']] = [
+                'key' => 'overpayment_schedule:' . (int) $row['payment_schedule_id'],
+            ] + $row;
+        }
+
+        foreach ($actionRows as $row) {
+            $actualRows['action:' . (int) $row['payment_reconciliation_action_id']] = [
+                'key' => 'action:' . (int) $row['payment_reconciliation_action_id'],
+            ] + $row;
+        }
+
+        return $actualRows;
+    }
+
+    private function buildPaymentReconciliationActionCandidateRows(int $bookId, string $periodFrom, string $periodTo)
+    {
+        $receiptTotalsSubQuery = DB::table('payment_receipts')
+            ->select('payment_schedule_id')
+            ->selectRaw("COALESCE(SUM(CASE WHEN status = 'confirmed' THEN amount ELSE 0 END), 0) as confirmed_received_total")
+            ->groupBy('payment_schedule_id');
+
+        $actionTotalsSubQuery = DB::table('payment_reconciliation_actions')
+            ->select('source_payment_schedule_id')
+            ->selectRaw("COALESCE(SUM(CASE WHEN status = 'posted' AND action_type = 'overpayment_application' THEN amount ELSE 0 END), 0) as outgoing_application_total")
+            ->selectRaw("COALESCE(SUM(CASE WHEN status = 'posted' AND action_type = 'shortage_carryover' THEN amount ELSE 0 END), 0) as shortage_carryover_total")
+            ->groupBy('source_payment_schedule_id');
+
+        return DB::table('payment_schedules as ps')
+            ->leftJoinSub($receiptTotalsSubQuery, 'receipt_totals', function ($join): void {
+                $join->on('receipt_totals.payment_schedule_id', '=', 'ps.id');
+            })
+            ->leftJoinSub($actionTotalsSubQuery, 'action_totals', function ($join): void {
+                $join->on('action_totals.source_payment_schedule_id', '=', 'ps.id');
+            })
+            ->leftJoin('rental_contracts as rc', 'rc.id', '=', 'ps.rental_contract_id')
+            ->leftJoin('properties as p', 'p.id', '=', 'rc.property_id')
+            ->leftJoin('property_units as pu', 'pu.id', '=', 'rc.property_unit_id')
+            ->leftJoin('contract_tenants as ct', 'ct.id', '=', 'ps.contract_tenant_id')
+            ->leftJoin('payment_items as pi', 'pi.id', '=', 'ps.payment_item_id')
+            ->where('ps.book_id', $bookId)
+            ->where('ps.status', '<>', 'cancelled')
+            ->whereDate('ps.due_on', '>=', $periodFrom)
+            ->whereDate('ps.due_on', '<=', $periodTo)
+            ->select([
+                'ps.id as payment_schedule_id',
+                'ps.due_on',
+                'ps.target_year_month',
+                'ps.expected_amount',
+                'p.property_code',
+                'p.name as property_name',
+                'pu.unit_no',
+                'ct.tenant_code',
+                'ct.name as tenant_name',
+                'pi.name as payment_item_name',
+            ])
+            ->selectRaw('COALESCE(receipt_totals.confirmed_received_total, 0) as confirmed_received_total')
+            ->selectRaw('COALESCE(action_totals.outgoing_application_total, 0) as outgoing_application_total')
+            ->selectRaw('COALESCE(action_totals.shortage_carryover_total, 0) as shortage_carryover_total')
+            ->orderBy('ps.due_on')
+            ->orderBy('ps.id')
+            ->get()
+            ->map(function (object $row): array {
+                $expectedAmount = $this->normalizeAmount($row->expected_amount ?? 0);
+                $confirmedReceivedAmount = $this->normalizeAmount($row->confirmed_received_total ?? 0);
+                $outgoingApplicationAmount = $this->normalizeAmount($row->outgoing_application_total ?? 0);
+                $shortageCarryoverAmount = $this->normalizeAmount($row->shortage_carryover_total ?? 0);
+                $netReceivedAmount = round(max($confirmedReceivedAmount - $outgoingApplicationAmount, 0), 2);
+                $remainingAmount = round(max($expectedAmount - $netReceivedAmount, 0), 2);
+                $overpaidAmount = round(max($netReceivedAmount - $expectedAmount, 0), 2);
+
+                return [
+                    'payment_schedule_id' => (int) $row->payment_schedule_id,
+                    'due_on' => (string) ($row->due_on ?? ''),
+                    'target_year_month' => (string) ($row->target_year_month ?? ''),
+                    'property_code' => (string) ($row->property_code ?? ''),
+                    'property_name' => (string) ($row->property_name ?? ''),
+                    'unit_no' => (string) ($row->unit_no ?? ''),
+                    'tenant_code' => (string) ($row->tenant_code ?? ''),
+                    'tenant_name' => (string) ($row->tenant_name ?? ''),
+                    'payment_item_name' => (string) ($row->payment_item_name ?? ''),
+                    'expected_amount' => $expectedAmount,
+                    'confirmed_received_amount' => $confirmedReceivedAmount,
+                    'outgoing_application_amount' => $outgoingApplicationAmount,
+                    'net_received_amount' => $netReceivedAmount,
+                    'remaining_amount' => $remainingAmount,
+                    'shortage_carryover_amount' => $shortageCarryoverAmount,
+                    'remaining_after_carryover' => round(max($remainingAmount - $shortageCarryoverAmount, 0), 2),
+                    'overpaid_amount' => $overpaidAmount,
+                    'overpaid_after_application' => $overpaidAmount,
+                    'total_amount' => round(max($remainingAmount - $shortageCarryoverAmount, 0) + $overpaidAmount, 2),
+                ];
+            });
+    }
+
+    private function buildPaymentReconciliationPostedActionRows(int $bookId, string $periodFrom, string $periodTo)
+    {
+        return DB::table('payment_reconciliation_actions as pra')
+            ->leftJoin('payment_schedules as source_ps', 'source_ps.id', '=', 'pra.source_payment_schedule_id')
+            ->leftJoin('payment_schedules as target_ps', 'target_ps.id', '=', 'pra.target_payment_schedule_id')
+            ->leftJoin('contract_tenants as source_ct', 'source_ct.id', '=', 'source_ps.contract_tenant_id')
+            ->leftJoin('contract_tenants as target_ct', 'target_ct.id', '=', 'target_ps.contract_tenant_id')
+            ->where('pra.book_id', $bookId)
+            ->whereDate('pra.action_on', '>=', $periodFrom)
+            ->whereDate('pra.action_on', '<=', $periodTo)
+            ->select([
+                'pra.id as payment_reconciliation_action_id',
+                'pra.action_type',
+                'pra.source_payment_schedule_id',
+                'pra.target_payment_schedule_id',
+                'pra.created_payment_schedule_id',
+                'pra.payment_receipt_id',
+                'pra.action_on',
+                'pra.amount',
+                'pra.status',
+                'source_ct.tenant_code as source_tenant_code',
+                'source_ct.name as source_tenant_name',
+                'target_ct.tenant_code as target_tenant_code',
+                'target_ct.name as target_tenant_name',
+            ])
+            ->orderByDesc('pra.action_on')
+            ->orderByDesc('pra.id')
+            ->get()
+            ->map(fn (object $row): array => [
+                'payment_reconciliation_action_id' => (int) $row->payment_reconciliation_action_id,
+                'action_type' => (string) $row->action_type,
+                'source_payment_schedule_id' => $row->source_payment_schedule_id !== null ? (int) $row->source_payment_schedule_id : null,
+                'target_payment_schedule_id' => $row->target_payment_schedule_id !== null ? (int) $row->target_payment_schedule_id : null,
+                'created_payment_schedule_id' => $row->created_payment_schedule_id !== null ? (int) $row->created_payment_schedule_id : null,
+                'payment_receipt_id' => $row->payment_receipt_id !== null ? (int) $row->payment_receipt_id : null,
+                'action_on' => (string) ($row->action_on ?? ''),
+                'amount' => $this->normalizeAmount($row->amount ?? 0),
+                'status' => (string) ($row->status ?? ''),
+                'source_tenant_code' => (string) ($row->source_tenant_code ?? ''),
+                'source_tenant_name' => (string) ($row->source_tenant_name ?? ''),
+                'target_tenant_code' => (string) ($row->target_tenant_code ?? ''),
+                'target_tenant_name' => (string) ($row->target_tenant_name ?? ''),
+                'total_amount' => $this->normalizeAmount($row->amount ?? 0),
+            ]);
+    }
+
+    private function paymentReconciliationActionKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['payment_reconciliation_action_id']) && (string) $row['payment_reconciliation_action_id'] !== '') {
+            return 'action:' . (int) $row['payment_reconciliation_action_id'];
+        }
+
+        if (isset($row['payment_schedule_id']) && (string) $row['payment_schedule_id'] !== '') {
+            if (isset($row['candidate_type']) && (string) $row['candidate_type'] === 'overpayment') {
+                return 'overpayment_schedule:' . (int) $row['payment_schedule_id'];
+            }
+
+            return 'shortage_schedule:' . (int) $row['payment_schedule_id'];
+        }
+
+        if (isset($row['action_type']) && (string) $row['action_type'] !== '') {
+            return 'action_type:' . (string) $row['action_type'];
+        }
+
+        if (isset($row['status']) && (string) $row['status'] !== '') {
+            return 'status:' . (string) $row['status'];
+        }
+
+        return '';
+    }
+
+    private function verifyRentalMoveOutSettlementCase(array $case, bool $failOnExtra): array
+    {
+        $bookId = (int) $case['book_id'];
+        $status = in_array((string) ($case['status'] ?? 'all'), ['all', 'draft', 'confirmed', 'cancelled'], true)
+            ? (string) ($case['status'] ?? 'all')
+            : 'all';
+
+        $this->line('帳簿ID: ' . $bookId);
+        $this->line('状態: ' . $status);
+
+        $actualRows = $this->buildRentalMoveOutSettlementActualRows($bookId, $status);
+
+        return $this->verifyExpectedRowsByKey(
+            $case,
+            $actualRows,
+            fn (array $row): string => $this->rentalMoveOutSettlementKeyFromExpectedRow($row),
+            'key、rental_move_out_settlement_id、rental_contract_id、property_code、tenant_code、status のいずれかを指定してください。',
+            'クラウド側に対象の退去精算行がありません。',
+            '期待値にないクラウド側の退去精算行があります。',
+            $failOnExtra
+        );
+    }
+
+    private function buildRentalMoveOutSettlementActualRows(int $bookId, string $status): array
+    {
+        $query = DB::table('rental_move_out_settlements as mos')
+            ->leftJoin('rental_contracts as rc', 'rc.id', '=', 'mos.rental_contract_id')
+            ->leftJoin('properties as p', 'p.id', '=', 'rc.property_id')
+            ->leftJoin('property_units as pu', 'pu.id', '=', 'rc.property_unit_id')
+            ->leftJoin('contract_tenants as ct', 'ct.id', '=', 'rc.contract_tenant_id')
+            ->where('mos.book_id', $bookId)
+            ->select([
+                'mos.id as rental_move_out_settlement_id',
+                'mos.rental_contract_id',
+                'mos.settlement_on',
+                'mos.move_out_on',
+                'mos.deposit_amount',
+                'mos.guarantee_deposit_amount',
+                'mos.prepaid_rent_amount',
+                'mos.unpaid_rent_amount',
+                'mos.restoration_cost_amount',
+                'mos.cleaning_cost_amount',
+                'mos.key_replacement_cost_amount',
+                'mos.other_charge_amount',
+                'mos.refund_transfer_fee_amount',
+                'mos.refund_amount',
+                'mos.additional_billing_amount',
+                'mos.status',
+                'mos.journal_entry_id',
+                'p.property_code',
+                'p.name as property_name',
+                'pu.unit_no',
+                'ct.tenant_code',
+                'ct.name as tenant_name',
+            ])
+            ->orderByDesc('mos.settlement_on')
+            ->orderByDesc('mos.id');
+
+        if ($status !== 'all') {
+            $query->where('mos.status', $status);
+        }
+
+        $settlementRows = $query
+            ->get()
+            ->map(function (object $row): array {
+                $depositAmount = $this->normalizeAmount($row->deposit_amount ?? 0);
+                $guaranteeDepositAmount = $this->normalizeAmount($row->guarantee_deposit_amount ?? 0);
+                $prepaidRentAmount = $this->normalizeAmount($row->prepaid_rent_amount ?? 0);
+                $unpaidRentAmount = $this->normalizeAmount($row->unpaid_rent_amount ?? 0);
+                $restorationCostAmount = $this->normalizeAmount($row->restoration_cost_amount ?? 0);
+                $cleaningCostAmount = $this->normalizeAmount($row->cleaning_cost_amount ?? 0);
+                $keyReplacementCostAmount = $this->normalizeAmount($row->key_replacement_cost_amount ?? 0);
+                $otherChargeAmount = $this->normalizeAmount($row->other_charge_amount ?? 0);
+                $refundTransferFeeAmount = $this->normalizeAmount($row->refund_transfer_fee_amount ?? 0);
+                $refundAmount = $this->normalizeAmount($row->refund_amount ?? 0);
+                $additionalBillingAmount = $this->normalizeAmount($row->additional_billing_amount ?? 0);
+
+                $depositTotal = round($depositAmount + $guaranteeDepositAmount + $prepaidRentAmount, 2);
+                $chargeTotal = round($unpaidRentAmount + $restorationCostAmount + $cleaningCostAmount + $keyReplacementCostAmount + $otherChargeAmount + $refundTransferFeeAmount, 2);
+
+                return [
+                    'rental_move_out_settlement_id' => (int) $row->rental_move_out_settlement_id,
+                    'rental_contract_id' => (int) $row->rental_contract_id,
+                    'settlement_on' => (string) ($row->settlement_on ?? ''),
+                    'move_out_on' => (string) ($row->move_out_on ?? ''),
+                    'property_code' => (string) ($row->property_code ?? ''),
+                    'property_name' => (string) ($row->property_name ?? ''),
+                    'unit_no' => (string) ($row->unit_no ?? ''),
+                    'tenant_code' => (string) ($row->tenant_code ?? ''),
+                    'tenant_name' => (string) ($row->tenant_name ?? ''),
+                    'deposit_amount' => $depositAmount,
+                    'guarantee_deposit_amount' => $guaranteeDepositAmount,
+                    'prepaid_rent_amount' => $prepaidRentAmount,
+                    'deposit_total' => $depositTotal,
+                    'unpaid_rent_amount' => $unpaidRentAmount,
+                    'restoration_cost_amount' => $restorationCostAmount,
+                    'cleaning_cost_amount' => $cleaningCostAmount,
+                    'key_replacement_cost_amount' => $keyReplacementCostAmount,
+                    'other_charge_amount' => $otherChargeAmount,
+                    'refund_transfer_fee_amount' => $refundTransferFeeAmount,
+                    'charge_total' => $chargeTotal,
+                    'refund_amount' => $refundAmount,
+                    'additional_billing_amount' => $additionalBillingAmount,
+                    'status' => (string) ($row->status ?? ''),
+                    'journal_entry_id' => $row->journal_entry_id !== null ? (int) $row->journal_entry_id : null,
+                    'journal_created_count' => $row->journal_entry_id !== null ? 1.0 : 0.0,
+                    'total_amount' => round($depositTotal + $additionalBillingAmount, 2),
+                ];
+            });
+
+        $actualRows = [
+            'summary' => [
+                'key' => 'summary',
+                'rows_count' => $settlementRows->count(),
+                'draft_count' => $settlementRows->where('status', 'draft')->count(),
+                'confirmed_count' => $settlementRows->where('status', 'confirmed')->count(),
+                'cancelled_count' => $settlementRows->where('status', 'cancelled')->count(),
+                'deposit_total' => round($settlementRows->sum(fn (array $row): float => (float) $row['deposit_total']), 2),
+                'charge_total' => round($settlementRows->sum(fn (array $row): float => (float) $row['charge_total']), 2),
+                'refund_total' => round($settlementRows->sum(fn (array $row): float => (float) $row['refund_amount']), 2),
+                'additional_billing_total' => round($settlementRows->sum(fn (array $row): float => (float) $row['additional_billing_amount']), 2),
+                'journal_created_count' => round($settlementRows->sum(fn (array $row): float => (float) $row['journal_created_count']), 2),
+                'total_amount' => round($settlementRows->sum(fn (array $row): float => (float) $row['deposit_total'] + (float) $row['additional_billing_amount']), 2),
+            ],
+        ];
+
+        $settlementRows->groupBy('status')->each(function ($rows, string $status) use (&$actualRows): void {
+            $actualRows['status:' . $status] = [
+                'key' => 'status:' . $status,
+                'status' => $status,
+                'rows_count' => collect($rows)->count(),
+                'deposit_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['deposit_total']), 2),
+                'charge_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['charge_total']), 2),
+                'refund_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['refund_amount']), 2),
+                'additional_billing_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['additional_billing_amount']), 2),
+                'total_amount' => round(collect($rows)->sum(fn (array $row): float => (float) $row['deposit_total'] + (float) $row['additional_billing_amount']), 2),
+            ];
+        });
+
+        $settlementRows->groupBy('property_code')->each(function ($rows, string $propertyCode) use (&$actualRows): void {
+            if ($propertyCode === '') {
+                return;
+            }
+
+            $first = collect($rows)->first();
+
+            $actualRows['property:' . $propertyCode] = [
+                'key' => 'property:' . $propertyCode,
+                'property_code' => $propertyCode,
+                'property_name' => (string) ($first['property_name'] ?? ''),
+                'rows_count' => collect($rows)->count(),
+                'deposit_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['deposit_total']), 2),
+                'charge_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['charge_total']), 2),
+                'refund_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['refund_amount']), 2),
+                'additional_billing_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['additional_billing_amount']), 2),
+                'total_amount' => round(collect($rows)->sum(fn (array $row): float => (float) $row['deposit_total'] + (float) $row['additional_billing_amount']), 2),
+            ];
+        });
+
+        $settlementRows->groupBy('tenant_code')->each(function ($rows, string $tenantCode) use (&$actualRows): void {
+            if ($tenantCode === '') {
+                return;
+            }
+
+            $first = collect($rows)->first();
+
+            $actualRows['tenant:' . $tenantCode] = [
+                'key' => 'tenant:' . $tenantCode,
+                'tenant_code' => $tenantCode,
+                'tenant_name' => (string) ($first['tenant_name'] ?? ''),
+                'rows_count' => collect($rows)->count(),
+                'deposit_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['deposit_total']), 2),
+                'charge_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['charge_total']), 2),
+                'refund_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['refund_amount']), 2),
+                'additional_billing_total' => round(collect($rows)->sum(fn (array $row): float => (float) $row['additional_billing_amount']), 2),
+                'total_amount' => round(collect($rows)->sum(fn (array $row): float => (float) $row['deposit_total'] + (float) $row['additional_billing_amount']), 2),
+            ];
+        });
+
+        foreach ($settlementRows as $row) {
+            $actualRows['settlement:' . (int) $row['rental_move_out_settlement_id']] = [
+                'key' => 'settlement:' . (int) $row['rental_move_out_settlement_id'],
+            ] + $row;
+
+            $actualRows['contract:' . (int) $row['rental_contract_id']] = [
+                'key' => 'contract:' . (int) $row['rental_contract_id'],
+            ] + $row;
+        }
+
+        return $actualRows;
+    }
+
+    private function rentalMoveOutSettlementKeyFromExpectedRow(array $row): string
+    {
+        if (isset($row['key']) && (string) $row['key'] !== '') {
+            return (string) $row['key'];
+        }
+
+        if (isset($row['rental_move_out_settlement_id']) && (string) $row['rental_move_out_settlement_id'] !== '') {
+            return 'settlement:' . (int) $row['rental_move_out_settlement_id'];
+        }
+
+        if (isset($row['rental_contract_id']) && (string) $row['rental_contract_id'] !== '') {
+            return 'contract:' . (int) $row['rental_contract_id'];
+        }
+
+        if (isset($row['property_code']) && (string) $row['property_code'] !== '') {
+            return 'property:' . (string) $row['property_code'];
+        }
+
+        if (isset($row['tenant_code']) && (string) $row['tenant_code'] !== '') {
+            return 'tenant:' . (string) $row['tenant_code'];
+        }
+
+        if (isset($row['status']) && (string) $row['status'] !== '') {
+            return 'status:' . (string) $row['status'];
+        }
+
+        return '';
     }
 
 

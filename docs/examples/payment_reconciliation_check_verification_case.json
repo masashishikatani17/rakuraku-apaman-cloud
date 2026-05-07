@@ -1,0 +1,46 @@
+{
+  "case_id": "payment_reconciliation_check_001",
+  "title": "入金差額チェック 基本ケース",
+  "report": "payment_reconciliation_check",
+  "book_id": 1,
+  "period_from": "2026-01-01",
+  "period_to": "2026-12-31",
+  "reconciliation_status": "all",
+  "tolerance": 0,
+  "expected": [
+    {
+      "key": "summary",
+      "rows_count": 1,
+      "unpaid_count": 1,
+      "shortage_count": 0,
+      "exact_count": 0,
+      "overpaid_count": 0,
+      "cancelled_count": 0,
+      "expected_total": 100000,
+      "received_total": 0,
+      "remaining_total": 100000,
+      "overpaid_total": 0,
+      "mismatch_count": 0,
+      "total_amount": 100000
+    },
+    {
+      "reconciliation_status": "unpaid",
+      "rows_count": 1,
+      "expected_total": 100000,
+      "received_total": 0,
+      "remaining_total": 100000,
+      "overpaid_total": 0,
+      "total_amount": 100000
+    },
+    {
+      "payment_schedule_id": 1,
+      "expected_amount": 100000,
+      "confirmed_received_amount": 0,
+      "net_received_amount": 0,
+      "difference_amount": -100000,
+      "remaining_amount": 100000,
+      "overpaid_amount": 0,
+      "total_amount": 100000
+    }
+  ]
+}
